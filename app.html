@@ -178,9 +178,9 @@ select.fi option{background:#fff;color:#111}
 .loc-card:hover{border-color:var(--blue)}
 .loc-card-top{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,rgba(26,107,255,.12),rgba(0,212,255,.06));border-bottom:1px solid rgba(0,212,255,.1);padding:12px 14px}
 .loc-icon{width:32px;height:32px;background:rgba(26,107,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.loc-text{font-size:18px;font-weight:800;color:var(--blue);letter-spacing:.04em}
+.loc-text{font-size:14px;font-weight:700;color:var(--blue);letter-spacing:.04em}
 .loc-empty-text{font-size:14px;color:var(--text3)}
-.loc-mold{font-size:11px;color:var(--text3);margin-top:2px}
+.loc-mold{font-size:13px;color:var(--text2);margin-top:2px}
 .loc-card-body{padding:12px 14px}
 .loc-chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;margin-right:5px;margin-bottom:4px}
 .loc-chip .lbl{color:var(--text3);margin-right:2px}
@@ -4360,7 +4360,7 @@ function locRenderResults(q) {
   }
   box.innerHTML = '<div class="loc-result-meta">검색 결과 <strong>' + list.length + '건</strong></div>'
     + list.map(function(d, i) {
-      return '<div class="loc-card" onclick="locOpenModal(\"' + d.id + '\")" style="animation-delay:' + (i * 20) + 'ms">'
+      return '<div class="loc-card" data-iid="' + d.id.replace(/"/g,'&quot;') + '" onclick="locOpenModal(this.getAttribute(\'data-iid\'))" style="animation-delay:' + (i * 20) + 'ms">'
         + '<div class="loc-card-top">'
         + '<div class="loc-icon">📍</div>'
         + '<div style="flex:1">'
