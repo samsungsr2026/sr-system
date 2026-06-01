@@ -2555,9 +2555,9 @@ function printBarcodes(){
   const makeLabel=(it)=>{
     if(!it) return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box"></div>`;
     const qrVal=(it.classNo||it.id||'-');
-    function scaleX(text, maxPx, fsPx){
+    function autoFs(text, maxPx, fsPx){
       var est = text.length * fsPx * 0.65;
-      return est > maxPx ? 'transform:scaleX('+(maxPx/est)+');transform-origin:center center' : '';
+      return est > maxPx ? Math.floor(fsPx * maxPx / est) : fsPx;
     }
     return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
@@ -2567,24 +2567,24 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">품&nbsp;&nbsp;명</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:22px;font-weight:800;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.name,145,22)}">${it.name}</span>
+          <span style="font-size:${autoFs(it.name,145,22)}px;font-weight:800;color:#111;white-space:nowrap">${it.name}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:22px;font-family:monospace;font-weight:700;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.classNo||'-',145,22)}">${it.classNo||'-'}</span>
+          <span style="font-size:${autoFs(it.classNo||'-',145,22)}px;font-family:monospace;font-weight:700;color:#111;white-space:nowrap">${it.classNo||'-'}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">금형번호</div>
         <div style="flex:1;display:flex;overflow:hidden">
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1.5px solid #111">
-            <span style="font-size:22px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.id||'-',70,22)}">${it.id||'-'}</span>
+            <span style="font-size:${autoFs(it.id||'-',70,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap">${it.id||'-'}</span>
           </div>
           <div style="width:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;border-right:1.5px solid #111;white-space:nowrap">수량</div>
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">
-            <span style="font-size:22px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;display:inline-block;${scaleX(String(it.printQty)+' EA',55,22)}">${it.printQty} EA</span>
+            <span style="font-size:${autoFs(String(it.printQty)+' EA',55,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap">${it.printQty} EA</span>
           </div>
         </div>
       </div>
