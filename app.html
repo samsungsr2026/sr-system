@@ -2443,12 +2443,7 @@ function rBarcode(){
                     style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;color:var(--text);font-size:13px;font-weight:700;text-align:center;outline:none;font-family:monospace"
                     oninput="bcItems[${i}].qty=parseInt(this.value)||1">
                 </div>
-                <div style="width:90px">
-                  <label style="font-size:10px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">포장단위</label>
-                  <input type="number" min="1" value="${b.packUnit||1}"
-                    style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;color:var(--purple);font-size:13px;font-weight:700;text-align:center;outline:none;font-family:monospace"
-                    oninput="bcItems[${i}].packUnit=parseInt(this.value)||1">
-                </div>
+
               </div>
               <div style="font-size:10px;color:var(--text3)">QR 값: <span style="font-family:monospace;color:var(--text2)">${b.classNo||b.moldNo||'-'}</span></div>
             </div>
@@ -2462,7 +2457,7 @@ function rBarcode(){
             style="width:70px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text);font-size:15px;font-weight:700;text-align:center;outline:none;font-family:monospace">
           <span style="font-size:13px;color:var(--text3)">장</span>
           <div style="display:flex;gap:6px;margin-left:auto">
-            ${[1,2,3,5].map(n=>`<button onclick="document.getElementById('print-sheets').value=${n}" style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer">${n}장</button>`).join('')}
+            ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button onclick="document.getElementById('print-sheets').value=${n}" style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer">${n}장</button>`).join('')}
           </div>
         </div>
         <button class="btn bbl btn-full" style="margin-top:0;font-size:15px;padding:14px" onclick="printBarcodes()">
