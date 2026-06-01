@@ -259,6 +259,13 @@ select.fi option{background:#fff;color:#111}
 
   /* ── 하단 탭바 표시 ── */
   .mobile-tabbar { display: flex !important; }
+
+  /* ── 위치검색 카드 글씨 크기 통일 ── */
+  .loc-text { font-size: 14px !important; font-weight: 700 !important; }
+  .loc-mold { font-size: 14px !important; color: var(--text2) !important; margin-top: 4px !important; }
+  .loc-chip .val { font-size: 13px !important; }
+  .loc-chip .lbl { font-size: 13px !important; }
+  .loc-name { font-size: 14px !important; }
 }
 
 @media (min-width: 769px) {
@@ -4375,11 +4382,12 @@ function locOpenModal(id) {
   var d = inv.find(function(i) { return i.id === id; });
   if (!d) return;
   var html = '';
-  html += '<div class="loc-big"' + (locEditMode ? ' style="cursor:pointer" onclick="locToggleEditSec()"' : '') + '>';
-  html += '<div class="loc-big-label">📍 제품 위치' + (locEditMode ? ' <span style="font-size:10px;opacity:.5">(탭하여 수정)</span>' : '') + '</div>';
+  var canEdit = locEditMode || (curUser && curUser.id);
+  html += '<div class="loc-big"' + (canEdit ? ' style="cursor:pointer" onclick="locToggleEditSec()"' : '') + '>';
+  html += '<div class="loc-big-label">📍 제품 위치' + (canEdit ? ' <span style="font-size:10px;opacity:.5">(탭하여 수정)</span>' : '') + '</div>';
   html += d.location ? '<div class="loc-big-val">' + d.location + '</div>' : '<div class="loc-big-empty">위치 미등록</div>';
   html += '</div>';
-  if (locEditMode) {
+  if (canEdit) {
     html += '<div id="loc-edit-sec" style="display:none;margin-bottom:14px">';
     html += '<input class="loc-edit-input" id="loc-edit-input" type="text" value="' + (d.location || '') + '" placeholder="위치 입력 (예: D2.2.1)">';
     html += '<div style="display:flex;gap:8px">';
@@ -4393,7 +4401,7 @@ function locOpenModal(id) {
   html += '<div class="loc-mo-row"><span class="k">재질</span><span class="v">' + (d.material || '-') + '</span></div>';
   html += '<div class="loc-mo-row"><span class="k">품명</span><span class="v">' + d.name + '</span></div>';
   html += '</div>';
-  if (locEditMode) {
+  if (canEdit) {
     html += '<div style="margin-bottom:14px">';
     html += '<div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">🏭 생산자</div>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
