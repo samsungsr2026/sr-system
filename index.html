@@ -512,7 +512,7 @@ function fileIcon(type,name){
 // ── 관리자 권한 시스템 ────────────────────────────────────────────
 // 계정 목록: {id, name, pw, role}  role: 'master'(마스터관리자) | 'admin'(관리자) | 'user'(일반)
 // 기본 마스터 계정 1개 - 최초 실행 시 생성
-const DEFAULT_ACCOUNTS=[{id:'master',name:'정창식',pw:'1234',role:'master'}];
+const DEFAULT_ACCOUNTS=[{id:'master',name:'정창식',pw:'6716',role:'master'}];
 let accounts=JSON.parse(localStorage.getItem('sr-accounts')||JSON.stringify(DEFAULT_ACCOUNTS));
 // 앱 시작 시 서버 accounts 동기화
 cfGet('accounts').then(ra=>{
