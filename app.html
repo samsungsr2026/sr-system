@@ -2443,6 +2443,12 @@ function rBarcode(){
                     style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;color:var(--text);font-size:13px;font-weight:700;text-align:center;outline:none;font-family:monospace"
                     oninput="bcItems[${i}].qty=parseInt(this.value)||1">
                 </div>
+                <div style="width:90px">
+                  <label style="font-size:10px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">포장단위</label>
+                  <input type="number" min="1" value="${b.packUnit||1}"
+                    style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;color:var(--purple);font-size:13px;font-weight:700;text-align:center;outline:none;font-family:monospace"
+                    oninput="bcItems[${i}].packUnit=parseInt(this.value)||1">
+                </div>
               </div>
               <div style="font-size:10px;color:var(--text3)">QR 값: <span style="font-family:monospace;color:var(--text2)">${b.classNo||b.moldNo||'-'}</span></div>
             </div>
@@ -2544,7 +2550,7 @@ function printBarcodes(){
   const allLabels=[];
   bcItems.forEach(b=>{
     // 출력 목록에서 수정된 값을 그대로 사용
-    const lbl={name:b.name||'',classNo:b.classNo||'',id:b.moldNo||'',printQty:b.qty||1};
+    const lbl={name:b.name||'',classNo:b.classNo||'',id:b.moldNo||'',printQty:b.qty||1,packUnit:b.packUnit||1};
     for(let i=0;i<8;i++) allLabels.push({...lbl});
   });
 
