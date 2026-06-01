@@ -4366,7 +4366,7 @@ function locRenderResults(q) {
   box.innerHTML = '<div class="loc-result-meta">검색 결과 <strong>' + list.length + '건</strong></div>'
     + list.map(function(d, i) {
       return '<div class="loc-card" data-iid="' + d.id.replace(/"/g,'&quot;') + '" onclick="locOpenModal(this.getAttribute(\'data-iid\'))" style="animation-delay:' + (i * 20) + 'ms">'
-        + '<div class="loc-card-top">'
+        + '<div class="loc-card-top" style="pointer-events:none">'
         + '<div class="loc-icon" style="font-size:28px">📍</div>'
         + '<div style="flex:1">'
         + '<div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">'
