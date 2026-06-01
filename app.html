@@ -4362,18 +4362,13 @@ function locRenderResults(q) {
     + list.map(function(d, i) {
       return '<div class="loc-card" data-iid="' + d.id.replace(/"/g,'&quot;') + '" onclick="locOpenModal(this.getAttribute(\'data-iid\'))" style="animation-delay:' + (i * 20) + 'ms">'
         + '<div class="loc-card-top">'
-        + '<div class="loc-icon">📍</div>'
+        + '<div class="loc-icon" style="font-size:28px">📍</div>'
         + '<div style="flex:1">'
-        + (d.location ? '<div class="loc-text">' + d.location + '</div>' : '<div class="loc-empty-text">위치 미등록</div>')
-        + '<div class="loc-mold">' + d.id + (d.producer ? ' · ' + d.producer : '') + '</div>'
-        + '</div></div>'
-        + '<div class="loc-card-body">'
-        + '<div>'
-        + '<span class="loc-chip blue"><span class="lbl">금형</span><span class="val">' + d.id + '</span></span>'
-        + '<span class="loc-chip"><span class="lbl">부품번호</span><span class="val">' + (d.classNo || '-') + '</span></span>'
-        + (d.material ? '<span class="loc-chip"><span class="lbl">재질</span><span class="val">' + d.material + '</span></span>' : '')
+        + '<div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">'
+        + (d.location ? '<div style="font-size:28px;font-weight:900;color:var(--blue);letter-spacing:.04em;line-height:1.1">' + d.location + '</div>' : '<div style="font-size:22px;color:var(--text3)">위치 미등록</div>')
+        + '<div style="font-size:18px;font-weight:800;color:var(--text);font-family:monospace">' + d.id + (d.producer ? ' <span style="color:var(--purple);font-family:inherit;font-size:16px">· ' + d.producer + '</span>' : '') + '</div>'
         + '</div>'
-        + '<div class="loc-name">' + d.name + '</div>'
+        + '<div style="font-size:15px;color:var(--text2);margin-top:5px;font-weight:600">' + d.name + (d.classNo ? ' <span style="color:var(--text3);font-family:monospace;font-size:13px">· ' + d.classNo + '</span>' : '') + '</div>'
         + '</div></div>';
     }).join('');
 }
