@@ -4382,7 +4382,7 @@ function locOpenModal(id) {
   var d = inv.find(function(i) { return i.id === id; });
   if (!d) return;
   var html = '';
-  var locCanEdit = locEditMode || canEdit();
+  var locCanEdit = true; // 항상 수정 가능 (저장 시 관리자 권한 체크)
   html += '<div class="loc-big"' + (locCanEdit ? ' style="cursor:pointer" onclick="locToggleEditSec()"' : '') + '>';
   html += '<div class="loc-big-label">📍 제품 위치' + (locCanEdit ? ' <span style="font-size:10px;opacity:.5">(탭하여 수정)</span>' : '') + '</div>';
   html += d.location ? '<div class="loc-big-val">' + d.location + '</div>' : '<div class="loc-big-empty">위치 미등록</div>';
