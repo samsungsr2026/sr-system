@@ -2205,17 +2205,26 @@ window.onload=function(){
   // 품명 자동축소 - 렌더링 완료 후 실행
   function fitNames(){
     document.querySelectorAll('.lbl-autofit').forEach(function(span){
-      span.style.transform = '';
+      span.style.transform = 'none';
       var wrap = span.parentElement;
       var maxW = wrap.offsetWidth - 4;
-      var textW = span.scrollWidth;
-      if(textW > maxW){
+      span.style.display = 'inline-block';
+      var textW = span.getBoundingClientRect().width;
+      if(textW > maxW && maxW > 0){
         span.style.transform = 'scaleX('+(maxW/textW)+')';
         span.style.transformOrigin = 'center center';
       }
     });
   }
-  setTimeout(function(){fitTh();setTimeout(function(){fitNames();setTimeout(function(){window.print();},300);},200);},400);};
+  setTimeout(function(){
+    fitTh();
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        fitNames();
+        setTimeout(function(){window.print();},400);
+      });
+    });
+  },400);};
 <\/script>
 </body></html>`;
   const pw=window.open('','_blank','width=950,height=700');
