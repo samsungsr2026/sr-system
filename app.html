@@ -2196,6 +2196,7 @@ function fitTh(){
   document.querySelectorAll('table').forEach(function(t){t.style.tableLayout='fixed';});
   var cells=document.querySelectorAll('table td,table th');
   cells.forEach(function(c){
+    if(c.querySelector('.lbl-autofit')) return;
     var min=8,cur=parseFloat(getComputedStyle(c).fontSize),g=0;
     while(c.scrollWidth>c.offsetWidth+1&&cur>min&&g<80){cur-=0.5;g++;c.style.fontSize=cur+'px';}
   });
