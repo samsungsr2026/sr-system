@@ -2533,31 +2533,34 @@ function printBarcodes(){
     const qrVal=(it.classNo||it.id||'-');
     return `<div class="lw">
       <table class="lt">
-        <colgroup>
-          <col style="width:28%"><col style="width:34%">
-          <col style="width:14%"><col style="width:24%">
-        </colgroup>
-        <tr>
+        <colgroup><col style="width:30%"><col style="width:70%"></colgroup>
+        <tr style="height:14.3%">
           <td class="lk">업체명</td>
-          <td class="lv" colspan="3"><span class="fit" style="font-weight:900">삼성 S.R</span></td>
+          <td class="lv" style="font-size:15px;font-weight:900">삼성 S.R</td>
         </tr>
-        <tr>
+        <tr style="height:14.3%">
           <td class="lk">품&nbsp;&nbsp;명</td>
-          <td class="lv" colspan="3"><span class="fit" style="font-weight:800">${it.name}</span></td>
+          <td class="lv" style="font-size:13px;font-weight:800">${it.name}</td>
         </tr>
-        <tr>
+        <tr style="height:14.3%">
           <td class="lk">부품번호</td>
-          <td class="lv" colspan="3"><span class="fit dt">${it.classNo||'-'}</span></td>
+          <td class="lv" style="font-size:13px;font-family:monospace;font-weight:700">${it.classNo||'-'}</td>
         </tr>
-        <tr>
+        <tr style="height:14.3%">
           <td class="lk">금형번호</td>
-          <td class="lv qmold" align="center" style="text-align:center;vertical-align:middle"><span class="fit dt">${it.id||'-'}</span></td>
-          <td class="lk">수량</td>
-          <td class="lv qcell" align="center" style="text-align:center;vertical-align:middle"><span class="fit" style="font-weight:900;font-family:monospace">${it.printQty} EA</span></td>
+          <td class="lv" style="padding:0">
+            <table style="width:100%;height:100%;border-collapse:collapse">
+              <tr>
+                <td style="text-align:center;vertical-align:middle;font-size:15px;font-family:monospace;font-weight:900;color:#111;border-right:1.5px solid #111;width:50%">${it.id||'-'}</td>
+                <td style="text-align:center;vertical-align:middle;font-size:11px;font-weight:800;color:#111;border-right:1.5px solid #111;width:20%;white-space:nowrap">수량</td>
+                <td style="text-align:center;vertical-align:middle;font-size:13px;font-family:monospace;font-weight:900;color:#111;width:30%">${it.printQty} EA</td>
+              </tr>
+            </table>
+          </td>
         </tr>
-        <tr>
+        <tr style="height:42.8%">
           <td class="lk">QR코드</td>
-          <td class="lv qr-cell" colspan="3">
+          <td class="lv qr-cell">
             <div class="qrbox" data-val="${qrVal}"></div>
           </td>
         </tr>
@@ -2631,27 +2634,27 @@ html,body{margin:0;padding:0;background:#fff;font-family:'Malgun Gothic',sans-se
 .empty{border:2px dashed #ccc}
 
 /* 키+값 테이블 */
-.lt{width:100%;border-collapse:collapse;flex:1;table-layout:fixed}
+.lt{width:100%;border-collapse:collapse;height:calc(100% - 10mm);table-layout:fixed}
 .lt tr{border-bottom:1.5px solid #111}
 .lt tr:last-child{border-bottom:none}
 
 /* 키(왼쪽 항목명) - 1.5배 크기 */
 .lk{
   width:90px;
-  padding:1px 4px;
-  font-size:15px;
+  padding:0 4px;
+  font-size:13px;
   font-weight:800;
   color:#111;
   border-right:1.5px solid #111;
   text-align:center;
   vertical-align:middle;
   white-space:nowrap;
-  line-height:1.2;
+  line-height:1;
 }
 
 /* 값(오른쪽) */
 .lv{
-  padding:1px 5px;
+  padding:0 4px;
   vertical-align:middle;
   text-align:center;
   font-weight:700;
@@ -2678,16 +2681,18 @@ html,body{margin:0;padding:0;background:#fff;font-family:'Malgun Gothic',sans-se
 /* QR코드 셀 */
 .qr-cell{padding:2px 4px;text-align:center;vertical-align:middle}
 .qrbox{display:inline-flex;align-items:center;justify-content:center}
-.qrbox img,.qrbox canvas{display:block;width:45px;height:45px;image-rendering:pixelated}
+.qrbox img,.qrbox canvas{display:block;width:55px;height:55px;image-rendering:pixelated}
 
 /* MADE IN KOREA 하단 */
 .made{
   text-align:center;
-  font-size:13px;
+  font-size:11px;
   font-weight:800;
   letter-spacing:.18em;
-  padding:3px 0;
+  height:10mm;
+  line-height:10mm;
   border-top:1.5px solid #111;
+  flex-shrink:0;
 }
 
 @media print{
