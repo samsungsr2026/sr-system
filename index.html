@@ -645,7 +645,9 @@ async function jbPull() {
     else { dots(); }
     jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
   } catch(e) {
-    jbStat('⚠️ 연결오류', '#c07800');
+    jbStat('⚠️ 오프라인 모드', '#c07800');
+    // 서버 연결 실패시 로컬 데이터로 화면 표시
+    render(); dots();
   }
 }
 
@@ -4428,7 +4430,8 @@ document.addEventListener('click',function(e){
 });
 
 tick();setInterval(tick,30000);
-window.addEventListener('load', () => setTimeout(jbPull, 800));
+render();dots(); // 로컬 데이터로 즉시 화면 표시
+window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
 setInterval(jbPull, 5000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
