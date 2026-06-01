@@ -4459,6 +4459,27 @@ function locSaveLocation(id) {
   if (q && q.value) locRenderResults(q.value.trim());
 }
 
+function locSaveDetail(id) {
+  if (!requireEdit()) return;
+  var idx = inv.findIndex(function(i) { return i.id === id; });
+  if (idx < 0) return;
+  var loc = document.getElementById('loc-edit-input') ? document.getElementById('loc-edit-input').value.trim() : '';
+  var qty = parseInt(document.getElementById('loc-qty-input') ? document.getElementById('loc-qty-input').value : inv[idx].qty);
+  var min = parseInt(document.getElementById('loc-min-input') ? document.getElementById('loc-min-input').value : inv[idx].min);
+  var classNo = document.getElementById('loc-classno-input') ? document.getElementById('loc-classno-input').value.trim() : inv[idx].classNo;
+  var material = document.getElementById('loc-material-input') ? document.getElementById('loc-material-input').value.trim() : inv[idx].material;
+  if (loc) inv[idx].location = loc;
+  if (!isNaN(qty)) inv[idx].qty = qty;
+  if (!isNaN(min)) inv[idx].min = min;
+  if (classNo) inv[idx].classNo = classNo;
+  if (material) inv[idx].material = material;
+  sv();
+  cmo();
+  tst('✓ 저장 완료: ' + inv[idx].name);
+  var q = document.getElementById('loc-search');
+  if (q && q.value) locRenderResults(q.value.trim());
+}
+
 function locSaveProducer(id) {
   var prod = document.getElementById('loc-prod-input') ? document.getElementById('loc-prod-input').value.trim() : '';
   var idx = inv.findIndex(function(i) { return i.id === id; });
