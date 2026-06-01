@@ -4382,12 +4382,12 @@ function locOpenModal(id) {
   var d = inv.find(function(i) { return i.id === id; });
   if (!d) return;
   var html = '';
-  var canEdit = locEditMode || (curUser && curUser.id);
-  html += '<div class="loc-big"' + (canEdit ? ' style="cursor:pointer" onclick="locToggleEditSec()"' : '') + '>';
-  html += '<div class="loc-big-label">📍 제품 위치' + (canEdit ? ' <span style="font-size:10px;opacity:.5">(탭하여 수정)</span>' : '') + '</div>';
+  var locCanEdit = locEditMode || canEdit();
+  html += '<div class="loc-big"' + (locCanEdit ? ' style="cursor:pointer" onclick="locToggleEditSec()"' : '') + '>';
+  html += '<div class="loc-big-label">📍 제품 위치' + (locCanEdit ? ' <span style="font-size:10px;opacity:.5">(탭하여 수정)</span>' : '') + '</div>';
   html += d.location ? '<div class="loc-big-val">' + d.location + '</div>' : '<div class="loc-big-empty">위치 미등록</div>';
   html += '</div>';
-  if (canEdit) {
+  if (locCanEdit) {
     html += '<div id="loc-edit-sec" style="display:none;margin-bottom:14px">';
     html += '<input class="loc-edit-input" id="loc-edit-input" type="text" value="' + (d.location || '') + '" placeholder="위치 입력 (예: D2.2.1)">';
     html += '<div style="display:flex;gap:8px">';
@@ -4400,8 +4400,22 @@ function locOpenModal(id) {
   html += '<div class="loc-mo-row"><span class="k">부품번호</span><span class="v">' + (d.classNo || '-') + '</span></div>';
   html += '<div class="loc-mo-row"><span class="k">재질</span><span class="v">' + (d.material || '-') + '</span></div>';
   html += '<div class="loc-mo-row"><span class="k">품명</span><span class="v">' + d.name + '</span></div>';
+  html += '<div class="loc-mo-row"><span class="k">현재 재고</span><span class="v">' + d.qty + ' ' + d.unit + '</span></div>';
+  html += '<div class="loc-mo-row"><span class="k">최소 기준</span><span class="v">' + d.min + ' ' + d.unit + '</span></div>';
   html += '</div>';
-  if (canEdit) {
+  if (locCanEdit) {
+    html += '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
+    html += '<div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:10px">✏️ 상세 수정</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">현재 재고</div><input id="loc-qty-input" type="number" class="loc-edit-input" value="' + d.qty + '" style="padding:8px 10px"></div>';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">최소 기준</div><input id="loc-min-input" type="number" class="loc-edit-input" value="' + d.min + '" style="padding:8px 10px"></div>';
+    html += '</div>';
+    html += '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">부품번호</div><input id="loc-classno-input" type="text" class="loc-edit-input" value="' + (d.classNo||'') + '" style="padding:8px 10px"></div>';
+    html += '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">재질</div><input id="loc-material-input" type="text" class="loc-edit-input" value="' + (d.material||'') + '" style="padding:8px 10px"></div>';
+    html += '<button class="btn bbl btn-full" onclick="locSaveDetail(&quot;' + d.id + '&quot;)">✓ 전체 저장</button>';
+    html += '</div>';
+  }
+  if (locCanEdit) {
     html += '<div style="margin-bottom:14px">';
     html += '<div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">🏭 생산자</div>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
