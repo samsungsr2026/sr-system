@@ -4353,11 +4353,19 @@ function locRenderResults(q) {
   var list = inv.filter(function(d) {
     return d.id.toUpperCase().includes(qu) || d.name.toUpperCase().includes(qu) || (d.classNo || '').includes(q);
   }).sort(function(a, b) {
+    var aExact = a.id.toUpperCase() === qu;
+    var bExact = b.id.toUpperCase() === qu;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+    var aStart = a.id.toUpperCase().startsWith(qu);
+    var bStart = b.id.toUpperCase().startsWith(qu);
+    if (aStart && !bStart) return -1;
+    if (!aStart && bStart) return 1;
     var aId = a.id.toUpperCase().includes(qu);
     var bId = b.id.toUpperCase().includes(qu);
     if (aId && !bId) return -1;
     if (!aId && bId) return 1;
-    return 0;
+    return a.id.localeCompare(b.id);
   });
   if (!list.length) {
     box.innerHTML = '<div class="loc-empty-state"><div class="icon">🔍</div><div>검색 결과 없음</div></div>';
