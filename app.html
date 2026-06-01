@@ -2555,6 +2555,10 @@ function printBarcodes(){
   const makeLabel=(it)=>{
     if(!it) return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box"></div>`;
     const qrVal=(it.classNo||it.id||'-');
+    function scaleX(text, maxPx, fsPx){
+      var est = text.length * fsPx * 0.65;
+      return est > maxPx ? 'transform:scaleX('+(maxPx/est)+');transform-origin:center center' : '';
+    }
     return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">업체명</div>
@@ -2563,25 +2567,31 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">품&nbsp;&nbsp;명</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:22px;font-weight:800;color:#111;display:inline-block;white-space:nowrap;transform-origin:center center;transform:scaleX(${Math.min(1,(120/(it.name.length*13)))})">${it.name}</span>
+          <span style="font-size:22px;font-weight:800;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.name,145,22)}">${it.name}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:22px;font-family:monospace;font-weight:700;color:#111">${it.classNo||'-'}</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
+          <span style="font-size:22px;font-family:monospace;font-weight:700;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.classNo||'-',145,22)}">${it.classNo||'-'}</span>
+        </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">금형번호</div>
         <div style="flex:1;display:flex;overflow:hidden">
-          <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:22px;font-family:monospace;font-weight:900;color:#111;border-right:1.5px solid #111">${it.id||'-'}</div>
-          <div style="width:32px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;border-right:1.5px solid #111;white-space:nowrap">수량</div>
-          <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:22px;font-family:monospace;font-weight:900;color:#111">${it.printQty} EA</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1.5px solid #111">
+            <span style="font-size:22px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;display:inline-block;${scaleX(it.id||'-',70,22)}">${it.id||'-'}</span>
+          </div>
+          <div style="width:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;border-right:1.5px solid #111;white-space:nowrap">수량</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <span style="font-size:22px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;display:inline-block;${scaleX(String(it.printQty)+' EA',55,22)}">${it.printQty} EA</span>
+          </div>
         </div>
       </div>
       <div style="height:25%;min-height:25%;max-height:25%;border-bottom:1.5px solid #111;display:flex;flex-shrink:0;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111">QR코드</div>
         <div style="flex:1;display:flex;align-items:stretch;justify-content:center;padding:0">
-          <div class="qrbox" data-val="${qrVal}" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"></div>
+          <div class="qrbox" data-val="${qrVal}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"></div>
         </div>
       </div>
       <div style="flex:1;min-height:0;flex-shrink:1;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.18em;color:#111">MADE IN KOREA</div>
