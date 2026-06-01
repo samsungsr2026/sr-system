@@ -3447,7 +3447,7 @@ ${toolbar}
       <td class="c">${idx+1}</td>
       <td class="m" style="color:#1a4e8f">${it.id}</td>
       <td class="m" style="color:#555">${it.classNo||'-'}</td>
-      <td class="m" style="color:#1a4e8f">${it.location||'-'}</td>
+      <td class="m" style="color:#1a4e8f;font-size:${(it.location||'—').length>8?'9px':(it.location||'—').length>6?'10px':'11px'};white-space:nowrap;overflow:hidden">${it.location||'—'}</td>
       <td class="big">${(it.qty||0).toLocaleString()} <span style="font-size:60%;font-weight:600">${it.unit}</span></td>
       <td class="m" style="color:#555">${(it.curQty||0).toLocaleString()}</td>
       <td>${it.name}</td>
