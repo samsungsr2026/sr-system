@@ -2121,23 +2121,23 @@ body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:18px;font-size:14
 h1{font-size:32px;font-weight:700;text-align:center;margin-bottom:6px;letter-spacing:.1em}
 .co{text-align:center;color:#555;font-size:13px;margin-bottom:8px}
 .info{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #222;margin-bottom:24px}
-.ic{padding:4px 15px;border:.5px solid #bbb;display:flex;align-items:center;min-height:29px}
+.ic{padding:8px 15px;border:.5px solid #bbb;display:flex;align-items:center;min-height:44px}
 .il{font-size:17px;color:#666;width:110px;flex-shrink:0}
 .iv{font-weight:600;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
-.ic-full{grid-column:1/-1;padding:4px 15px;border:.5px solid #bbb;display:flex;align-items:center;min-height:29px}
+.ic-full{grid-column:1/-1;padding:8px 15px;border:.5px solid #bbb;display:flex;align-items:center;min-height:44px}
 table{width:100%;border-collapse:collapse;margin-bottom:28px;table-layout:fixed}
-th{background:#1a1f2e;color:#fff;padding:6px 2px;font-size:11px;font-weight:600;text-align:center;border:1.5px solid #888;white-space:nowrap;overflow:hidden}
-td{padding:6px 4px;border:1.5px solid #ccc;font-size:13px;vertical-align:middle;white-space:nowrap;overflow:hidden}
+th{background:#f0f0f0;color:#111;padding:10px 4px;font-size:16px;font-weight:700;text-align:center;border:1.5px solid #888;overflow:hidden;white-space:nowrap}
+td{padding:8px 4px;border:1.5px solid #ccc;font-size:16px;vertical-align:middle;overflow:hidden;white-space:nowrap}
 tr:nth-child(even) td{background:#f5f7ff}
 .c{text-align:center}.m{font-family:monospace;font-weight:600;text-align:center}
 .red{color:#c00;font-weight:700}.amb{color:#92400e;font-weight:700}
-.big{font-size:13px;color:#1a4e8f;font-weight:700;text-align:center;white-space:nowrap}
-.urg{background:#fee2e2;color:#b91c1c;padding:2px 4px;border-radius:3px;font-size:11px;font-weight:700}
+.big{font-size:20px;color:#1a4e8f;font-weight:700;text-align:center}
+.urg{background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:3px;font-size:14px;font-weight:700}
 .signs{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #333;margin-bottom:24px;width:100%}
 .sc{padding:4px;border:.5px solid #ccc;text-align:center;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
 .sl{font-size:9px;color:#888;margin-bottom:0}.sn{font-size:10px;font-weight:600}
 .sig-img{width:auto;height:40px;object-fit:contain;display:block;margin:0 auto;mix-blend-mode:multiply}
-.foot{font-size:14px;color:#999;text-align:center;border-top:2px solid #ddd;padding-top:14px}
+.foot{font-size:18px;color:#999;text-align:center;border-top:2px solid #ddd;padding-top:14px}
 @media print{@page{size:A4;margin:12mm}body{padding:0}}
 </style></head><body>
 <h1>생 산 계 획 서</h1>
@@ -2152,23 +2152,25 @@ tr:nth-child(even) td{background:#f5f7ff}
 <table>
   <thead><tr>
     <th style="width:4%">No</th>
-    <th style="width:13%">금형번호</th>
-    <th style="width:16%">생산목표수량</th>
-    <th style="width:12%">생산자</th>
-    <th style="width:10%">현재고</th>
-    <th style="width:13%">제품위치</th>
-    <th style="width:32%">품목명</th>
+    <th style="width:14%">금형번호</th>
+    <th style="width:28%">품목명</th>
+    <th style="width:10%">생산자</th>
+    <th style="width:9%">현재고</th>
+    <th style="width:10%">월출하량</th>
+    <th style="width:14%">생산목표수량</th>
+    <th style="width:11%">상태</th>
   </tr></thead>
   <tbody>
-    ${items.map((it,i)=>`<tr>
-      <td class="c">${i+1}</td>
-      <td class="m" style="color:#1a4e8f">${it.id}</td>
-      <td class="big">${it.planQty.toLocaleString()}</td>
-      <td class="c" style="color:#444">${it.producer||'-'}</td>
-      <td class="m ${st(it)==='low'?'red':'amb'}">${it.qty.toLocaleString()}</td>
-      <td class="c" style="color:#1a4e8f">${it.location||'-'}</td>
-      <td>${it.name}</td>
-    </tr>`).join('')}
+  ${items.map((it,i)=>`<tr>
+    <td class="c">${i+1}</td>
+    <td class="m" style="color:#1a4e8f">${it.id}</td>
+    <td>${it.name}</td>
+    <td class="c" style="color:#444">${it.producer||'-'}</td>
+    <td class="m ${st(it)==='low'?'red':'amb'}">${it.qty.toLocaleString()}</td>
+    <td class="m" style="color:#555">${it.avgOut||0}</td>
+    <td class="big">${it.planQty.toLocaleString()}</td>
+    <td class="c">${st(it)==='low'?'<span class="urg">부족</span>':'<span style="color:#92400e;font-size:16px;font-weight:700">주의</span>'}</td>
+  </tr>`).join('')}
   </tbody>
 </table>
 <div class="signs">
@@ -3451,7 +3453,7 @@ ${toolbar}
       <td>${it.name}</td>
       <td class="c" style="color:#444">${it.producer||'-'}</td>
     </tr>`).join('')}
-    <tr class="tot"><td class="c" colspan="4">합 계</td><td class="c">${o.items.length}종</td><td class="c" colspan="3"></td></tr>
+    <tr class="tot"><td class="c" colspan="4">합 계</td><td class="c">${totQty.toLocaleString()}</td><td class="c" colspan="3"></td></tr>
   </tbody>
 </table>
 <div class="note">
