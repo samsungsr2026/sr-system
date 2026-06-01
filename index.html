@@ -3098,6 +3098,7 @@ function rAddProd(){
 }
 
 // ── 제품 삭제 ─────────────────────────────────────────────────────
+// delSel = Set of inv 배열 인덱스 (id 아닌 idx 기준 — 동일 금형번호 구분)
 let delSq='', delSel=new Set();
 
 function rDelProd(){
@@ -3105,7 +3106,7 @@ function rDelProd(){
     return `<div class="page-title" style="color:var(--red)">제품 삭제</div>
     <div class="warn-box">⚠️ 관리자 로그인 후 사용할 수 있습니다.</div>`;
   }
-  const list=inv.filter(i=>
+  const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
     !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
     (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
   );
@@ -3125,10 +3126,6 @@ function rDelProd(){
       <input type="text" class="fi" placeholder="품명, 금형번호, 부품번호, 위치 검색..." value="${delSq}"
         oninput="delSq=this.value;renderDelList()" style="padding-left:37px">
     </div>
-    <label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;white-space:nowrap">
-      <input type="checkbox" id="del-all-chk" style="width:15px;height:15px;accent-color:var(--red);cursor:pointer" onchange="toggleDelAll(this.checked)">
-      전체선택
-    </label>
     ${sc>0?`<button onclick="delSel.clear();render()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">선택 해제</button>`:''}
   </div>
 
@@ -3145,10 +3142,10 @@ function rDelProd(){
         <th style="width:80px;text-align:center">즉시삭제</th>
       </tr></thead>
       <tbody id="del-list-body">
-        ${list.map(it=>`<tr style="background:${delSel.has(it.id)?'var(--red-bg)':''}">
+        ${list.map(it=>`<tr style="background:${delSel.has(it._idx)?'var(--red-bg)':''}">
           <td style="text-align:center">
-            <input type="checkbox" ${delSel.has(it.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--red);cursor:pointer"
-              onchange="toggleDelItem('${it.id}',this.checked)">
+            <input type="checkbox" ${delSel.has(it._idx)?'checked':''} style="width:16px;height:16px;accent-color:var(--red);cursor:pointer"
+              onchange="toggleDelItem(${it._idx},this.checked)">
           </td>
           <td><span style="font-size:14px;margin-right:6px">${it.e||'📦'}</span><strong>${it.name}</strong></td>
           <td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px">${it.id}</td>
@@ -3157,7 +3154,7 @@ function rDelProd(){
           <td style="font-family:monospace;font-weight:700;color:${it.qty<=it.min?'var(--red)':'var(--text)'}">${it.qty.toLocaleString()} <span style="font-size:11px;color:var(--text3);font-weight:400">${it.unit}</span></td>
           <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
           <td style="text-align:center">
-            <button onclick="delOneProd('${it.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>
+            <button onclick="delOneProd(${it._idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -3167,58 +3164,62 @@ function rDelProd(){
 }
 
 function renderDelList(){
-  const list=inv.filter(i=>
+  const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
     !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
     (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
   );
   const tbody=document.getElementById('del-list-body');
   if(!tbody){render();return;}
-  tbody.innerHTML=list.map(it=>`<tr style="background:${delSel.has(it.id)?'var(--red-bg)':''}">
-    <td style="text-align:center"><input type="checkbox" ${delSel.has(it.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--red);cursor:pointer" onchange="toggleDelItem('${it.id}',this.checked)"></td>
+  tbody.innerHTML=list.map(it=>`<tr style="background:${delSel.has(it._idx)?'var(--red-bg)':''}">
+    <td style="text-align:center"><input type="checkbox" ${delSel.has(it._idx)?'checked':''} style="width:16px;height:16px;accent-color:var(--red);cursor:pointer" onchange="toggleDelItem(${it._idx},this.checked)"></td>
     <td><span style="font-size:14px;margin-right:6px">${it.e||'📦'}</span><strong>${it.name}</strong></td>
     <td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px">${it.id}</td>
     <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
     <td><span style="background:var(--blue-bg);color:var(--blue);padding:2px 8px;border-radius:5px;font-family:monospace;font-size:12px">${it.location||'-'}</span></td>
     <td style="font-family:monospace;font-weight:700;color:${it.qty<=it.min?'var(--red)':'var(--text)'}">${it.qty.toLocaleString()} <span style="font-size:11px;color:var(--text3);font-weight:400">${it.unit}</span></td>
     <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-    <td style="text-align:center"><button onclick="delOneProd('${it.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button></td>
+    <td style="text-align:center"><button onclick="delOneProd(${it._idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button></td>
   </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text3)">검색 결과 없음</td></tr>';
 }
 
-function toggleDelItem(id,checked){
-  if(checked)delSel.add(id);else delSel.delete(id);
+function toggleDelItem(idx, checked){
+  if(checked) delSel.add(idx); else delSel.delete(idx);
   render();
 }
 
 function toggleDelAll(checked){
-  const list=inv.filter(i=>!delSq||i.name.includes(delSq)||i.id.includes(delSq)||(i.classNo||'').includes(delSq)||(i.location||'').includes(delSq));
-  list.forEach(i=>{if(checked)delSel.add(i.id);else delSel.delete(i.id);});
+  const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
+    !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
+    (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
+  );
+  list.forEach(i=>{ if(checked) delSel.add(i._idx); else delSel.delete(i._idx); });
   render();
 }
 
-function delOneProd(id){
-  if(!requireEdit())return;
-  const it=inv.find(i=>i.id===id);if(!it)return;
-  if(!confirm('"'+it.name+'" ('+it.id+') 을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.'))return;
-  inv=inv.filter(i=>i.id!==id);
-  txs=txs.filter(t=>t.iid!==id);
-  delSel.delete(id);
+function delOneProd(idx){
+  if(!requireEdit()) return;
+  const it=inv[idx];
+  if(!it) return;
+  if(!confirm('"'+it.name+'" (금형: '+it.id+') 을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+  const iid=it.id;
+  inv.splice(idx, 1);
+  delSel.clear();
   sv();
-  tst('🗑️ '+it.name+' 삭제 완료',2200);
+  tst('🗑️ '+it.name+' 삭제 완료', 2200);
   render();
 }
 
 function confirmDelProd(){
-  if(!requireEdit())return;
-  if(!delSel.size){tst('삭제할 품목을 선택해주세요');return;}
-  const names=[...delSel].map(id=>{const it=inv.find(i=>i.id===id);return it?it.name:id;});
-  if(!confirm('선택한 '+delSel.size+'개 품목을 삭제하시겠습니까?\n\n'+names.slice(0,5).join('\n')+(names.length>5?'\n... 외 '+(names.length-5)+'개':'')+' \n\n이 작업은 되돌릴 수 없습니다.'))return;
-  const ids=[...delSel];
-  inv=inv.filter(i=>!ids.includes(i.id));
-  txs=txs.filter(t=>!ids.includes(t.iid));
+  if(!requireEdit()) return;
+  if(!delSel.size){tst('삭제할 품목을 선택해주세요'); return;}
+  // 내림차순 정렬 (뒤에서부터 splice해야 인덱스 안 밀림)
+  const idxList=[...delSel].sort((a,b)=>b-a);
+  const names=idxList.map(idx=>inv[idx]?inv[idx].name+' ('+inv[idx].id+')':'').filter(Boolean);
+  if(!confirm('선택한 '+idxList.length+'개 품목을 삭제하시겠습니까?\n\n'+names.slice(0,5).join('\n')+(names.length>5?'\n... 외 '+(names.length-5)+'개':'')+' \n\n이 작업은 되돌릴 수 없습니다.')) return;
+  idxList.forEach(idx=>{ inv.splice(idx,1); });
   delSel.clear();
   sv();
-  tst('🗑️ '+ids.length+'개 품목 삭제 완료',2500);
+  tst('🗑️ '+idxList.length+'개 품목 삭제 완료', 2500);
   render();
 }
 
