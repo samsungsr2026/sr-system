@@ -2456,7 +2456,16 @@ function rBarcode(){
         }).join('')}
 
         ${bcItems.length?`
-        <button class="btn bbl btn-full" style="margin-top:6px;font-size:15px;padding:14px" onclick="printBarcodes()">
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px;margin-bottom:8px;background:var(--bg3);border-radius:8px;padding:10px 14px">
+          <span style="font-size:13px;color:var(--text2);font-weight:600;white-space:nowrap">출력 장수</span>
+          <input type="number" min="1" max="99" value="1" id="print-sheets"
+            style="width:70px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text);font-size:15px;font-weight:700;text-align:center;outline:none;font-family:monospace">
+          <span style="font-size:13px;color:var(--text3)">장</span>
+          <div style="display:flex;gap:6px;margin-left:auto">
+            ${[1,2,3,5].map(n=>`<button onclick="document.getElementById('print-sheets').value=${n}" style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer">${n}장</button>`).join('')}
+          </div>
+        </div>
+        <button class="btn bbl btn-full" style="margin-top:0;font-size:15px;padding:14px" onclick="printBarcodes()">
           🖨️ 제품 태그 출력 (A4 · 8개/장)
         </button>`:''}
       </div>
@@ -2547,11 +2556,12 @@ function addBcItem(id){
 function printBarcodes(){
   if(!bcItems.length){tst('출력할 품목을 추가해주세요');return;}
 
+  const sheets=parseInt(document.getElementById('print-sheets')?.value)||1;
   const allLabels=[];
   bcItems.forEach(b=>{
     // 출력 목록에서 수정된 값을 그대로 사용
     const lbl={name:b.name||'',classNo:b.classNo||'',id:b.moldNo||'',printQty:b.qty||1,packUnit:b.packUnit||1};
-    for(let i=0;i<8;i++) allLabels.push({...lbl});
+    for(let i=0;i<8*sheets;i++) allLabels.push({...lbl});
   });
 
   const pages=[];
