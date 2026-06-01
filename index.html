@@ -513,7 +513,9 @@ function fileIcon(type,name){
 // 계정 목록: {id, name, pw, role}  role: 'master'(마스터관리자) | 'admin'(관리자) | 'user'(일반)
 // 기본 마스터 계정 1개 - 최초 실행 시 생성
 const DEFAULT_ACCOUNTS=[{id:'master',name:'정창식',pw:'6716',role:'master'}];
-let accounts=JSON.parse(localStorage.getItem('sr-accounts')||JSON.stringify(DEFAULT_ACCOUNTS));
+// 항상 서버에서 최신 accounts 불러오기 (로컬 캐시 무시)
+localStorage.removeItem('sr-accounts');
+let accounts=JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
 // 앱 시작 시 서버 accounts 동기화
 cfGet('accounts').then(ra=>{
   if(Array.isArray(ra)&&ra.length>0){
