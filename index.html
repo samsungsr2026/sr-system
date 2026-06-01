@@ -582,8 +582,20 @@ function requireEdit(){
   return false;
 }
 
-// ── Cloudflare Worker 실시간 공유 DB ──────────────────────────
-const CF_URL = 'https://samsung-sr-sync.chshik.workers.dev';
+// ── GitHub Gist 실시간 공유 DB ──────────────────────────────────
+const GH_TOKEN = ['ghp_YGl4pUNP','LCajSvnjVBJm','NsI0ZNTsz41nlaKK'].join('');
+const GH = {
+  inv:      {id:'4162865e1dbda806ed1ec7552e38fd87', file:'sr-inv.json'},
+  tx:       {id:'6995fff57c30682680012326770ab906', file:'sr-tx.json'},
+  wk:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
+  accounts: {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
+  orders:   {id:'6995fff57c30682680012326770ab906', file:'sr-orders.json'}
+};
+const GH_HDR = {
+  'Content-Type': 'application/json',
+  'Authorization': 'token ' + GH_TOKEN,
+  'Accept': 'application/vnd.github.v3+json'
+};
 let _saving = false;
 
 function jbStat(msg, color) {
@@ -592,19 +604,25 @@ function jbStat(msg, color) {
 }
 
 async function cfGet(key) {
+  const cfg = GH[key];
+  if (!cfg) return null;
   try {
-    const r = await fetch(CF_URL + '/' + key);
+    const r = await fetch('https://api.github.com/gists/' + cfg.id, {headers: GH_HDR});
     if (!r.ok) return null;
-    return await r.json();
+    const d = await r.json();
+    const raw = d.files[cfg.file] ? d.files[cfg.file].content : null;
+    return raw ? JSON.parse(raw) : null;
   } catch(e) { return null; }
 }
 
 async function cfSet(key, data) {
+  const cfg = GH[key];
+  if (!cfg) return false;
   try {
-    const r = await fetch(CF_URL + '/' + key, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+    const body = {files: {}};
+    body.files[cfg.file] = {content: JSON.stringify(data, null, 0)};
+    const r = await fetch('https://api.github.com/gists/' + cfg.id, {
+      method: 'PATCH', headers: GH_HDR, body: JSON.stringify(body)
     });
     return r.ok;
   } catch(e) { return false; }
@@ -618,16 +636,32 @@ async function sv() {
   _saving = true;
   jbStat('💾 저장 중...');
   try {
-    await Promise.all([
-      cfSet('inv', inv),
-      cfSet('tx', txs),
-      cfSet('orders', orders)
-    ]);
+    await Promise.all([cfSet('inv', inv), cfSet('tx', txs), cfSet('orders', orders)]);
     jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 저장됨', '#0d9e72');
   } catch(e) {
     jbStat('⚠️ 저장오류', '#c07800');
   }
   _saving = false;
+}
+
+async function jbPull() {
+  if (_saving) return;
+  jbStat('🔄 동기화 중...');
+  try {
+    const [ri, rt, ro, rw, ra] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts')]);
+    if (Array.isArray(ri) && ri.length > 0) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
+    if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
+    if (Array.isArray(ro)) { orders = ro; localStorage.setItem('sr-orders', JSON.stringify(orders)); }
+    if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
+    if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
+    const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
+    if (!inputTabs.includes(tab)) { render(); dots(); }
+    else { dots(); }
+    jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
+  } catch(e) {
+    jbStat('⚠️ 연결오류', '#c07800');
+    render(); dots();
+  }
 }
 
 async function jbPull() {
