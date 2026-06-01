@@ -205,38 +205,60 @@ select.fi option{background:#fff;color:#111}
 .loc-producer-chip.active{background:var(--blue);border-color:var(--blue);color:#fff}
 
 /* ── 모바일/태블릿 반응형 ────────────────────────────── */
-@media (max-width: 768px) {
-  /* 사이드바 숨김 */
+@media (max-width: 900px) {
+  /* ── 사이드바 숨김 ── */
   .sidebar { display: none !important; }
-  
-  /* 메인 영역 전체 너비 */
-  .main { margin-left: 0 !important; padding: 12px 12px 80px !important; }
-  
-  /* 상단바 조정 */
-  .topbar { padding: 0 12px; height: 52px; }
-  .topbar > div[style*="position:absolute"] { width: 120px !important; }
-  .topbar > div[style*="position:absolute"] button { font-size: 12px !important; height: 38px !important; }
-  .brand-text { font-size: 15px !important; }
-  
-  /* 글씨 크기 크게 */
+
+  /* ── 메인 전체너비 + 하단 탭바 여백 ── */
+  .main { margin-left: 0 !important; padding: 14px 14px 80px !important; }
+
+  /* ── 상단바 ── */
+  .topbar { padding: 0 14px; height: 52px; gap: 10px; }
+  .topbar-right { gap: 10px; }
+  .topbar-time { display: none; }
+
+  /* ── 글씨/버튼 터치 최적화 ── */
   body { font-size: 15px !important; }
-  .tbl td { font-size: 14px !important; padding: 12px 10px !important; }
-  .tbl th { font-size: 13px !important; }
-  .stat-val { font-size: 24px !important; }
-  .btn { font-size: 15px !important; padding: 12px 18px !important; }
-  .fi { font-size: 15px !important; padding: 12px 13px !important; }
+  .btn { font-size: 15px !important; padding: 13px 18px !important; min-height: 48px; }
+  .fi { font-size: 15px !important; padding: 13px !important; min-height: 48px; }
+  .fl { font-size: 13px !important; }
   .page-title { font-size: 20px !important; }
-  .card { padding: 14px !important; }
-  
-  /* 그리드 1열로 변경 */
-  .grid2 { grid-template-columns: 1fr !important; }
-  .grid3 { grid-template-columns: 1fr !important; }
-  .stat-row { grid-template-columns: 1fr 1fr !important; }
-  
-  /* 하단 탭바 */
-  .mobile-tabbar {
-    display: flex !important;
-  }
+  .page-sub { font-size: 13px !important; }
+  .card { padding: 14px !important; border-radius: 10px !important; }
+  .card-title { font-size: 12px !important; }
+
+  /* ── 테이블 ── */
+  .tbl th { font-size: 12px !important; padding: 10px 10px !important; }
+  .tbl td { font-size: 14px !important; padding: 13px 10px !important; }
+
+  /* ── 통계카드 2열 ── */
+  .stat-row { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .stat-val { font-size: 26px !important; }
+  .stat-card { padding: 14px !important; }
+
+  /* ── 그리드 1열 ── */
+  .grid2 { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .grid3 { grid-template-columns: 1fr !important; gap: 12px !important; }
+
+  /* ── 모달 ── */
+  .mo { width: 96vw !important; max-width: 96vw !important; padding: 18px !important; }
+
+  /* ── IO탭 ── */
+  .io-tabs { flex-wrap: wrap; gap: 8px; }
+  .io-tab { flex: 1 1 40%; min-width: 120px; padding: 11px; font-size: 13px; }
+
+  /* ── 필터탭 ── */
+  .ftabs { gap: 6px; }
+  .ftab { padding: 7px 14px; font-size: 13px; }
+
+  /* ── 배지 ── */
+  .badge { font-size: 12px !important; padding: 4px 10px !important; }
+
+  /* ── 검색 ── */
+  .search-wrap input { font-size: 15px !important; padding: 13px 14px 13px 40px !important; }
+
+  /* ── 하단 탭바 표시 ── */
+  .mobile-tabbar { display: flex !important; }
 }
 
 @media (min-width: 769px) {
@@ -721,7 +743,71 @@ function viewDraw(itemId){
       // 다운로드 유도
       win.document.write('<title>'+(d.name||'도면')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center">'
         +'<p style="font-size:16px;margin-bottom:20px">'+(d.name||'도면 파일')+'</p>'
-        +'<a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a></body>');
+        +'<a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a>
+<!-- 모바일 하단 탭바 -->
+<div class="mobile-tabbar" id="mobile-tabbar">
+  <button class="mobile-tab" id="mt-dash" onclick="go('dash')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    대시보드
+  </button>
+  <button class="mobile-tab" id="mt-inv" onclick="go('inv')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+    재고조회
+  </button>
+  <button class="mobile-tab" id="mt-io" onclick="go('io')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+    입출고
+  </button>
+  <button class="mobile-tab" id="mt-alert" onclick="go('alert')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    알림
+    <span id="mt-aldot" style="display:none;width:7px;height:7px;background:var(--red);border-radius:50%;position:absolute;top:6px;right:calc(50% - 18px)"></span>
+  </button>
+  <button class="mobile-tab" id="mt-more" onclick="toggleMobileMenu()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    더보기
+  </button>
+</div>
+
+<!-- 모바일 더보기 메뉴 -->
+<div id="mobile-more-menu" style="display:none;position:fixed;bottom:64px;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);z-index:149;padding:12px;box-shadow:0 -4px 20px rgba(0,0,0,.15)">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <button onclick="go('plan');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      생산계획서
+    </button>
+    <button onclick="go('order');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      발주서
+    </button>
+    <button onclick="go('pstat');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="0.5"/><rect x="12" y="7" width="3" height="10" rx="0.5"/></svg>
+      생산자현황
+    </button>
+    <button onclick="go('addprod');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+      제품추가
+    </button>
+    <button onclick="go('delprod');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--red-bg);border:1px solid rgba(212,32,72,.3);border-radius:10px;cursor:pointer;color:var(--red);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      제품삭제
+    </button>
+    <button onclick="go('barcode');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      태그출력
+    </button>
+    <button onclick="go('loc');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      위치검색
+    </button>
+    <button onclick="go('set');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2"/></svg>
+      설정
+    </button>
+  </div>
+</div>
+
+</body>');
       win.document.close();
     }
   }catch(e){tst('파일을 열 수 없습니다');}
@@ -791,6 +877,8 @@ function tick(){
 function dots(){
   const hl=inv.some(i=>st(i)!=='ok');
   document.getElementById('aldot').style.display=hl?'flex':'none';
+  const mtd=document.getElementById('mt-aldot');
+  if(mtd)mtd.style.display=hl?'block':'none';
   document.getElementById('pldot').style.display=hl?'flex':'none';
   document.getElementById('inv-count').textContent='총 '+inv.length+'종 · 부족 '+inv.filter(i=>st(i)==='low').length+'건';
   const ts=document.getElementById('top-status');
@@ -823,8 +911,11 @@ function go(t){
   if(nb)nb.classList.add('on');
   // 모바일 하단 탭바 활성화
   document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('on'));
-  const mb=document.getElementById('mb-'+t);
+  const mb=document.getElementById('mt-'+t);
   if(mb)mb.classList.add('on');
+  // 더보기 메뉴 닫기
+  const mm=document.getElementById('mobile-more-menu');
+  if(mm)mm.style.display='none';
   render();
 }
 function goIO(type){
@@ -4382,6 +4473,21 @@ function locSaveProducer(id) {
   var q = document.getElementById('loc-search');
   if (q && q.value) locRenderResults(q.value.trim());
 }
+
+
+function toggleMobileMenu(){
+  const mm=document.getElementById('mobile-more-menu');
+  if(!mm)return;
+  mm.style.display=mm.style.display==='none'?'block':'none';
+}
+// 더보기 메뉴 바깥 클릭 시 닫기
+document.addEventListener('click',function(e){
+  const mm=document.getElementById('mobile-more-menu');
+  const btn=document.getElementById('mt-more');
+  if(mm&&mm.style.display!=='none'&&!mm.contains(e.target)&&e.target!==btn&&!btn.contains(e.target)){
+    mm.style.display='none';
+  }
+});
 
 tick();setInterval(tick,30000);
 window.addEventListener('load', () => setTimeout(jbPull, 800));
