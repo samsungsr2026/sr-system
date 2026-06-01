@@ -743,10 +743,7 @@ function viewDraw(itemId){
       win.document.title=d.name||'도면';
     }else{
       // 다운로드 유도
-      win.document.write('<title>'+(d.name||'도면')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center">'
-        +'<p style="font-size:16px;margin-bottom:20px">'+(d.name||'도면 파일')+'</p>'
-        +'<a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a>
-</body>');
+      win.document.write('<title>'+(d.name||'도면')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center"><p style="font-size:16px;margin-bottom:20px">'+(d.name||'도면 파일')+'</p><a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a></body>');
       win.document.close();
     }
   }catch(e){tst('파일을 열 수 없습니다');}
