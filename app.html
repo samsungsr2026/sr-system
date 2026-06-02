@@ -323,49 +323,22 @@ select.fi option{background:#fff;color:#111}
       <div class="star-badge">
         <svg width="44" height="44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <radialGradient id="bgGrad" cx="50%" cy="40%" r="60%">
-              <stop offset="0%" stop-color="#2a3060"/>
-              <stop offset="100%" stop-color="#0d1128"/>
+            <radialGradient id="sg" cx="50%" cy="25%" r="70%">
+              <stop offset="0%" stop-color="#FFF5A0"/>
+              <stop offset="50%" stop-color="#F0A800"/>
+              <stop offset="100%" stop-color="#A06000"/>
             </radialGradient>
-            <radialGradient id="starGrad1" cx="50%" cy="30%" r="70%">
-              <stop offset="0%" stop-color="#FFE86B"/>
-              <stop offset="60%" stop-color="#F0A800"/>
-              <stop offset="100%" stop-color="#C07800"/>
-            </radialGradient>
-            <radialGradient id="starGrad2" cx="50%" cy="30%" r="70%">
-              <stop offset="0%" stop-color="#FFE86B"/>
-              <stop offset="60%" stop-color="#F0A800"/>
-              <stop offset="100%" stop-color="#C07800"/>
-            </radialGradient>
-            <radialGradient id="starGrad3" cx="50%" cy="30%" r="70%">
-              <stop offset="0%" stop-color="#FFE86B"/>
-              <stop offset="60%" stop-color="#F0A800"/>
-              <stop offset="100%" stop-color="#C07800"/>
-            </radialGradient>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="2" result="blur"/>
-              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="shadow">
-              <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#C07800" flood-opacity="0.6"/>
+            <filter id="sd">
+              <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#A06000" flood-opacity="0.7"/>
             </filter>
           </defs>
-          <!-- 배경 원 -->
-          <circle cx="50" cy="50" r="48" fill="url(#bgGrad)"/>
-          <circle cx="50" cy="50" r="48" fill="none" stroke="#F0A800" stroke-width="2.5" opacity="0.8"/>
-          <circle cx="50" cy="50" r="44" fill="none" stroke="#FFE86B" stroke-width="0.8" opacity="0.4"/>
-          <!-- 좌측 별 -->
-          <polygon points="23,14 26.5,25 38,25.3 29,32 32,43 23,36.5 14,43 17,32 8,25.3 19.5,25" fill="url(#starGrad1)" filter="url(#shadow)"/>
-          <polygon points="23,14 25,21 30,21.2 25.5,25 27,31 23,28 19,31 20.5,25 16,21.2 21,21" fill="#FFF0A0" opacity="0.5"/>
-          <!-- 중앙 별 (크게) -->
-          <polygon points="50,9 54.5,23 69,23.4 57.5,32 61.5,46 50,38 38.5,46 42.5,32 31,23.4 45.5,23" fill="url(#starGrad2)" filter="url(#shadow)"/>
-          <polygon points="50,9 53,19 61,19.2 54.5,24.5 57,32 50,27.5 43,32 45.5,24.5 39,19.2 47,19" fill="#FFF0A0" opacity="0.5"/>
-          <!-- 우측 별 -->
-          <polygon points="77,14 80.5,25 92,25.3 83,32 86,43 77,36.5 68,43 71,32 62,25.3 73.5,25" fill="url(#starGrad3)" filter="url(#shadow)"/>
-          <polygon points="77,14 79,21 84,21.2 79.5,25 81,31 77,28 73,31 74.5,25 70,21.2 75,21" fill="#FFF0A0" opacity="0.5"/>
-          <!-- 하단 SR 텍스트 -->
-          <text x="50" y="72" text-anchor="middle" font-size="16" font-weight="900" fill="#FFE86B" font-family="Arial,sans-serif" letter-spacing="3" opacity="0.95">SR</text>
-          <text x="50" y="83" text-anchor="middle" font-size="7.5" font-weight="600" fill="#F0A800" font-family="Arial,sans-serif" letter-spacing="1.5" opacity="0.8">SAMSUNG</text>
+          <!-- 원래 위치 별3개 동일크기 -->
+          <polygon points="27,40 32,54.1 47,54.5 35.1,63.6 39.3,78 27,69.5 14.7,78 18.9,63.6 7,54.5 22,54.1" fill="url(#sg)" filter="url(#sd)"/>
+          <polygon points="27,40 30,50 40,50.3 32,57 35,66 27,61 19,66 22,57 14,50.3 24,50" fill="#FFFAC0" opacity="0.55"/>
+          <polygon points="50,8 55,22.1 70,22.5 58.1,31.6 62.3,46 50,37.5 37.7,46 41.9,31.6 30,22.5 45,22.1" fill="url(#sg)" filter="url(#sd)"/>
+          <polygon points="50,8 53,18 63,18.3 55,25 58,34 50,29 42,34 45,25 37,18.3 47,18" fill="#FFFAC0" opacity="0.55"/>
+          <polygon points="73,40 78,54.1 93,54.5 81.1,63.6 85.3,78 73,69.5 60.7,78 64.9,63.6 53,54.5 68,54.1" fill="url(#sg)" filter="url(#sd)"/>
+          <polygon points="73,40 76,50 86,50.3 78,57 81,66 73,61 65,66 68,57 60,50.3 70,50" fill="#FFFAC0" opacity="0.55"/>
         </svg>
       </div>
       <span class="brand-text">SAMSUNG S.R</span>
