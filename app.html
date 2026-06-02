@@ -28,27 +28,15 @@ input,button,select{font-family:inherit}
 
 /* 상단바 - 삼성SR 밝은 프리미엄 디자인 */
 .topbar{height:72px;display:flex;align-items:center;padding:0 20px;gap:14px;position:fixed;top:0;left:0;right:0;z-index:100;
-  background:linear-gradient(135deg,#ffffff 0%,#eef2fc 55%,#e3e9fb 100%);
-  border-bottom:1px solid var(--border);
-  box-shadow:0 2px 12px rgba(26,107,255,0.06);
-  background-image:linear-gradient(135deg,#ffffff 0%,#eef2fc 55%,#e3e9fb 100%),linear-gradient(rgba(26,107,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(26,107,255,0.04) 1px,transparent 1px);
-  background-size:auto,28px 28px,28px 28px}
+  background:linear-gradient(135deg,#0d1b4b,#1a3a8f);
+  border-bottom:none;
+  box-shadow:0 2px 16px rgba(10,20,80,0.3)}
 .topbar-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px}
-.topbar-brand{display:flex;align-items:center;gap:13px;background:linear-gradient(135deg,#ffffff,#f3f6ff);border:1px solid var(--border2);border-radius:12px;padding:9px 18px;box-shadow:0 2px 10px rgba(26,107,255,0.10),inset 0 1px 0 rgba(255,255,255,0.9)}
+.topbar-brand{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:8px 16px}
 .topbar-brand-text{display:flex;flex-direction:column;gap:1px}
 .star-badge{display:flex;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(245,170,0,.4))}
-.brand-text{font-family:'Orbitron',sans-serif;font-size:19px;font-weight:900;letter-spacing:.08em;
-  background:linear-gradient(135deg,#0d2e8a,#1a6bff,#4d9fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.topbar-sub{
-  font-family:'Black Han Sans',sans-serif;
-  font-size:15px;
-  letter-spacing:.22em;
-  text-transform:uppercase;
-  background:linear-gradient(135deg,#666,#999);
-  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
-  font-weight:400;
-  margin-top:2px;
-}
+.brand-text{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:800;letter-spacing:.06em;color:#fff;-webkit-text-fill-color:#fff}
+.topbar-sub{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:.12em;color:rgba(255,255,255,0.85);font-weight:500;margin-left:4px}
 .topbar-right{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px;font-size:13px}
 .topbar-right-row{display:flex;align-items:center;gap:10px}
 .topbar-time{font-family:monospace;font-size:12px;color:var(--text3)}
@@ -370,8 +358,9 @@ select.fi option{background:#fff;color:#111}
           <polygon points="73,40 76,49 85,49.3 78,55.5 80.5,64 73,59.5 65.5,64 68,55.5 61,49.3 70,49" fill="#FFFBE0" opacity="0.5"/>
         </svg>
       </div>
-      <div class="topbar-brand-text">
+      <div style="display:flex;align-items:center;gap:12px">
         <span class="brand-text">SAMSUNG S.R</span>
+        <div style="width:1px;height:22px;background:rgba(255,255,255,0.3)"></div>
         <div class="topbar-sub">통합관리 시스템</div>
       </div>
     </div>
@@ -379,8 +368,8 @@ select.fi option{background:#fff;color:#111}
   <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
-      <span id="jb-sync" style="font-size:11px;color:#888;white-space:nowrap">🔄 연결 중...</span>
-      <button onclick="jbPull()" style="background:rgba(26,107,255,.1);border:1px solid rgba(26,107,255,.3);color:#1a6bff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">🔄 새로고침</button>
+      <span id="jb-sync" style="font-size:11px;color:rgba(255,255,255,0.5);white-space:nowrap">🔄 연결 중...</span>
+      <button onclick="jbPull()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">🔄 새로고침</button>
       <div id="top-auth" style="display:flex;align-items:center;gap:8px"></div>
     </div>
     <div class="topbar-time" id="tt"></div>
@@ -1226,7 +1215,7 @@ function rInv(){
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" class="fi" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" oninput="invSearch(this.value)" style="padding-left:37px">
+      <input type="text" class="fi" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" onkeyup="invSearch(this.value)" style="padding-left:37px">
     </div>
   </div>
   <div class="ftabs">
@@ -2613,14 +2602,11 @@ function rBarcode(){
   </div>`;
 }
 
-let invTimer=null;
 function invSearch(val){
-  clearTimeout(invTimer);
-  invTimer=setTimeout(function(){
   sq=val;
   const list=fil();
   const box=document.getElementById('inv-result-box');
-  if(!box){render();return;}
+  if(!box) return;
   box.innerHTML=list.length===0?'<div style="text-align:center;padding:30px;color:var(--text3)">검색 결과 없음</div>':
     list.map(it=>`<tr onclick="opD('${it.id}')" style="cursor:pointer">
       <td>
@@ -2644,7 +2630,7 @@ function invSearch(val){
       <td style="text-align:center">${prodBadge(it)}</td>
       <td>${it.qty<0?'<span class="badge br" style="background:rgba(212,32,72,.2);border:1px solid var(--red)">⚠️ 마이너스</span>':sb(it)}</td>
     </tr>`).join('');
-  }, 15000);
+
 }
 
 function bcSearch(val){
@@ -4579,7 +4565,7 @@ function rLoc() {
     + '<div style="display:flex;gap:10px;margin-bottom:14px;align-items:center">'
     + '<div class="loc-search-wrap" style="flex:1;margin-bottom:0">'
     + '<svg style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'
-    + '<input type="text" inputmode="numeric" class="loc-search-input" id="loc-search" placeholder="금형번호 또는 부품번호 입력..." oninput="locSearch(this.value)" autocomplete="off" onfocus="this.select()" style="padding-left:44px">'
+    + '<input type="text" inputmode="numeric" class="loc-search-input" id="loc-search" placeholder="금형번호 또는 부품번호 입력..." onkeyup="locSearch(this.value)" autocomplete="off" onfocus="this.select()" style="padding-left:44px">'
     + '</div>'
     + editBtnHtml
     + '</div>'
@@ -4590,7 +4576,7 @@ function rLoc() {
 
 function locSearch(val) {
   clearTimeout(locTimer);
-  locTimer = setTimeout(function() { locRenderResults(val.trim()); }, 15000);
+  locRenderResults(val.trim());
 }
 
 function locRenderResults(q) {
