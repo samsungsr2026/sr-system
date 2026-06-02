@@ -442,7 +442,7 @@ select.fi option{background:#fff;color:#111}
 </div>
 
 <!-- 모달 -->
-<div class="ov" id="ov" onclick="cmo(event)">
+<div class="ov" id="ov">
   <div class="mo"><div class="mo-head"><div class="mo-title" id="mo-title"></div><button class="mo-close" onclick="cmo()">✕</button></div><div id="mb"></div></div>
 </div>
 
@@ -4439,11 +4439,7 @@ function restoreBackup(file){
   r.readAsText(file,'utf-8');
 }
 
-function cmo(e){
-  // 입력창 포커스 중이면 닫지 않음
-  if(e && document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
-  if(!e||e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');
-}
+function cmo(e){document.getElementById('ov').classList.remove('on');}
 
 // ── 로그인 / 로그아웃 ─────────────────────────────────────────────
 function openLogin(){
