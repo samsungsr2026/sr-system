@@ -307,6 +307,7 @@ select.fi option{background:#fff;color:#111}
 </style>
 <!-- SheetJS: xlsx/xls 파일 읽기용 -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -513,6 +514,116 @@ let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진
 let draws=JSON.parse(localStorage.getItem('sr-draws')||'{}');   // 제품 도면 (이미지/PDF/문서 등 모든 파일)
 // 추가 첨부파일 저장소 (품목ID → [{name,type,data,size,ts}])
 let attaches=JSON.parse(localStorage.getItem('sr-attaches')||'{}');
+
+// ── Google Drive 연동 ──────────────────────────────────────────
+const GD_CLIENT_ID = '50941092163-sist4oecj684tq6pcqg0hh8ups588hg6.apps.googleusercontent.com';
+const GD_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const GD_FOLDER_NAME = '삼성SR_파일';
+let gdToken = null;
+let gdFolderId = localStorage.getItem('sr-gd-folder') || null;
+
+function gdLogin(cb){
+  if(gdToken){cb&&cb();return;}
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GD_CLIENT_ID,
+    scope: GD_SCOPE,
+    callback: (resp) => {
+      if(resp.error){tst('Google 로그인 실패: '+resp.error);return;}
+      gdToken = resp.access_token;
+      tst('✓ Google Drive 연결됨');
+      cb&&cb();
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function gdGetFolder(){
+  if(gdFolderId) return gdFolderId;
+  // 폴더 검색
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${GD_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    {headers:{Authorization:'Bearer '+gdToken}}
+  );
+  const data = await res.json();
+  if(data.files && data.files.length > 0){
+    gdFolderId = data.files[0].id;
+    localStorage.setItem('sr-gd-folder', gdFolderId);
+    return gdFolderId;
+  }
+  // 폴더 생성
+  const res2 = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method:'POST',
+    headers:{Authorization:'Bearer '+gdToken,'Content-Type':'application/json'},
+    body: JSON.stringify({name:GD_FOLDER_NAME, mimeType:'application/vnd.google-apps.folder'})
+  });
+  const folder = await res2.json();
+  gdFolderId = folder.id;
+  localStorage.setItem('sr-gd-folder', gdFolderId);
+  return gdFolderId;
+}
+
+async function gdUploadFile(file, itemId, kind){
+  if(!requireEdit()) return;
+  if(!gdToken){
+    gdLogin(()=>gdUploadFile(file, itemId, kind));
+    return;
+  }
+  tst('⬆️ Google Drive에 업로드 중...');
+  const folderId = await gdGetFolder();
+  
+  const meta = {name: file.name, parents:[folderId]};
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(meta)],{type:'application/json'}));
+  form.append('file', file);
+  
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink', {
+    method:'POST',
+    headers:{Authorization:'Bearer '+gdToken},
+    body: form
+  });
+  const fileData = await res.json();
+  
+  // 공유 링크 생성
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+    method:'POST',
+    headers:{Authorization:'Bearer '+gdToken,'Content-Type':'application/json'},
+    body: JSON.stringify({role:'reader', type:'anyone'})
+  });
+  
+  // 링크만 저장
+  if(!attaches[itemId]) attaches[itemId] = [];
+  attaches[itemId].push({
+    id: fileData.id,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    link: fileData.webViewLink,
+    dlLink: `https://drive.google.com/uc?export=download&id=${fileData.id}`,
+    ts: Date.now(),
+    gdrive: true
+  });
+  try{svImgs();}catch(e){tst('저장공간 부족');}
+  tst('✓ '+file.name+' Google Drive 업로드 완료');
+  // 모달 섹션 새로고침
+  const sec=document.querySelector('[id^="attach-drop-"]');
+  if(sec){const wrap=sec.closest('div[style*="margin-top:18px"]');if(wrap)wrap.outerHTML=renderAttachSection(itemId);}
+  else opD(itemId);
+}
+
+async function gdDeleteFile(itemId, fileId){
+  if(!requireEdit()) return;
+  if(!gdToken){tst('Google Drive 로그인이 필요합니다');return;}
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method:'DELETE',
+    headers:{Authorization:'Bearer '+gdToken}
+  });
+  attaches[itemId] = (attaches[itemId]||[]).filter(f=>f.id!==fileId);
+  svImgs();
+  tst('삭제되었습니다');
+  opD(itemId);
+}
+// ── Google Drive 연동 끝 ────────────────────────────────────────
+
 function svImgs(){
   localStorage.setItem('sr-imgs',JSON.stringify(imgs));
   localStorage.setItem('sr-draws',JSON.stringify(draws));
@@ -3892,10 +4003,13 @@ function renderAttachSection(itemId){
   <div style="margin-top:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">📎 추가 첨부파일 <span style="color:var(--blue)">${list.length}개</span></div>
-      ${canE?`<label style="display:inline-flex;align-items:center;gap:5px;background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer">
-        + 파일 추가
-        <input type="file" multiple style="display:none" onchange="addAttach('${itemId}',this)">
-      </label>`:''}
+      ${canE?`<div style="display:flex;gap:6px">
+        <button onclick="gdLogin(()=>document.getElementById('gd-file-${itemId}').click())"
+          style="display:inline-flex;align-items:center;gap:5px;background:#4285F4;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;border:none">
+          <img src="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png" style="width:14px;height:14px"> Google Drive 업로드
+        </button>
+        <input type="file" id="gd-file-${itemId}" multiple style="display:none" onchange="gdUploadAttach('${itemId}',this)">
+      </div>`:''}
     </div>
 
     <div id="attach-drop-${itemId}" class="attach-drop"
@@ -3924,6 +4038,19 @@ function renderAttachSection(itemId){
         </div>`).join('')}
     </div>
   </div>`;
+}
+
+function gdUploadAttach(itemId, inputEl){
+  if(!requireEdit()) return;
+  const files = inputEl.files;
+  if(!files||!files.length) return;
+  if(!gdToken){
+    gdLogin(()=>{
+      Array.from(files).forEach(f=>gdUploadFile(f, itemId, 'attach'));
+    });
+    return;
+  }
+  Array.from(files).forEach(f=>gdUploadFile(f, itemId, 'attach'));
 }
 
 function addAttach(itemId, inputEl){
