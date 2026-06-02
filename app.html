@@ -802,7 +802,9 @@ async function jbPull() {
     if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
     if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
     const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
-    if (!inputTabs.includes(tab)) { render(); dots(); }
+    const ae = document.activeElement;
+    const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
+    if (!isTyping && !inputTabs.includes(tab)) { render(); dots(); }
     else { dots(); }
     jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
   } catch(e) {
@@ -822,13 +824,16 @@ async function jbPull() {
     if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
     if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
     const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
-    if (!inputTabs.includes(tab)) { render(); dots(); }
+    const ae = document.activeElement;
+    const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
+    if (!isTyping && !inputTabs.includes(tab)) { render(); dots(); }
     else { dots(); }
     jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
   } catch(e) {
     jbStat('⚠️ 오프라인 모드', '#c07800');
     // 서버 연결 실패시 로컬 데이터로 화면 표시
-    render(); dots();
+    const ae2 = document.activeElement;
+    if(!ae2||(ae2.tagName!=='INPUT'&&ae2.tagName!=='TEXTAREA')){render();dots();}
   }
 }
 
