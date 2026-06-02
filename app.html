@@ -3024,6 +3024,22 @@ function delOrder(i){
 }
 
 // ── 제품 추가 ──────────────────────────────────────────────────────
+function npPicPreview(input){
+  var file=input.files[0];if(!file)return;
+  var r=new FileReader();
+  r.onload=function(e){
+    document.getElementById('np-pic-preview').style.display='block';
+    document.getElementById('np-pic-img').src=e.target.result;
+  };
+  r.readAsDataURL(file);
+}
+function npDrawPreview(input){
+  var file=input.files[0];if(!file)return;
+  var p=document.getElementById('np-draw-preview');
+  p.style.display='block';
+  p.innerHTML='📎 <strong>'+file.name+'</strong> ('+Math.round(file.size/1024)+'KB)';
+}
+
 function rAddProd(){
   const cats=[...new Set(inv.map(i=>i.cat).filter(Boolean))];
   const catOpts=cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -3102,6 +3118,26 @@ function rAddProd(){
       <div class="fg">
         <label class="fl">제품 위치</label>
         <input type="text" class="fi" id="np-location" placeholder="예: D2.2.1">
+      </div>
+      <div class="fg">
+        <label class="fl">📷 제품 사진</label>
+        <div id="np-pic-preview" style="display:none;margin-bottom:8px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+          <img id="np-pic-img" style="width:100%;max-height:120px;object-fit:contain;background:#fff;display:block">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer">
+          <span style="font-size:18px">📷</span>
+          <span style="font-size:13px;color:var(--text2)">사진 선택 또는 촬영</span>
+          <input type="file" accept="image/*" style="display:none" id="np-pic-file" onchange="npPicPreview(this)">
+        </label>
+      </div>
+      <div class="fg">
+        <label class="fl">📐 도면 / 파일</label>
+        <div id="np-draw-preview" style="display:none;background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:var(--text2)"></div>
+        <label style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer">
+          <span style="font-size:18px">📎</span>
+          <span style="font-size:13px;color:var(--text2)">도면 / PDF / 파일 선택</span>
+          <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none" id="np-draw-file" onchange="npDrawPreview(this)">
+        </label>
       </div>
       <button class="btn bbg btn-full" style="margin-top:10px;padding:13px;font-size:15px" onclick="addNewProduct()">✓ 제품 등록</button>
     </div>
@@ -3285,6 +3321,11 @@ function addNewProduct(){
   const newItem={id:moldNo,name,cat,unit,packUnit,qty,min,e,classNo,material,rubberWeight,steelWeight,moldLoc,cavity,location,producer,avgOut,barcode,note};
   inv.push(newItem);
   sv();
+  // 사진/도면 저장
+  var picFile=document.getElementById('np-pic-file');
+  var drawFile=document.getElementById('np-draw-file');
+  if(picFile&&picFile.files[0]) handleImgUpload(moldNo,'pic',picFile);
+  if(drawFile&&drawFile.files[0]) handleImgUpload(moldNo,'draw',drawFile);
   tst('✓ '+name+' 등록 완료');
   render();
 }
