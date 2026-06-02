@@ -1214,7 +1214,7 @@ function rInv(){
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" class="fi" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" oninput="invSearch(this.value)" style="padding-left:37px">
+      <input type="text" class="fi" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" oninput="invSearch(this.value)" style="padding-left:37px">
     </div>
   </div>
   <div class="ftabs">
@@ -2632,7 +2632,7 @@ function invSearch(val){
       <td style="text-align:center">${prodBadge(it)}</td>
       <td>${it.qty<0?'<span class="badge br" style="background:rgba(212,32,72,.2);border:1px solid var(--red)">⚠️ 마이너스</span>':sb(it)}</td>
     </tr>`).join('');
-  }, 10000);
+  }, 15000);
 }
 
 function bcSearch(val){
@@ -4578,7 +4578,7 @@ function rLoc() {
 
 function locSearch(val) {
   clearTimeout(locTimer);
-  locTimer = setTimeout(function() { locRenderResults(val.trim()); }, 10000);
+  locTimer = setTimeout(function() { locRenderResults(val.trim()); }, 15000);
 }
 
 function locRenderResults(q) {
