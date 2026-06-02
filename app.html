@@ -4439,7 +4439,11 @@ function restoreBackup(file){
   r.readAsText(file,'utf-8');
 }
 
-function cmo(e){if(!e||e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');}
+function cmo(e){
+  // 입력창 포커스 중이면 닫지 않음
+  if(e && document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if(!e||e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');
+}
 
 // ── 로그인 / 로그아웃 ─────────────────────────────────────────────
 function openLogin(){
