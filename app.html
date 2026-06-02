@@ -2490,7 +2490,10 @@ function rBarcode(){
   </div>`;
 }
 
+let invTimer=null;
 function invSearch(val){
+  clearTimeout(invTimer);
+  invTimer=setTimeout(function(){
   sq=val;
   const list=fil();
   const box=document.getElementById('inv-result-box');
@@ -2518,6 +2521,7 @@ function invSearch(val){
       <td style="text-align:center">${prodBadge(it)}</td>
       <td>${it.qty<0?'<span class="badge br" style="background:rgba(212,32,72,.2);border:1px solid var(--red)">⚠️ 마이너스</span>':sb(it)}</td>
     </tr>`).join('');
+  }, 10000);
 }
 
 function bcSearch(val){
@@ -4447,7 +4451,7 @@ function rLoc() {
 
 function locSearch(val) {
   clearTimeout(locTimer);
-  locTimer = setTimeout(function() { locRenderResults(val.trim()); }, 80);
+  locTimer = setTimeout(function() { locRenderResults(val.trim()); }, 10000);
 }
 
 function locRenderResults(q) {
