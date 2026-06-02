@@ -4764,7 +4764,7 @@ document.addEventListener('click',function(e){
 tick();setInterval(tick,30000);
 render();dots(); // 로컬 데이터로 즉시 화면 표시
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
-setInterval(jbPull, 5000);
+setInterval(jbPull, 60000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
