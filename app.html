@@ -1042,6 +1042,9 @@ function goIO(type){
 }
 
 function render(){
+  // 입력창 포커스 중이면 렌더링 건너뜀
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')&&ae.id!=='') return;
   const m=document.getElementById('main');
   if(tab==='loc')m.innerHTML=rLoc();
   else if(tab==='dash')m.innerHTML=rDash();
