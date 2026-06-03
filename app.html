@@ -1140,16 +1140,21 @@ function rPurchase(){
       <table class="tbl" style="min-width:700px">
         <thead><tr><th>문서번호</th><th>업체명</th><th>품목</th><th>수량</th><th>납기일</th><th>발주일</th><th>상태</th><th>관리</th></tr></thead>
         <tbody>
-          ${filtered.map((p)=>{const i=purchases.indexOf(p);return`<tr>
+          ${filtered.map((p)=>{const i=purchases.indexOf(p);
+            const itemTxt = p.items.filter(it=>it.item).length>2
+              ? p.items[0].item+' 외 '+(p.items.filter(it=>it.item).length-1)+'종'
+              : p.items.filter(it=>it.item).map(it=>it.item).join(', ');
+            return`<tr style="cursor:pointer" onclick="previewPurchaseDoc(${i})">
             <td style="font-family:monospace;font-size:12px;color:var(--blue)">${p.docNo}</td>
             <td style="font-weight:600">${p.vendor}</td>
-            <td>${p.items.map(it=>it.item).join(', ')}</td>
-            <td style="font-family:monospace;font-weight:700">${p.items.reduce((s,it)=>s+it.qty,0)}</td>
+            <td>${itemTxt}</td>
+            <td style="font-family:monospace;font-weight:700">${p.items.filter(it=>it.item).reduce((s,it)=>s+Number(it.qty),0)}</td>
             <td style="font-size:12px;color:var(--text3)">${p.due||'-'}</td>
             <td style="font-size:12px;color:var(--text3)">${new Date(p.ts).toLocaleDateString('ko')}</td>
             <td><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
-            <td style="display:flex;gap:4px">
+            <td style="display:flex;gap:4px" onclick="event.stopPropagation()">
               <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
+              <button onclick="prPurchaseDocPDF(${i})" class="btn bbp" style="padding:3px 8px;font-size:11px">PDF</button>
               ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
               <button onclick="purchases.splice(${i},1);svPurchase();go('purchase')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
             </td>
@@ -1472,6 +1477,118 @@ ${pages}
   a.click();
   URL.revokeObjectURL(url);
   tst('📥 발주서 다운로드 완료 — 브라우저에서 열어 PDF로 인쇄 저장하세요');
+}
+
+function prPurchaseDocPDF(i){
+  const p=purchases[i];
+  if(!p)return;
+  const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
+  const now=new Date(p.ts);
+  const myAddr='부산시 사상구 사상로 393번길 15 (덕포동)';
+  const myTel='051-305-4101~3';
+  const myFax='051-305-4104';
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발주서 ${p.docNo}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16mm 14mm;font-size:14px}
+h1{font-size:34px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
+.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
+.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-right{margin-left:auto;font-size:13px}
+.divider{border-top:2px solid #111;margin:10px 0 8px}
+.section-title{font-size:14px;font-weight:700;margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin-bottom:12px}
+th{border:1px solid #333;padding:8px 9px;font-size:13px;text-align:center;background:#f5f5f5}
+td{border:1px solid #999;padding:8px 9px;font-size:14px}
+.c{text-align:center}
+.note-box{border:1px solid #999;padding:9px 13px;margin-bottom:12px;min-height:36px;font-size:14px}
+.closing{text-align:center;font-size:14px;margin-bottom:14px;line-height:1.9}
+.footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
+@media print{@page{size:A4;margin:0}body{padding:12mm 14mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+</style></head><body>
+<div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
+  <h1>발 주 서</h1>
+  <table style="border-collapse:collapse;border:1.5px solid #333;width:192px;margin:0">
+    <tr>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">기&nbsp;&nbsp;&nbsp;안</td>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">검&nbsp;&nbsp;&nbsp;토</td>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">결&nbsp;&nbsp;&nbsp;재</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+    </tr>
+  </table>
+</div>
+<div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+<div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+<div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
+<div class="divider"></div>
+<div class="info-row"><span class="info-label">수 신 처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
+<div class="info-row"><span class="info-label">본 사 주 소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
+<div class="info-row"><span class="info-label">등 록 번 호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
+<div style="margin:12px 0 6px"><div class="section-title">▶ 발주내역</div></div>
+<table>
+  <thead><tr><th style="width:35%">주문품목</th><th style="width:15%">수량</th><th style="width:15%">단가 (단위)</th><th style="width:35%">금액 (비고)</th></tr></thead>
+  <tbody>
+    ${p.items.filter(it=>it.item).map(it=>`<tr><td style="font-weight:600">${it.item}${it.spec?' ('+it.spec+')':''}</td><td class="c" style="font-size:15px;font-weight:700">${it.qty}</td><td class="c">${it.unit}</td><td></td></tr>`).join('')}
+    ${Array(Math.max(0,4-p.items.filter(it=>it.item).length)).fill('<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>').join('')}
+  </tbody>
+</table>
+<div class="note-box">NOTE1. ${p.note||''}</div>
+<div class="closing">위와 같이 발주하오니 입고요청일 안에 제작하여 납품하여 주시길 바랍니다<br>(납기일 엄수바랍니다)<br>구매 담당자 : ${p.manager||''}</div>
+<div style="margin-bottom:6px"><div class="section-title">▶ 입고내역 확인란</div></div>
+<table>
+  <thead><tr><th style="width:25%">발송일자</th><th style="width:25%">입고요청일</th><th style="width:25%">받는곳</th><th style="width:25%">비고</th></tr></thead>
+  <tbody><tr><td>&nbsp;</td><td></td><td></td><td></td></tr><tr><td>&nbsp;</td><td></td><td></td><td></td></tr><tr><td>&nbsp;</td><td></td><td></td><td></td></tr></tbody>
+</table>
+<div class="footer-name">삼성 S.R</div>
+</body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='발주서_'+p.docNo+'_'+p.vendor+'.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  tst('📥 '+p.docNo+' 다운로드 완료');
+}
+
+function previewPurchaseDoc(i){
+  const p=purchases[i];
+  if(!p)return;
+  const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
+  const now=new Date(p.ts);
+  document.getElementById('mo-title').textContent='📋 발주서 미리보기 — '+p.docNo;
+  document.getElementById('mb').innerHTML=`
+    <div style="background:var(--bg3);border-radius:8px;padding:14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">${p.docNo}</span>
+        <span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px">📦 업체: <strong>${p.vendor}</strong></div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px">📅 납기일: ${p.due||'-'} · 발주일: ${now.toLocaleDateString('ko')}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px">👤 담당: ${p.manager||'-'}</div>
+      ${p.note?`<div style="font-size:12px;color:var(--text3)">메모: ${p.note}</div>`:''}
+    </div>
+    <table class="tbl">
+      <thead><tr><th>품목명</th><th>수량</th><th>단위</th><th>규격</th></tr></thead>
+      <tbody>
+        ${p.items.filter(it=>it.item).map(it=>`<tr>
+          <td style="font-weight:600">${it.item}</td>
+          <td style="font-family:monospace;font-weight:700;text-align:center">${it.qty}</td>
+          <td style="text-align:center">${it.unit}</td>
+          <td style="color:var(--text3)">${it.spec||'-'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn bbl" style="flex:1;justify-content:center" onclick="cmo();prPurchaseDoc(${i})">🖨️ 출력</button>
+      <button class="btn bbp" style="flex:1;justify-content:center" onclick="cmo();prPurchaseDocPDF(${i})">📥 PDF 저장</button>
+    </div>`;
+  document.getElementById('ov').classList.add('on');
 }
 
 function prPurchaseDoc(i){
