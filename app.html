@@ -1326,8 +1326,8 @@ function renderPurchaseItems(){
     <input type="text" class="fi" placeholder="품목명" value="${it.item}" oninput="purchaseItems[${i}].item=this.value" style="font-size:13px;padding:8px 10px">
     <input type="number" class="fi" placeholder="수량" value="${it.qty}" min="1" step="0.01" oninput="purchaseItems[${i}].qty=parseFloat(this.value)||1" style="font-size:13px;padding:8px 10px">
     <select class="fi" style="font-size:13px;padding:8px 10px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력');if(v){purchaseItems[${i}].unit=v;this.value=v;var opt=document.createElement('option');opt.value=v;opt.textContent=v;this.insertBefore(opt,this.lastElementChild);this.value=v;}else{this.value=purchaseItems[${i}].unit;}}else{purchaseItems[${i}].unit=this.value;}">
-      ${['kg','EA','개','set','식','m','L','병','Box','직접입력'].map(u=>`<option value="${u}" ${it.unit===u?'selected':''}>${u}</option>`).join('')}
-      ${!['kg','EA','개','set','식','m','L','병','Box','직접입력'].includes(it.unit)?`<option value="${it.unit}" selected>${it.unit}</option>`:''}
+      ${['kg','EA','직접입력'].map(u=>`<option value="${u}" ${it.unit===u?'selected':''}>${u}</option>`).join('')}
+      ${!['kg','EA','직접입력'].includes(it.unit)?`<option value="${it.unit}" selected>${it.unit}</option>`:''}
     </select>
     <input type="text" class="fi" placeholder="규격/사양" value="${it.spec}" oninput="purchaseItems[${i}].spec=this.value" style="font-size:13px;padding:8px 10px">
     <button onclick="removePurchaseItem(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px">✕</button>
@@ -1463,14 +1463,17 @@ ${pages}
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
 
-  const pw=window.open('','_blank','width=950,height=750');
-  if(pw){
-    pw.document.write(html);
-    pw.document.close();
-    tst('🖨️ PDF 저장 준비 완료 (인쇄창에서 PDF로 저장 선택)');
-  } else {
-    tst('팝업 허용 후 다시 시도해주세요');
-  }
+  // PDF 직접 다운로드 - 인쇄창 없이
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const now2 = new Date();
+  const fname = '발주서_'+label+'_'+now2.getFullYear()+('0'+(now2.getMonth()+1)).slice(-2)+('0'+now2.getDate()).slice(-2)+'.html';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(url);
+  tst('📥 발주서 다운로드 완료 — 브라우저에서 열어 PDF로 인쇄 저장하세요');
 }
 
 function prPurchaseDoc(i){
