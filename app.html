@@ -1154,7 +1154,7 @@ function rPurchase(){
             <td><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
             <td style="display:flex;gap:4px" onclick="event.stopPropagation()">
               <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
-              <button onclick="prPurchaseDocPDF(${i})" class="btn bbp" style="padding:3px 8px;font-size:11px">PDF</button>
+              <button onclick="prPurchaseDocPDF(${i})" class="btn bbp" style="padding:3px 8px;font-size:11px">PDF파일저장</button>
               ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
               <button onclick="purchases.splice(${i},1);svPurchase();go('purchase')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
             </td>
