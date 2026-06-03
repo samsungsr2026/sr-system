@@ -1387,22 +1387,25 @@ function savePurchasePDF(){
     const now=new Date(p.ts);
     return `
     <div class="page">
-      <h1>발 주 서</h1>
-      <div class="header-grid">
-        <div>
-          <div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
-          <div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
-          <div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
-          <div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
-        </div>
-        <div>
-          <div class="signs-top">
-            <div class="st-cell"><div class="st-label">결재</div></div>
-            <div class="st-cell"><div class="st-label">검토</div></div>
-            <div class="st-cell"><div class="st-label">결재</div></div>
-          </div>
-        </div>
+      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
+        <h1 style="text-align:left;margin:0">발 주 서</h1>
+        <table style="border-collapse:collapse;border:1.5px solid #333;width:192px">
+          <tr>
+            <td style="border:1px solid #333;text-align:center;font-size:10px;font-weight:700;padding:2px 4px;background:#f5f5f5;width:64px">기&nbsp;&nbsp;&nbsp;안</td>
+            <td style="border:1px solid #333;text-align:center;font-size:10px;font-weight:700;padding:2px 4px;background:#f5f5f5;width:64px">검&nbsp;&nbsp;&nbsp;토</td>
+            <td style="border:1px solid #333;text-align:center;font-size:10px;font-weight:700;padding:2px 4px;background:#f5f5f5;width:64px">결&nbsp;&nbsp;&nbsp;재</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #333;height:50px;padding:2px"></td>
+            <td style="border:1px solid #333;height:50px;padding:2px"></td>
+            <td style="border:1px solid #333;height:50px;padding:2px"></td>
+          </tr>
+        </table>
       </div>
+      <div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+      <div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+      <div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+      <div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
       <div class="divider"></div>
       <div class="info-row"><span class="info-label">수 신 처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
       <div class="info-row"><span class="info-label">본 사 주 소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
@@ -1439,24 +1442,19 @@ function savePurchasePDF(){
 body{font-family:'Malgun Gothic',sans-serif;color:#111;font-size:12px}
 .page{padding:12mm 14mm;page-break-after:always}
 .page:last-child{page-break-after:auto}
-h1{font-size:26px;font-weight:700;text-align:center;letter-spacing:.3em;margin-bottom:14px}
-.header-grid{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:8px}
-.signs-top{border:1px solid #333;display:grid;grid-template-columns:repeat(3,1fr);width:130px}
-.st-cell{text-align:center;border-left:1px solid #333;padding:2px 6px;min-height:40px}
-.st-cell:first-child{border-left:none}
-.st-label{font-size:9px;color:#666;margin-bottom:2px}
-.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;font-size:12px}
-.info-label{font-weight:600;white-space:nowrap;min-width:70px}
-.info-right{margin-left:auto;font-size:11px}
+h1{font-size:31px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
+.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
+.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-right{margin-left:auto;font-size:13px}
 .divider{border-top:2px solid #111;margin:10px 0 8px}
-.section-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.section-title{font-size:14px;font-weight:700;margin-bottom:6px}
 table{width:100%;border-collapse:collapse;margin-bottom:10px}
-th{border:1px solid #333;padding:7px 8px;font-size:11px;text-align:center;background:#f5f5f5}
-td{border:1px solid #999;padding:7px 8px;font-size:12px}
+th{border:1px solid #333;padding:8px 9px;font-size:13px;text-align:center;background:#f5f5f5}
+td{border:1px solid #999;padding:8px 9px;font-size:14px}
 .c{text-align:center}
-.note-box{border:1px solid #999;padding:8px 12px;margin-bottom:10px;min-height:32px;font-size:12px}
-.closing{text-align:center;font-size:12px;margin-bottom:12px;line-height:1.8}
-.footer-name{text-align:center;font-size:18px;font-weight:700;margin-top:8px}
+.note-box{border:1px solid #999;padding:9px 13px;margin-bottom:10px;min-height:36px;font-size:14px}
+.closing{text-align:center;font-size:14px;margin-bottom:12px;line-height:1.9}
+.footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
 @media print{@page{size:A4;margin:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
 ${pages}
@@ -1487,46 +1485,44 @@ function prPurchaseDoc(i){
   const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발주서 ${p.docNo}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16mm 14mm;font-size:12px}
-h1{font-size:28px;font-weight:700;text-align:center;letter-spacing:.3em;margin-bottom:16px}
-.header-grid{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:8px}
-.signs-top{border:1px solid #333;display:grid;grid-template-columns:repeat(3,1fr);width:130px}
-.st-cell{text-align:center;border-left:1px solid #333;padding:2px 6px;min-height:40px}
-.st-cell:first-child{border-left:none}
-.st-label{font-size:9px;color:#666;margin-bottom:2px}
-.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;font-size:12px}
-.info-label{font-weight:600;white-space:nowrap;min-width:70px}
-.info-right{margin-left:auto;font-size:11px}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16mm 14mm;font-size:14px}
+h1{font-size:34px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
+.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
+.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-right{margin-left:auto;font-size:13px}
 .divider{border-top:2px solid #111;margin:10px 0 8px}
-.section-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.section-title{font-size:14px;font-weight:700;margin-bottom:6px}
 table{width:100%;border-collapse:collapse;margin-bottom:12px}
-th{border:1px solid #333;padding:7px 8px;font-size:11px;text-align:center;background:#f5f5f5}
-td{border:1px solid #999;padding:7px 8px;font-size:12px}
+th{border:1px solid #333;padding:8px 9px;font-size:13px;text-align:center;background:#f5f5f5}
+td{border:1px solid #999;padding:8px 9px;font-size:14px}
 .c{text-align:center}
-.note-box{border:1px solid #999;padding:8px 12px;margin-bottom:12px;min-height:36px;font-size:12px}
-.closing{text-align:center;font-size:12px;margin-bottom:14px;line-height:1.8}
+.note-box{border:1px solid #999;padding:9px 13px;margin-bottom:12px;min-height:36px;font-size:14px}
+.closing{text-align:center;font-size:14px;margin-bottom:14px;line-height:1.9}
 .incoming-table th{background:#f5f5f5}
-.footer-name{text-align:center;font-size:18px;font-weight:700;margin-top:10px}
+.footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
 @media print{@page{size:A4;margin:0}body{padding:12mm 14mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
 
-<h1>발 주 서</h1>
-
-<div class="header-grid">
-  <div>
-    <div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
-    <div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
-    <div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
-    <div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
-  </div>
-  <div>
-    <div class="signs-top">
-      <div class="st-cell"><div class="st-label">결재</div></div>
-      <div class="st-cell"><div class="st-label">검토</div></div>
-      <div class="st-cell"><div class="st-label">결재</div></div>
-    </div>
-  </div>
+<div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
+  <h1>발 주 서</h1>
+  <table style="border-collapse:collapse;border:1.5px solid #333;width:192px;margin:0">
+    <tr>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">기&nbsp;&nbsp;&nbsp;안</td>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">검&nbsp;&nbsp;&nbsp;토</td>
+      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:64px">결&nbsp;&nbsp;&nbsp;재</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+      <td style="border:1px solid #333;height:52px;padding:2px"></td>
+    </tr>
+  </table>
 </div>
+
+<div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+<div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+<div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
 
 <div class="divider"></div>
 
