@@ -1106,7 +1106,8 @@ function rPurchase(){
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px">
         <div>
           <div style="font-size:13px;font-weight:700;color:var(--text)">${v.name}</div>
-          <div style="font-size:11px;color:var(--text3)">${v.contact||''} ${v.tel?'· '+v.tel:''}</div>
+          <div style="font-size:11px;color:var(--text3)">${v.contact||''} ${v.tel?'· '+v.tel:''} ${v.fax?'· FAX:'+v.fax:''}</div>
+        <div style="font-size:11px;color:var(--text3)">${v.bizno?'사업자: '+v.bizno+' · ':''} ${v.category||''} ${v.items?'· '+v.items:''}</div>
         </div>
         <button onclick="removePurchaseVendor(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
       </div>`).join('')}
@@ -1148,8 +1149,23 @@ function openPurchaseVendorModal(){
   document.getElementById('mo-title').textContent='🏭 거래업체 등록';
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="pv-name" placeholder="업체명"></div>
+    <div class="fg"><label class="fl">사업자번호</label><input type="text" class="fi" id="pv-bizno" placeholder="000-00-00000"></div>
+    <div class="fg"><label class="fl">업종분류</label>
+      <select class="fi" id="pv-category">
+        <option value="">-- 선택 --</option>
+        <option>제조업</option>
+        <option>도소매업</option>
+        <option>무역업</option>
+        <option>서비스업</option>
+        <option>건설업</option>
+        <option>운수업</option>
+        <option>기타</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">주요 품목</label><input type="text" class="fi" id="pv-items" placeholder="예: 고무부품, 금속부품"></div>
     <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="pv-contact" placeholder="담당자"></div>
     <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="pv-tel" placeholder="010-0000-0000"></div>
+    <div class="fg"><label class="fl">팩스번호</label><input type="text" class="fi" id="pv-fax" placeholder="000-000-0000"></div>
     <div class="fg"><label class="fl">주소</label><input type="text" class="fi" id="pv-addr" placeholder="업체 주소"></div>
     <button class="btn bbl btn-full" onclick="addPurchaseVendor()">✓ 등록</button>`;
   document.getElementById('ov').classList.add('on');
@@ -1161,8 +1177,12 @@ function addPurchaseVendor(){
   if(purchaseVendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
   purchaseVendors.push({
     name,
+    bizno:document.getElementById('pv-bizno')?.value?.trim()||'',
+    category:document.getElementById('pv-category')?.value||'',
+    items:document.getElementById('pv-items')?.value?.trim()||'',
     contact:document.getElementById('pv-contact')?.value?.trim()||'',
     tel:document.getElementById('pv-tel')?.value?.trim()||'',
+    fax:document.getElementById('pv-fax')?.value?.trim()||'',
     addr:document.getElementById('pv-addr')?.value?.trim()||''
   });
   svPurchase();cmo();tst('✓ '+name+' 등록 완료');go('purchase');
@@ -1307,6 +1327,7 @@ td{padding:9px 10px;border:1px solid #ccc;font-size:12px}
   <div class="ic"><div class="il">발행일</div><div class="iv">${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div></div>
   <div class="ic"><div class="il">수신업체</div><div class="iv">${p.vendor}</div></div>
   <div class="ic"><div class="il">업체 담당자</div><div class="iv">${pv.contact||'-'} ${pv.tel?'('+pv.tel+')':''}</div></div>
+  <div class="ic"><div class="il">사업자번호 / FAX</div><div class="iv">${pv.bizno||'-'} ${pv.fax?'/ FAX:'+pv.fax:''}</div></div>
   <div class="ic"><div class="il">납기일</div><div class="iv">${p.due||'-'}</div></div>
   <div class="ic"><div class="il">당사 담당자</div><div class="iv">${p.manager||'-'}</div></div>
   ${p.note?`<div class="ic" style="grid-column:1/-1"><div class="il">비고</div><div class="iv">${p.note}</div></div>`:''}
