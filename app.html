@@ -1090,7 +1090,7 @@ function rVendor(){
         <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="v-tel" placeholder="010-0000-0000"></div>
         <div class="fg"><label class="fl">품목 (쉼표로 구분)</label><input type="text" class="fi" id="v-items" placeholder="예: GROMMET, PAD, SEAL"></div>
         <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="v-note" placeholder="메모"></div>
-        <button class="btn bbl btn-full" onclick="addVendor()">+ 업체 등록</button>
+        <button class="btn bbl btn-full" onclick="addVendorCo()">+ 업체 등록</button>
       </div>
 
       <div class="card">
@@ -1137,8 +1137,7 @@ function rVendor(){
   </div>`;
 }
 
-function addVendor(){
-  if(!requireEdit())return;
+function addVendorCo(){
   const name=document.getElementById('v-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
   const contact=document.getElementById('v-contact')?.value?.trim()||'';
@@ -1189,7 +1188,6 @@ function submitVendorOrder(vi){
 }
 
 function vendorIncoming(i){
-  if(!requireEdit())return;
   const o=vendorOrders[i];
   if(!confirm(o.vendor+' - '+o.item+' '+o.qty+o.unit+' 입고 처리하시겠습니까?'))return;
   vendorOrders[i].status='done';
