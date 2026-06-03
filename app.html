@@ -1328,14 +1328,8 @@ function openMaterialModal(vi){
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">재료명 *</label><input type="text" class="fi" id="vm-item" placeholder="재료명"></div>
     <div class="grid2">
-      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="vm-qty" min="1" placeholder="수량"></div>
-      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vm-unit" value="개"></div>
-    </div>
-    <div class="fg"><label class="fl">재고 차감</label>
-      <select class="fi" id="vm-inv">
-        <option value="">-- 재고 품목 연결 (선택) --</option>
-        ${inv.map(it=>`<option value="${it.id}">${it.name} (현재: ${it.qty}${it.unit})</option>`).join('')}
-      </select>
+      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="vm-qty" min="0.01" step="0.01" placeholder="수량"></div>
+      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vm-unit" value="kg"></div>
     </div>
     <div class="fg"><label class="fl">지급일</label><input type="date" class="fi" id="vm-date" value="${new Date().toISOString().slice(0,10)}"></div>
     <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="vm-note" placeholder="메모"></div>
@@ -1349,22 +1343,10 @@ function submitMaterial(vi){
   const qty=parseInt(document.getElementById('vm-qty')?.value);
   const unit=document.getElementById('vm-unit')?.value?.trim()||'개';
   const note=document.getElementById('vm-note')?.value?.trim()||'';
-  const invId=document.getElementById('vm-inv')?.value||'';
   if(!item){tst('재료명을 입력해주세요');return;}
-  if(!qty||qty<1){tst('수량을 입력해주세요');return;}
+  if(!qty||qty<0){tst('수량을 입력해주세요');return;}
   vendorOrders.unshift({vendorName:v.name,item,qty,unit,note,type:'material',ts:Date.now()});
-  if(invId){
-    const idx=inv.findIndex(it=>it.id===invId);
-    if(idx>=0){
-      if(inv[idx].qty<qty){tst('❌ 재고가 부족합니다');return;}
-      inv[idx].qty-=qty;
-      txs.unshift({id:Date.now(),type:'out',iid:invId,qty,w:v.name,ts:Date.now(),memo:'[외주지급] '+v.name});
-      sv();
-      tst('✓ 지급 완료 — 재고 차감: '+inv[idx].name+' -'+qty+unit);
-    }
-  }else{
-    tst('✓ 지급 재료 등록 완료');
-  }
+  tst('✓ 지급 재료 등록 완료');
   svVendors();cmo();go('vendor');
 }
 
