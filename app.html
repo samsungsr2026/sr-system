@@ -1116,31 +1116,41 @@ function rPurchase(){
 
   <!-- 발주 현황 -->
   <div class="card" style="padding:0;overflow:hidden">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <div class="card-title" style="margin-bottom:0">발주 현황 <span style="color:var(--blue)">${purchases.length}건</span></div>
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="card-title" style="margin-bottom:0">발주 현황</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
+        <button onclick="purchaseMonthFilter='all';go('purchase')" class="ftab${purchaseMonthFilter==='all'?' on':''}">전체</button>
+        ${(()=>{
+          const months=[...new Set(purchases.map(p=>new Date(p.ts).toISOString().slice(0,7)))].sort().reverse();
+          return months.map(m=>`<button onclick="purchaseMonthFilter='${m}';go('purchase')" class="ftab${purchaseMonthFilter===m?' on':''}">${m.replace('-','년 ')}월</button>`).join('');
+        })()}
+      </div>
     </div>
-    ${!purchases.length?'<div style="text-align:center;padding:40px;color:var(--text3)">발주 내역이 없습니다</div>':`
-    <div style="overflow-x:auto">
-    <table class="tbl" style="min-width:700px">
-      <thead><tr><th>문서번호</th><th>업체명</th><th>품목</th><th>수량</th><th>납기일</th><th>발주일</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>
-        ${purchases.map((p,i)=>`<tr>
-          <td style="font-family:monospace;font-size:12px;color:var(--blue)">${p.docNo}</td>
-          <td style="font-weight:600">${p.vendor}</td>
-          <td>${p.items.map(it=>it.item).join(', ')}</td>
-          <td style="font-family:monospace;font-weight:700">${p.items.reduce((s,it)=>s+it.qty,0)}</td>
-          <td style="font-size:12px;color:var(--text3)">${p.due||'-'}</td>
-          <td style="font-size:12px;color:var(--text3)">${new Date(p.ts).toLocaleDateString('ko')}</td>
-          <td><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
-          <td style="display:flex;gap:4px">
-            <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
-            ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
-            <button onclick="purchases.splice(${i},1);svPurchase();go('purchase')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    </div>`}
+    ${(()=>{
+      const filtered = purchaseMonthFilter==='all' ? purchases : purchases.filter(p=>new Date(p.ts).toISOString().slice(0,7)===purchaseMonthFilter);
+      if(!filtered.length) return '<div style="text-align:center;padding:40px;color:var(--text3)">발주 내역이 없습니다</div>';
+      return `<div style="overflow-x:auto">
+      <table class="tbl" style="min-width:700px">
+        <thead><tr><th>문서번호</th><th>업체명</th><th>품목</th><th>수량</th><th>납기일</th><th>발주일</th><th>상태</th><th>관리</th></tr></thead>
+        <tbody>
+          ${filtered.map((p)=>{const i=purchases.indexOf(p);return`<tr>
+            <td style="font-family:monospace;font-size:12px;color:var(--blue)">${p.docNo}</td>
+            <td style="font-weight:600">${p.vendor}</td>
+            <td>${p.items.map(it=>it.item).join(', ')}</td>
+            <td style="font-family:monospace;font-weight:700">${p.items.reduce((s,it)=>s+it.qty,0)}</td>
+            <td style="font-size:12px;color:var(--text3)">${p.due||'-'}</td>
+            <td style="font-size:12px;color:var(--text3)">${new Date(p.ts).toLocaleDateString('ko')}</td>
+            <td><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
+            <td style="display:flex;gap:4px">
+              <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
+              ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
+              <button onclick="purchases.splice(${i},1);svPurchase();go('purchase')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
+            </td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+      </div>`;
+    })()}
   </div>`;
 }
 
@@ -1195,6 +1205,7 @@ function removePurchaseVendor(i){
 }
 
 let purchaseItems=[{item:'',qty:1,unit:'개',spec:''}];
+let purchaseMonthFilter='all';
 
 function openNewPurchaseModal(){
   if(!requireEdit())return;
