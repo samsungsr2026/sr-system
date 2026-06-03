@@ -1324,8 +1324,11 @@ function renderPurchaseItems(){
   return purchaseItems.map((it,i)=>`
   <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;margin-bottom:6px;align-items:center">
     <input type="text" class="fi" placeholder="품목명" value="${it.item}" oninput="purchaseItems[${i}].item=this.value" style="font-size:13px;padding:8px 10px">
-    <input type="number" class="fi" placeholder="수량" value="${it.qty}" min="1" oninput="purchaseItems[${i}].qty=parseInt(this.value)||1" style="font-size:13px;padding:8px 10px">
-    <input type="text" class="fi" placeholder="단위" value="${it.unit}" oninput="purchaseItems[${i}].unit=this.value" style="font-size:13px;padding:8px 10px">
+    <input type="number" class="fi" placeholder="수량" value="${it.qty}" min="1" step="0.01" oninput="purchaseItems[${i}].qty=parseFloat(this.value)||1" style="font-size:13px;padding:8px 10px">
+    <select class="fi" style="font-size:13px;padding:8px 10px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력');if(v){purchaseItems[${i}].unit=v;this.value=v;var opt=document.createElement('option');opt.value=v;opt.textContent=v;this.insertBefore(opt,this.lastElementChild);this.value=v;}else{this.value=purchaseItems[${i}].unit;}}else{purchaseItems[${i}].unit=this.value;}">
+      ${['kg','EA','개','set','식','m','L','병','Box','직접입력'].map(u=>`<option value="${u}" ${it.unit===u?'selected':''}>${u}</option>`).join('')}
+      ${!['kg','EA','개','set','식','m','L','병','Box','직접입력'].includes(it.unit)?`<option value="${it.unit}" selected>${it.unit}</option>`:''}
+    </select>
     <input type="text" class="fi" placeholder="규격/사양" value="${it.spec}" oninput="purchaseItems[${i}].spec=this.value" style="font-size:13px;padding:8px 10px">
     <button onclick="removePurchaseItem(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px">✕</button>
   </div>`).join('');
