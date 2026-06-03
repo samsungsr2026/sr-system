@@ -1089,7 +1089,7 @@ function rVendorList(){
   return `
   <div class="page-title">외주업체 관리</div>
   <div class="page-sub">등록된 외주업체 목록</div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+  <div style="display:flex;justify-content:flex-start;margin-bottom:14px">
     <button class="btn bbl" onclick="openAddVendorModal()">+ 업체 등록</button>
   </div>
   ${!vendors.length?`
@@ -1165,8 +1165,20 @@ function rVendorDetail(i){
         </table>`}
       </div>
     </div>
-    <!-- 입고 현황 -->
+    <!-- 지급 재료 -->
     <div>
+      <div class="card" style="margin-bottom:14px;border-color:rgba(109,79,207,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0;color:var(--purple)">🔧 지급 재료</div>
+          <button class="btn bbp" style="padding:6px 14px;font-size:12px" onclick="openMaterialModal(${i})">+ 재료 지급</button>
+        </div>
+        ${(()=>{const mats=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='material');
+          return !mats.length?'<div style="text-align:center;padding:16px;color:var(--text3)">지급 재료 내역 없음</div>':
+          '<table class="tbl"><thead><tr><th>재료명</th><th>수량</th><th>지급일</th><th>비고</th></tr></thead><tbody>'+
+          mats.map(o=>`<tr><td style="font-weight:600">${o.item}</td><td style="font-family:monospace;font-weight:700;color:var(--purple)">${o.qty}${o.unit||'개'}</td><td style="font-size:12px;color:var(--text3)">${new Date(o.ts).toLocaleDateString('ko')}</td><td style="font-size:12px;color:var(--text3)">${o.note||'-'}</td></tr>`).join('')+
+          '</tbody></table>';})()}
+      </div>
+    <!-- 입고 현황 -->
       <div class="card" style="border-color:rgba(13,158,114,.3)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div class="card-title" style="margin-bottom:0;color:var(--green)">📦 입고 현황</div>
@@ -1184,6 +1196,7 @@ function rVendorDetail(i){
             </tr>`).join('')}
           </tbody>
         </table>`}
+      </div>
       </div>
     </div>
   </div>`;
@@ -1304,6 +1317,53 @@ function submitIncoming(vi){
     }
   }else{
     tst('✓ 입고 등록 완료');
+  }
+  svVendors();cmo();go('vendor');
+}
+
+function openMaterialModal(vi){
+  if(!requireEdit())return;
+  const v=vendors[vi];
+  document.getElementById('mo-title').textContent='🔧 지급 재료 등록 — '+v.name;
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">재료명 *</label><input type="text" class="fi" id="vm-item" placeholder="재료명"></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="vm-qty" min="1" placeholder="수량"></div>
+      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vm-unit" value="개"></div>
+    </div>
+    <div class="fg"><label class="fl">재고 차감</label>
+      <select class="fi" id="vm-inv">
+        <option value="">-- 재고 품목 연결 (선택) --</option>
+        ${inv.map(it=>`<option value="${it.id}">${it.name} (현재: ${it.qty}${it.unit})</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">지급일</label><input type="date" class="fi" id="vm-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="vm-note" placeholder="메모"></div>
+    <button class="btn bbp btn-full" onclick="submitMaterial(${vi})">✓ 지급 등록</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitMaterial(vi){
+  const v=vendors[vi];
+  const item=document.getElementById('vm-item')?.value?.trim();
+  const qty=parseInt(document.getElementById('vm-qty')?.value);
+  const unit=document.getElementById('vm-unit')?.value?.trim()||'개';
+  const note=document.getElementById('vm-note')?.value?.trim()||'';
+  const invId=document.getElementById('vm-inv')?.value||'';
+  if(!item){tst('재료명을 입력해주세요');return;}
+  if(!qty||qty<1){tst('수량을 입력해주세요');return;}
+  vendorOrders.unshift({vendorName:v.name,item,qty,unit,note,type:'material',ts:Date.now()});
+  if(invId){
+    const idx=inv.findIndex(it=>it.id===invId);
+    if(idx>=0){
+      if(inv[idx].qty<qty){tst('❌ 재고가 부족합니다');return;}
+      inv[idx].qty-=qty;
+      txs.unshift({id:Date.now(),type:'out',iid:invId,qty,w:v.name,ts:Date.now(),memo:'[외주지급] '+v.name});
+      sv();
+      tst('✓ 지급 완료 — 재고 차감: '+inv[idx].name+' -'+qty+unit);
+    }
+  }else{
+    tst('✓ 지급 재료 등록 완료');
   }
   svVendors();cmo();go('vendor');
 }
