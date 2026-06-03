@@ -1163,7 +1163,7 @@ function rPurchase(){
 
 function selectPurchaseVendor(i){
   const v=purchaseVendors[i];
-  purchaseItems=[{item:'',qty:1,unit:'kg',spec:''}];
+  purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
   const now=new Date();
   const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   document.getElementById('mo-title').textContent='📋 발주서 생성 — '+v.name;
@@ -1259,12 +1259,12 @@ function removePurchaseVendor(i){
   purchaseVendors.splice(i,1);svPurchase();go('purchase');
 }
 
-let purchaseItems=[{item:'',qty:1,unit:'개',spec:''}];
+let purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
 let purchaseMonthFilter='all';
 
 function openNewPurchaseModal(){
   if(!requireEdit())return;
-  purchaseItems=[{item:'',qty:1,unit:'개',spec:''}];
+  purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
   const now=new Date();
   const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   document.getElementById('mo-title').textContent='📋 발주서 생성';
@@ -1288,7 +1288,13 @@ function renderPurchaseModal(dn, preVendorIdx){
     </div>
     <div class="fg"><label class="fl">납기일</label><input type="date" class="fi" id="po-due" value="${new Date(Date.now()+604800000).toISOString().slice(0,10)}"></div>
     <div class="fg"><label class="fl">담당자</label>
-      <select class="fi" id="po-manager">${WK.map(w=>`<option>${w}</option>`).join('')}</select>
+      <select class="fi" id="po-manager">
+        ${(()=>{
+          const admins=accounts.filter(a=>a.role==='admin'||a.role==='master').map(a=>a.name);
+          const sorted=['장남영',...admins.filter(n=>n!=='장남영')];
+          return sorted.map(w=>`<option>${w}</option>`).join('');
+        })()}
+      </select>
     </div>
     <div style="margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
