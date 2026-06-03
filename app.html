@@ -3570,8 +3570,15 @@ function rBarcode(){
   </div>`;
 }
 
+let invBlurTimer = null;
 function invSearch(val){
+  clearTimeout(invBlurTimer);
   sq=val;
+  // 4초 입력 없으면 키보드 내리기
+  invBlurTimer = setTimeout(function(){
+    var el = document.querySelector('#main input[type="text"]');
+    if(el) el.blur();
+  }, 4000);
   const list=fil();
   const box=document.getElementById('inv-result-box');
   if(!box) return;
@@ -5542,9 +5549,15 @@ function rLoc() {
     + '</div>';
 }
 
+let locBlurTimer = null;
 function locSearch(val) {
   clearTimeout(locTimer);
+  clearTimeout(locBlurTimer);
   locRenderResults(val.trim());
+  locBlurTimer = setTimeout(function(){
+    var el = document.getElementById('loc-search');
+    if(el) el.blur();
+  }, 4000);
 }
 
 function locRenderResults(q) {
