@@ -1103,13 +1103,19 @@ function rPurchase(){
     <div class="card-title">등록 거래업체 <span style="color:var(--blue)">${purchaseVendors.length}개</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       ${purchaseVendors.map((v,i)=>`
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text)">${v.name}</div>
-          <div style="font-size:11px;color:var(--text3)">${v.contact||''} ${v.tel?'· '+v.tel:''} ${v.fax?'· FAX:'+v.fax:''}</div>
-        <div style="font-size:11px;color:var(--text3)">${v.bizno?'사업자: '+v.bizno+' · ':''} ${v.category||''} ${v.items?'· '+v.items:''}</div>
+      <div style="background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;cursor:pointer;transition:all .15s"
+        onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'"
+        onclick="selectPurchaseVendor(${i})">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:15px;font-weight:700;color:var(--blue)">${v.name}</div>
+          <div style="display:flex;gap:6px">
+            <button onclick="event.stopPropagation();editPurchaseVendor(${i})" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer">수정</button>
+            <button onclick="event.stopPropagation();removePurchaseVendor(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer">삭제</button>
+          </div>
         </div>
-        <button onclick="removePurchaseVendor(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
+        <div style="font-size:12px;color:var(--text2)">담당: ${v.contact||'-'} · TEL: ${v.tel||'-'} · FAX: ${v.fax||'-'}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">사업자: ${v.bizno||'-'} · ${v.category||''} · ${v.items||''}</div>
+        <div style="font-size:11px;color:var(--blue);margin-top:6px;font-weight:600">📋 클릭하면 발주서 생성 →</div>
       </div>`).join('')}
     </div>
   </div>`:''}
@@ -1152,6 +1158,54 @@ function rPurchase(){
       </div>`;
     })()}
   </div>`;
+}
+
+function selectPurchaseVendor(i){
+  const v=purchaseVendors[i];
+  purchaseItems=[{item:'',qty:1,unit:'kg',spec:''}];
+  const now=new Date();
+  const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
+  document.getElementById('mo-title').textContent='📋 발주서 생성 — '+v.name;
+  renderPurchaseModal(dn, i);
+  document.getElementById('ov').classList.add('on');
+}
+
+function editPurchaseVendor(i){
+  if(!requireEdit())return;
+  const v=purchaseVendors[i];
+  document.getElementById('mo-title').textContent='✏️ 거래업체 수정';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="pv-name" value="${v.name}" placeholder="업체명"></div>
+    <div class="fg"><label class="fl">사업자번호</label><input type="text" class="fi" id="pv-bizno" value="${v.bizno||''}" placeholder="000-00-00000"></div>
+    <div class="fg"><label class="fl">업종분류</label>
+      <select class="fi" id="pv-category">
+        <option value="">-- 선택 --</option>
+        ${['제조업','도소매업','무역업','서비스업','건설업','운수업','기타'].map(opt=>`<option ${v.category===opt?'selected':''}>${opt}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">주요 품목</label><input type="text" class="fi" id="pv-items" value="${v.items||''}" placeholder="예: 고무부품, 금속부품"></div>
+    <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="pv-contact" value="${v.contact||''}" placeholder="담당자"></div>
+    <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="pv-tel" value="${v.tel||''}" placeholder="010-0000-0000"></div>
+    <div class="fg"><label class="fl">팩스번호</label><input type="text" class="fi" id="pv-fax" value="${v.fax||''}" placeholder="000-000-0000"></div>
+    <div class="fg"><label class="fl">주소</label><input type="text" class="fi" id="pv-addr" value="${v.addr||''}" placeholder="업체 주소"></div>
+    <button class="btn bbl btn-full" onclick="savePurchaseVendor(${i})">✓ 수정 저장</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function savePurchaseVendor(i){
+  const name=document.getElementById('pv-name')?.value?.trim();
+  if(!name){tst('업체명을 입력해주세요');return;}
+  purchaseVendors[i]={
+    name,
+    bizno:document.getElementById('pv-bizno')?.value?.trim()||'',
+    category:document.getElementById('pv-category')?.value||'',
+    items:document.getElementById('pv-items')?.value?.trim()||'',
+    contact:document.getElementById('pv-contact')?.value?.trim()||'',
+    tel:document.getElementById('pv-tel')?.value?.trim()||'',
+    fax:document.getElementById('pv-fax')?.value?.trim()||'',
+    addr:document.getElementById('pv-addr')?.value?.trim()||''
+  };
+  svPurchase();cmo();tst('✓ 수정 완료');go('purchase');
 }
 
 function openPurchaseVendorModal(){
@@ -1217,13 +1271,13 @@ function openNewPurchaseModal(){
   document.getElementById('ov').classList.add('on');
 }
 
-function renderPurchaseModal(dn){
+function renderPurchaseModal(dn, preVendorIdx){
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">문서번호</label><input type="text" class="fi" id="po-docno" value="${dn||''}"></div>
     <div class="fg"><label class="fl">거래업체 *</label>
       <select class="fi" id="po-vendor">
         <option value="">-- 업체 선택 --</option>
-        ${purchaseVendors.map(v=>`<option value="${v.name}">${v.name}</option>`).join('')}
+        ${purchaseVendors.map((v,vi)=>`<option value="${v.name}" ${vi===preVendorIdx?'selected':''}>${v.name}</option>`).join('')}
         <option value="__direct__">직접 입력</option>
       </select>
     </div>
@@ -1315,48 +1369,103 @@ function prPurchaseDoc(i){
   if(!p)return;
   const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
   const now=new Date(p.ts);
+  const myAddr='부산시 사상구 사상로 393번길 15 (덕포동)';
+  const myTel='051-305-4101~3';
+  const myFax='051-305-4104';
   const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발주서 ${p.docNo}</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:20px;font-size:13px}
-h1{font-size:26px;font-weight:700;text-align:center;margin-bottom:4px;letter-spacing:.1em}
-.co{text-align:center;color:#555;font-size:12px;margin-bottom:18px}
-.info{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #222;margin-bottom:16px}
-.ic{padding:8px 12px;border:.5px solid #ccc}.il{font-size:10px;color:#666;margin-bottom:2px}.iv{font-weight:600;font-size:13px}
-table{width:100%;border-collapse:collapse;margin-bottom:16px}
-th{background:#1a1f2e;color:#fff;padding:10px;font-size:12px;text-align:center;border:1px solid #333}
-td{padding:9px 10px;border:1px solid #ccc;font-size:12px}
-.c{text-align:center}.m{font-family:monospace;font-weight:700;text-align:center}
-.signs{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #333;margin-bottom:16px}
-.sc{padding:6px;border:.5px solid #ccc;text-align:center;height:64px;display:flex;flex-direction:column;justify-content:space-between}
-.sl{font-size:9px;color:#888}.sn{font-size:11px;font-weight:600}
-.foot{font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}
-@media print{@page{size:A4;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style>
-</head><body>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16mm 14mm;font-size:12px}
+h1{font-size:28px;font-weight:700;text-align:center;letter-spacing:.3em;margin-bottom:16px}
+.header-grid{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:8px}
+.signs-top{border:1px solid #333;display:grid;grid-template-columns:repeat(3,1fr);width:130px}
+.st-cell{text-align:center;border-left:1px solid #333;padding:2px 6px;min-height:40px}
+.st-cell:first-child{border-left:none}
+.st-label{font-size:9px;color:#666;margin-bottom:2px}
+.info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;font-size:12px}
+.info-label{font-weight:600;white-space:nowrap;min-width:70px}
+.info-right{margin-left:auto;font-size:11px}
+.divider{border-top:2px solid #111;margin:10px 0 8px}
+.section-title{font-size:12px;font-weight:700;margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin-bottom:12px}
+th{border:1px solid #333;padding:7px 8px;font-size:11px;text-align:center;background:#f5f5f5}
+td{border:1px solid #999;padding:7px 8px;font-size:12px}
+.c{text-align:center}
+.note-box{border:1px solid #999;padding:8px 12px;margin-bottom:12px;min-height:36px;font-size:12px}
+.closing{text-align:center;font-size:12px;margin-bottom:14px;line-height:1.8}
+.incoming-table th{background:#f5f5f5}
+.footer-name{text-align:center;font-size:18px;font-weight:700;margin-top:10px}
+@media print{@page{size:A4;margin:0}body{padding:12mm 14mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+</style></head><body>
+
 <h1>발 주 서</h1>
-<div class="co">삼성SR 통합관리 시스템</div>
-<div class="info">
-  <div class="ic"><div class="il">문서번호</div><div class="iv">${p.docNo}</div></div>
-  <div class="ic"><div class="il">발행일</div><div class="iv">${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div></div>
-  <div class="ic"><div class="il">수신업체</div><div class="iv">${p.vendor}</div></div>
-  <div class="ic"><div class="il">업체 담당자</div><div class="iv">${pv.contact||'-'} ${pv.tel?'('+pv.tel+')':''}</div></div>
-  <div class="ic"><div class="il">사업자번호 / FAX</div><div class="iv">${pv.bizno||'-'} ${pv.fax?'/ FAX:'+pv.fax:''}</div></div>
-  <div class="ic"><div class="il">납기일</div><div class="iv">${p.due||'-'}</div></div>
-  <div class="ic"><div class="il">당사 담당자</div><div class="iv">${p.manager||'-'}</div></div>
-  ${p.note?`<div class="ic" style="grid-column:1/-1"><div class="il">비고</div><div class="iv">${p.note}</div></div>`:''}
+
+<div class="header-grid">
+  <div>
+    <div class="info-row"><span class="info-label">발 송 일 자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+    <div class="info-row"><span class="info-label">발 신 처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+    <div class="info-row"><span class="info-label">본 사 주 소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+    <div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
+  </div>
+  <div>
+    <div class="signs-top">
+      <div class="st-cell"><div class="st-label">결재</div></div>
+      <div class="st-cell"><div class="st-label">검토</div></div>
+      <div class="st-cell"><div class="st-label">결재</div></div>
+    </div>
+  </div>
 </div>
+
+<div class="divider"></div>
+
+<div class="info-row"><span class="info-label">수 신 처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
+<div class="info-row"><span class="info-label">본 사 주 소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
+<div class="info-row"><span class="info-label">등 록 번 호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
+
+<div style="margin:12px 0 6px"><div class="section-title">▶ 발주내역</div></div>
 <table>
-  <thead><tr><th style="width:5%">No</th><th style="width:35%">품목명</th><th style="width:20%">규격/사양</th><th style="width:15%">수량</th><th style="width:10%">단위</th><th style="width:15%">비고</th></tr></thead>
+  <thead><tr>
+    <th style="width:35%">주문품목</th>
+    <th style="width:15%">수량</th>
+    <th style="width:15%">단가 (단위)</th>
+    <th style="width:35%">금액 (비고)</th>
+  </tr></thead>
   <tbody>
-    ${p.items.map((it,i)=>`<tr><td class="c">${i+1}</td><td style="font-weight:600">${it.item}</td><td class="c" style="color:#555">${it.spec||'-'}</td><td class="m" style="font-size:16px">${it.qty}</td><td class="c">${it.unit}</td><td></td></tr>`).join('')}
-    ${Array(Math.max(0,5-p.items.length)).fill('<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+    ${p.items.map(it=>`<tr>
+      <td style="font-weight:600">${it.item}${it.spec?' ('+it.spec+')':''}</td>
+      <td class="c" style="font-size:15px;font-weight:700">${it.qty}</td>
+      <td class="c">${it.unit}</td>
+      <td></td>
+    </tr>`).join('')}
+    ${Array(Math.max(0,4-p.items.length)).fill('<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>').join('')}
   </tbody>
 </table>
-<div class="signs">
-  <div class="sc"><div class="sl">작 성</div><div class="sn">${p.manager||''}</div></div>
-  <div class="sc"><div class="sl">검 토</div><div class="sn"></div></div>
-  <div class="sc"><div class="sl">승 인</div><div class="sn"></div></div>
-  <div class="sc"><div class="sl">수 신 확 인</div><div class="sn"></div></div>
+
+<div class="note-box">NOTE1. ${p.note||''}</div>
+
+<div class="closing">
+  위와 같이 발주하오니 입고요청일 안에 제작하여 납품하여 주시길 바랍니다<br>
+  (납기일 엄수바랍니다)<br>
+  구매 담당자 : ${p.manager||''}
 </div>
-<div class="foot">삼성SR 통합관리 시스템 · 발주서 · 총 ${p.items.length}개 품목</div>
+
+<div style="margin-bottom:6px"><div class="section-title">▶ 입고내역 확인란</div></div>
+<table class="incoming-table">
+  <thead><tr>
+    <th style="width:25%">발송일자</th>
+    <th style="width:25%">입고요청일</th>
+    <th style="width:25%">받는곳</th>
+    <th style="width:25%">비고</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+    <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+    <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+  </tbody>
+</table>
+
+<div class="footer-name">삼성 S.R</div>
+
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
   const pw=window.open('','_blank','width=950,height=750');
