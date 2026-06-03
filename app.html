@@ -435,6 +435,10 @@ select.fi option{background:#fff;color:#111}
       설정 / 업로드
     </button>
     <div class="nav-section">외주</div>
+    <button class="nav-item" onclick="go('purchase')" id="nb-purchase">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+      물품 발주 관리
+    </button>
     <button class="nav-item" onclick="go('vendor')" id="nb-vendor">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       외주업체 관리
@@ -514,6 +518,9 @@ let orderItems=[]; // 발주서 작성 중인 품목 목록
 let orderForm={vendor:'',w:'',due:'',memo:''}; // 발주서 입력값 기억 (render 시 복원)
 let planSel={};
 let vendors=JSON.parse(localStorage.getItem('sr-vendors')||'[]');
+let purchaseVendors=JSON.parse(localStorage.getItem('sr-purchase-vendors')||'[]');
+let purchases=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
+function svPurchase(){localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
 let vendorOrders=JSON.parse(localStorage.getItem('sr-vendor-orders')||'[]');
 function svVendors(){localStorage.setItem('sr-vendors',JSON.stringify(vendors));localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
 let planSq=''; // 생산계획서 품목 검색어
@@ -1067,6 +1074,7 @@ function render(){
   else if(tab==='plan')m.innerHTML=rPlan();
   else if(tab==='set')m.innerHTML=rSet();
   else if(tab==='vendor')m.innerHTML=rVendor();
+  else if(tab==='purchase')m.innerHTML=rPurchase();
   else if(tab==='barcode')m.innerHTML=rBarcode();
   else if(tab==='order')m.innerHTML=rOrder();
   else if(tab==='pstat')m.innerHTML=rPstat();
@@ -1075,6 +1083,255 @@ function render(){
   dots();
 }
 
+
+
+// ── 물품 발주 관리 ────────────────────────────────────────────────
+let purchaseTab = 'list'; // list | new
+
+function rPurchase(){
+  return `
+  <div class="page-title">물품 발주 관리</div>
+  <div class="page-sub">발주서 생성 및 발주 현황 관리</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button class="btn bbl" onclick="openNewPurchaseModal()">📋 발주서 생성</button>
+    <button class="btn bbp" onclick="openPurchaseVendorModal()">🏭 거래업체 등록</button>
+  </div>
+
+  <!-- 거래업체 목록 -->
+  ${purchaseVendors.length?`
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">등록 거래업체 <span style="color:var(--blue)">${purchaseVendors.length}개</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${purchaseVendors.map((v,i)=>`
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${v.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${v.contact||''} ${v.tel?'· '+v.tel:''}</div>
+        </div>
+        <button onclick="removePurchaseVendor(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
+      </div>`).join('')}
+    </div>
+  </div>`:''}
+
+  <!-- 발주 현황 -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div class="card-title" style="margin-bottom:0">발주 현황 <span style="color:var(--blue)">${purchases.length}건</span></div>
+    </div>
+    ${!purchases.length?'<div style="text-align:center;padding:40px;color:var(--text3)">발주 내역이 없습니다</div>':`
+    <div style="overflow-x:auto">
+    <table class="tbl" style="min-width:700px">
+      <thead><tr><th>문서번호</th><th>업체명</th><th>품목</th><th>수량</th><th>납기일</th><th>발주일</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>
+        ${purchases.map((p,i)=>`<tr>
+          <td style="font-family:monospace;font-size:12px;color:var(--blue)">${p.docNo}</td>
+          <td style="font-weight:600">${p.vendor}</td>
+          <td>${p.items.map(it=>it.item).join(', ')}</td>
+          <td style="font-family:monospace;font-weight:700">${p.items.reduce((s,it)=>s+it.qty,0)}</td>
+          <td style="font-size:12px;color:var(--text3)">${p.due||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${new Date(p.ts).toLocaleDateString('ko')}</td>
+          <td><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
+          <td style="display:flex;gap:4px">
+            <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
+            ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
+            <button onclick="purchases.splice(${i},1);svPurchase();go('purchase')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`}
+  </div>`;
+}
+
+function openPurchaseVendorModal(){
+  if(!requireEdit())return;
+  document.getElementById('mo-title').textContent='🏭 거래업체 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="pv-name" placeholder="업체명"></div>
+    <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="pv-contact" placeholder="담당자"></div>
+    <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="pv-tel" placeholder="010-0000-0000"></div>
+    <div class="fg"><label class="fl">주소</label><input type="text" class="fi" id="pv-addr" placeholder="업체 주소"></div>
+    <button class="btn bbl btn-full" onclick="addPurchaseVendor()">✓ 등록</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function addPurchaseVendor(){
+  const name=document.getElementById('pv-name')?.value?.trim();
+  if(!name){tst('업체명을 입력해주세요');return;}
+  if(purchaseVendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
+  purchaseVendors.push({
+    name,
+    contact:document.getElementById('pv-contact')?.value?.trim()||'',
+    tel:document.getElementById('pv-tel')?.value?.trim()||'',
+    addr:document.getElementById('pv-addr')?.value?.trim()||''
+  });
+  svPurchase();cmo();tst('✓ '+name+' 등록 완료');go('purchase');
+}
+
+function removePurchaseVendor(i){
+  if(!requireEdit())return;
+  if(!confirm(purchaseVendors[i].name+' 을(를) 삭제하시겠습니까?'))return;
+  purchaseVendors.splice(i,1);svPurchase();go('purchase');
+}
+
+let purchaseItems=[{item:'',qty:1,unit:'개',spec:''}];
+
+function openNewPurchaseModal(){
+  if(!requireEdit())return;
+  purchaseItems=[{item:'',qty:1,unit:'개',spec:''}];
+  const now=new Date();
+  const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
+  document.getElementById('mo-title').textContent='📋 발주서 생성';
+  renderPurchaseModal(dn);
+  document.getElementById('ov').classList.add('on');
+}
+
+function renderPurchaseModal(dn){
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">문서번호</label><input type="text" class="fi" id="po-docno" value="${dn||''}"></div>
+    <div class="fg"><label class="fl">거래업체 *</label>
+      <select class="fi" id="po-vendor">
+        <option value="">-- 업체 선택 --</option>
+        ${purchaseVendors.map(v=>`<option value="${v.name}">${v.name}</option>`).join('')}
+        <option value="__direct__">직접 입력</option>
+      </select>
+    </div>
+    <div class="fg" id="po-vendor-direct-wrap" style="display:none">
+      <label class="fl">업체명 직접 입력</label>
+      <input type="text" class="fi" id="po-vendor-direct" placeholder="업체명">
+    </div>
+    <div class="fg"><label class="fl">납기일</label><input type="date" class="fi" id="po-due" value="${new Date(Date.now()+604800000).toISOString().slice(0,10)}"></div>
+    <div class="fg"><label class="fl">담당자</label>
+      <select class="fi" id="po-manager">${WK.map(w=>`<option>${w}</option>`).join('')}</select>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label class="fl" style="margin-bottom:0">발주 품목</label>
+        <button onclick="addPurchaseItem()" class="btn bbl" style="padding:4px 12px;font-size:12px">+ 품목 추가</button>
+      </div>
+      <div id="po-items">
+        ${renderPurchaseItems()}
+      </div>
+    </div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="po-note" placeholder="메모"></div>
+    <div class="btn-row">
+      <button class="btn bbl" style="flex:1;justify-content:center" onclick="submitPurchase()">✓ 발주 등록</button>
+      <button class="btn bbp" style="flex:1;justify-content:center" onclick="submitAndPrintPurchase()">🖨️ 등록 + 출력</button>
+    </div>`;
+  // 업체 선택 이벤트
+  setTimeout(()=>{
+    const sel=document.getElementById('po-vendor');
+    if(sel) sel.onchange=function(){
+      const w=document.getElementById('po-vendor-direct-wrap');
+      if(w) w.style.display=this.value==='__direct__'?'block':'none';
+    };
+  },100);
+}
+
+function renderPurchaseItems(){
+  return purchaseItems.map((it,i)=>`
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;margin-bottom:6px;align-items:center">
+    <input type="text" class="fi" placeholder="품목명" value="${it.item}" oninput="purchaseItems[${i}].item=this.value" style="font-size:13px;padding:8px 10px">
+    <input type="number" class="fi" placeholder="수량" value="${it.qty}" min="1" oninput="purchaseItems[${i}].qty=parseInt(this.value)||1" style="font-size:13px;padding:8px 10px">
+    <input type="text" class="fi" placeholder="단위" value="${it.unit}" oninput="purchaseItems[${i}].unit=this.value" style="font-size:13px;padding:8px 10px">
+    <input type="text" class="fi" placeholder="규격/사양" value="${it.spec}" oninput="purchaseItems[${i}].spec=this.value" style="font-size:13px;padding:8px 10px">
+    <button onclick="removePurchaseItem(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px">✕</button>
+  </div>`).join('');
+}
+
+function addPurchaseItem(){
+  purchaseItems.push({item:'',qty:1,unit:'개',spec:''});
+  const box=document.getElementById('po-items');
+  if(box) box.innerHTML=renderPurchaseItems();
+}
+
+function removePurchaseItem(i){
+  if(purchaseItems.length<=1){tst('최소 1개 품목이 필요합니다');return;}
+  purchaseItems.splice(i,1);
+  const box=document.getElementById('po-items');
+  if(box) box.innerHTML=renderPurchaseItems();
+}
+
+function getPurchaseData(){
+  const docNo=document.getElementById('po-docno')?.value?.trim()||'';
+  let vendor=document.getElementById('po-vendor')?.value||'';
+  if(vendor==='__direct__') vendor=document.getElementById('po-vendor-direct')?.value?.trim()||'';
+  const due=document.getElementById('po-due')?.value||'';
+  const manager=document.getElementById('po-manager')?.value||'';
+  const note=document.getElementById('po-note')?.value?.trim()||'';
+  if(!vendor){tst('업체를 선택하거나 입력해주세요');return null;}
+  if(!purchaseItems.some(it=>it.item)){tst('품목명을 입력해주세요');return null;}
+  return {docNo,vendor,due,manager,note,items:purchaseItems.filter(it=>it.item),ts:Date.now(),status:'pending'};
+}
+
+function submitPurchase(){
+  const data=getPurchaseData();
+  if(!data)return;
+  purchases.unshift(data);svPurchase();cmo();tst('✓ 발주 등록 완료');go('purchase');
+}
+
+function submitAndPrintPurchase(){
+  const data=getPurchaseData();
+  if(!data)return;
+  purchases.unshift(data);svPurchase();cmo();
+  tst('✓ 발주 등록 완료');
+  go('purchase');
+  setTimeout(()=>prPurchaseDoc(0),300);
+}
+
+function prPurchaseDoc(i){
+  const p=purchases[i];
+  if(!p)return;
+  const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
+  const now=new Date(p.ts);
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발주서 ${p.docNo}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:20px;font-size:13px}
+h1{font-size:26px;font-weight:700;text-align:center;margin-bottom:4px;letter-spacing:.1em}
+.co{text-align:center;color:#555;font-size:12px;margin-bottom:18px}
+.info{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #222;margin-bottom:16px}
+.ic{padding:8px 12px;border:.5px solid #ccc}.il{font-size:10px;color:#666;margin-bottom:2px}.iv{font-weight:600;font-size:13px}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+th{background:#1a1f2e;color:#fff;padding:10px;font-size:12px;text-align:center;border:1px solid #333}
+td{padding:9px 10px;border:1px solid #ccc;font-size:12px}
+.c{text-align:center}.m{font-family:monospace;font-weight:700;text-align:center}
+.signs{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #333;margin-bottom:16px}
+.sc{padding:6px;border:.5px solid #ccc;text-align:center;height:64px;display:flex;flex-direction:column;justify-content:space-between}
+.sl{font-size:9px;color:#888}.sn{font-size:11px;font-weight:600}
+.foot{font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:10px}
+@media print{@page{size:A4;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style>
+</head><body>
+<h1>발 주 서</h1>
+<div class="co">삼성SR 통합관리 시스템</div>
+<div class="info">
+  <div class="ic"><div class="il">문서번호</div><div class="iv">${p.docNo}</div></div>
+  <div class="ic"><div class="il">발행일</div><div class="iv">${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div></div>
+  <div class="ic"><div class="il">수신업체</div><div class="iv">${p.vendor}</div></div>
+  <div class="ic"><div class="il">업체 담당자</div><div class="iv">${pv.contact||'-'} ${pv.tel?'('+pv.tel+')':''}</div></div>
+  <div class="ic"><div class="il">납기일</div><div class="iv">${p.due||'-'}</div></div>
+  <div class="ic"><div class="il">당사 담당자</div><div class="iv">${p.manager||'-'}</div></div>
+  ${p.note?`<div class="ic" style="grid-column:1/-1"><div class="il">비고</div><div class="iv">${p.note}</div></div>`:''}
+</div>
+<table>
+  <thead><tr><th style="width:5%">No</th><th style="width:35%">품목명</th><th style="width:20%">규격/사양</th><th style="width:15%">수량</th><th style="width:10%">단위</th><th style="width:15%">비고</th></tr></thead>
+  <tbody>
+    ${p.items.map((it,i)=>`<tr><td class="c">${i+1}</td><td style="font-weight:600">${it.item}</td><td class="c" style="color:#555">${it.spec||'-'}</td><td class="m" style="font-size:16px">${it.qty}</td><td class="c">${it.unit}</td><td></td></tr>`).join('')}
+    ${Array(Math.max(0,5-p.items.length)).fill('<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+  </tbody>
+</table>
+<div class="signs">
+  <div class="sc"><div class="sl">작 성</div><div class="sn">${p.manager||''}</div></div>
+  <div class="sc"><div class="sl">검 토</div><div class="sn"></div></div>
+  <div class="sc"><div class="sl">승 인</div><div class="sn"></div></div>
+  <div class="sc"><div class="sl">수 신 확 인</div><div class="sn"></div></div>
+</div>
+<div class="foot">삼성SR 통합관리 시스템 · 발주서 · 총 ${p.items.length}개 품목</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const pw=window.open('','_blank','width=950,height=750');
+  if(pw){pw.document.write(html);pw.document.close();}
+  else tst('팝업 허용 후 다시 시도해주세요');
+}
+// ── 물품 발주 관리 끝 ────────────────────────────────────────────
 
 // ── 외주업체 관리 ─────────────────────────────────────────────────
 let vendorTab = 'list'; // list | detail
