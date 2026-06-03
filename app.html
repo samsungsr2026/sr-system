@@ -1077,104 +1077,169 @@ function render(){
 
 
 // ── 외주업체 관리 ─────────────────────────────────────────────────
+let vendorTab = 'list'; // list | detail
+let curVendorIdx = -1;
+
 function rVendor(){
+  if(vendorTab==='detail' && curVendorIdx>=0) return rVendorDetail(curVendorIdx);
+  return rVendorList();
+}
+
+function rVendorList(){
   return `
   <div class="page-title">외주업체 관리</div>
-  <div class="page-sub">외주업체 등록 및 발주서 · 입고 관리</div>
+  <div class="page-sub">등록된 외주업체 목록</div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+    <button class="btn bbl" onclick="openAddVendorModal()">+ 업체 등록</button>
+  </div>
+  ${!vendors.length?`
+  <div class="card" style="text-align:center;padding:60px">
+    <div style="font-size:48px;margin-bottom:12px">🏭</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text)">등록된 외주업체가 없습니다</div>
+    <div style="font-size:13px;color:var(--text3);margin-top:6px">상단의 + 업체 등록 버튼을 클릭하세요</div>
+  </div>`:`
   <div class="grid2">
-    <div>
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-title">업체 등록</div>
-        <div class="fg"><label class="fl">업체명</label><input type="text" class="fi" id="v-name" placeholder="업체명 입력"></div>
-        <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="v-contact" placeholder="담당자 이름"></div>
-        <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="v-tel" placeholder="010-0000-0000"></div>
-        <div class="fg"><label class="fl">품목 (쉼표로 구분)</label><input type="text" class="fi" id="v-items" placeholder="예: GROMMET, PAD, SEAL"></div>
-        <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="v-note" placeholder="메모"></div>
-        <button class="btn bbl btn-full" onclick="addVendorCo()">+ 업체 등록</button>
+    ${vendors.map((v,i)=>`
+    <div class="card" style="cursor:pointer;border:1.5px solid var(--border);transition:all .15s" 
+      onmouseover="this.style.borderColor='var(--blue)'" 
+      onmouseout="this.style.borderColor='var(--border)'"
+      onclick="openVendorDetail(${i})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:40px;height:40px;background:var(--blue-bg);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px">🏭</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text)">${v.name}</div>
+            <div style="font-size:12px;color:var(--text3)">${v.contact||''} ${v.tel?'· '+v.tel:''}</div>
+          </div>
+        </div>
+        <button onclick="event.stopPropagation();removeVendorCo(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">삭제</button>
       </div>
+      <div style="display:flex;gap:8px;font-size:12px">
+        <span style="background:var(--bg3);padding:3px 8px;border-radius:5px;color:var(--text2)">품목: ${v.items||'-'}</span>
+        <span style="background:var(--blue-bg);padding:3px 8px;border-radius:5px;color:var(--blue)">발주 ${vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='order').length}건</span>
+        <span style="background:var(--green-bg);padding:3px 8px;border-radius:5px;color:var(--green)">입고 ${vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='incoming').length}건</span>
+      </div>
+    </div>`).join('')}
+  </div>`}`;
+}
 
-      <div class="card">
-        <div class="card-title">등록 업체 <span style="color:var(--blue)">${vendors.length}개</span></div>
-        ${!vendors.length?'<div style="text-align:center;padding:20px;color:var(--text3)">등록된 업체가 없습니다</div>':
-          vendors.map((v,i)=>`
-          <div style="background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border)">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-              <span style="font-size:15px;font-weight:700;color:var(--text)">${v.name}</span>
-              <div style="display:flex;gap:6px">
-                <button onclick="openVendorOrder(${i})" class="btn bbl" style="padding:4px 10px;font-size:11px">📋 발주서 작성</button>
-                <button onclick="removeVendor(${i})" class="btn bbr" style="padding:4px 10px;font-size:11px">삭제</button>
-              </div>
-            </div>
-            <div style="font-size:12px;color:var(--text2)">담당: ${v.contact||'-'} · ${v.tel||'-'}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:2px">품목: ${v.items||'-'}</div>
-          </div>`).join('')}
+function openVendorDetail(i){
+  vendorTab='detail';curVendorIdx=i;go('vendor');
+}
+
+function rVendorDetail(i){
+  const v=vendors[i];
+  const orders=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='order');
+  const incomings=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='incoming');
+  return `
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button onclick="vendorTab='list';go('vendor')" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:8px 14px">← 목록</button>
+    <div>
+      <div class="page-title" style="margin-bottom:0">🏭 ${v.name}</div>
+      <div class="page-sub" style="margin-bottom:0">${v.contact||''} ${v.tel?'· '+v.tel:''} ${v.items?'· '+v.items:''}</div>
+    </div>
+  </div>
+  <div class="grid2">
+    <!-- 발주 현황 -->
+    <div>
+      <div class="card" style="margin-bottom:14px;border-color:rgba(26,107,255,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0;color:var(--blue)">📋 발주 현황</div>
+          <button class="btn bbl" style="padding:6px 14px;font-size:12px" onclick="openOrderModal(${i})">+ 발주 등록</button>
+        </div>
+        ${!orders.length?'<div style="text-align:center;padding:16px;color:var(--text3)">발주 내역 없음</div>':`
+        <table class="tbl">
+          <thead><tr><th>품목</th><th>수량</th><th>납기일</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            ${orders.map((o,oi)=>`<tr>
+              <td style="font-weight:600">${o.item}</td>
+              <td style="font-family:monospace;font-weight:700">${o.qty}${o.unit||'개'}</td>
+              <td style="font-size:12px;color:var(--text3)">${o.due||'-'}</td>
+              <td><span class="badge ${o.status==='done'?'bg':'ba'}">${o.status==='done'?'완료':'진행중'}</span></td>
+              <td style="display:flex;gap:4px">
+                ${o.status!=='done'?`<button onclick="vendorOrderDone('${v.name}',${oi})" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
+                <button onclick="openPrOrderModal(${i},${oi})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`}
       </div>
     </div>
-
+    <!-- 입고 현황 -->
     <div>
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-title">발주/입고 내역 <span style="color:var(--blue)">${vendorOrders.length}건</span></div>
-        ${!vendorOrders.length?'<div style="text-align:center;padding:20px;color:var(--text3)">내역이 없습니다</div>':
-          `<div style="overflow-x:auto"><table class="tbl" style="min-width:500px">
-            <thead><tr><th>업체명</th><th>품목</th><th>수량</th><th>구분</th><th>일자</th><th>상태</th><th></th></tr></thead>
-            <tbody>
-              ${vendorOrders.slice(0,20).map((o,i)=>`<tr>
-                <td style="font-weight:600">${o.vendor}</td>
-                <td>${o.item}</td>
-                <td style="font-family:monospace;font-weight:700">${o.qty}${o.unit||'개'}</td>
-                <td><span class="badge ${o.type==='order'?'bb':'bg'}">${o.type==='order'?'발주':'입고'}</span></td>
-                <td style="color:var(--text3);font-size:12px">${new Date(o.ts).toLocaleDateString('ko')}</td>
-                <td><span class="badge ${o.status==='done'?'bg':'ba'}">${o.status==='done'?'완료':'진행중'}</span></td>
-                <td>
-                  ${o.type==='order'&&o.status!=='done'?`<button onclick="vendorIncoming(${i})" class="btn bbg" style="padding:3px 8px;font-size:11px">입고처리</button>`:''}
-                  <button onclick="vendorOrders.splice(${i},1);svVendors();go('vendor')" class="btn" style="padding:3px 8px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
-                </td>
-              </tr>`).join('')}
-            </tbody>
-          </table></div>`}
+      <div class="card" style="border-color:rgba(13,158,114,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="card-title" style="margin-bottom:0;color:var(--green)">📦 입고 현황</div>
+          <button class="btn bbg" style="padding:6px 14px;font-size:12px" onclick="openIncomingModal(${i})">+ 입고 등록</button>
+        </div>
+        ${!incomings.length?'<div style="text-align:center;padding:16px;color:var(--text3)">입고 내역 없음</div>':`
+        <table class="tbl">
+          <thead><tr><th>품목</th><th>수량</th><th>입고일</th><th>메모</th></tr></thead>
+          <tbody>
+            ${incomings.map(o=>`<tr>
+              <td style="font-weight:600">${o.item}</td>
+              <td style="font-family:monospace;font-weight:700;color:var(--green)">${o.qty}${o.unit||'개'}</td>
+              <td style="font-size:12px;color:var(--text3)">${new Date(o.ts).toLocaleDateString('ko')}</td>
+              <td style="font-size:12px;color:var(--text3)">${o.note||'-'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`}
       </div>
     </div>
   </div>`;
 }
 
+function openAddVendorModal(){
+  if(!requireEdit())return;
+  document.getElementById('mo-title').textContent='🏭 외주업체 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="v-name" placeholder="업체명"></div>
+    <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="v-contact" placeholder="담당자 이름"></div>
+    <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="v-tel" placeholder="010-0000-0000"></div>
+    <div class="fg"><label class="fl">주요 품목</label><input type="text" class="fi" id="v-items" placeholder="예: GROMMET, PAD"></div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="v-note" placeholder="메모"></div>
+    <button class="btn bbl btn-full" onclick="addVendorCo()">✓ 업체 등록</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
 function addVendorCo(){
   const name=document.getElementById('v-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
+  if(vendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
   const contact=document.getElementById('v-contact')?.value?.trim()||'';
   const tel=document.getElementById('v-tel')?.value?.trim()||'';
   const items=document.getElementById('v-items')?.value?.trim()||'';
   const note=document.getElementById('v-note')?.value?.trim()||'';
-  if(vendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
   vendors.push({name,contact,tel,items,note,ts:Date.now()});
-  svVendors();tst('✓ '+name+' 등록 완료');go('vendor');
+  svVendors();cmo();tst('✓ '+name+' 등록 완료');go('vendor');
 }
 
-function removeVendor(i){
+function removeVendorCo(i){
   if(!requireEdit())return;
   if(!confirm(vendors[i].name+' 을(를) 삭제하시겠습니까?'))return;
   vendors.splice(i,1);svVendors();go('vendor');
 }
 
-function openVendorOrder(vi){
+function openOrderModal(vi){
   if(!requireEdit())return;
   const v=vendors[vi];
-  document.getElementById('mo-title').textContent='📋 발주서 작성 — '+v.name;
+  document.getElementById('mo-title').textContent='📋 발주 등록 — '+v.name;
   document.getElementById('mb').innerHTML=`
-    <div class="fg"><label class="fl">품목명</label><input type="text" class="fi" id="vo-item" placeholder="품목명" value="${v.items?.split(',')[0]?.trim()||''}"></div>
+    <div class="fg"><label class="fl">품목명 *</label><input type="text" class="fi" id="vo-item" placeholder="품목명" value="${v.items?.split(',')[0]?.trim()||''}"></div>
     <div class="grid2">
-      <div class="fg"><label class="fl">수량</label><input type="number" class="fi" id="vo-qty" placeholder="수량" min="1"></div>
-      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vo-unit" placeholder="개" value="개"></div>
+      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="vo-qty" min="1" placeholder="수량"></div>
+      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vo-unit" value="개"></div>
     </div>
     <div class="fg"><label class="fl">납기일</label><input type="date" class="fi" id="vo-due" value="${new Date(Date.now()+604800000).toISOString().slice(0,10)}"></div>
     <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="vo-note" placeholder="메모"></div>
     <div class="btn-row">
-      <button class="btn bbl btn-full" onclick="submitVendorOrder(${vi})">✓ 발주 등록</button>
-      <button class="btn btn-full" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="prVendorOrder(${vi})">🖨️ 발주서 출력</button>
+      <button class="btn bbl" style="flex:1;justify-content:center" onclick="submitOrder(${vi})">✓ 발주 등록</button>
+      <button class="btn bbp" style="flex:1;justify-content:center" onclick="prOrder(${vi})">🖨️ 발주서 출력</button>
     </div>`;
   document.getElementById('ov').classList.add('on');
 }
 
-function submitVendorOrder(vi){
+function submitOrder(vi){
   const v=vendors[vi];
   const item=document.getElementById('vo-item')?.value?.trim();
   const qty=parseInt(document.getElementById('vo-qty')?.value);
@@ -1183,29 +1248,67 @@ function submitVendorOrder(vi){
   const note=document.getElementById('vo-note')?.value?.trim()||'';
   if(!item){tst('품목명을 입력해주세요');return;}
   if(!qty||qty<1){tst('수량을 입력해주세요');return;}
-  vendorOrders.unshift({vendor:v.name,item,qty,unit,due,note,type:'order',status:'pending',ts:Date.now()});
+  vendorOrders.unshift({vendorName:v.name,item,qty,unit,due,note,type:'order',status:'pending',ts:Date.now()});
   svVendors();cmo();tst('✓ 발주 등록 완료');go('vendor');
 }
 
-function vendorIncoming(i){
-  const o=vendorOrders[i];
-  if(!confirm(o.vendor+' - '+o.item+' '+o.qty+o.unit+' 입고 처리하시겠습니까?'))return;
-  vendorOrders[i].status='done';
-  vendorOrders[i].incomingTs=Date.now();
-  // 재고에도 반영
-  const idx=inv.findIndex(it=>it.name.includes(o.item)||o.item.includes(it.name));
-  if(idx>=0){
-    inv[idx].qty+=o.qty;
-    txs.unshift({id:Date.now(),type:'in',iid:inv[idx].id,qty:o.qty,w:o.vendor,ts:Date.now(),memo:'[외주입고] '+o.vendor});
-    sv();
-    tst('✓ 입고 완료 — '+inv[idx].name+' +'+o.qty+o.unit);
-  }else{
-    tst('✓ 입고 처리 완료 (재고 품목 미매칭)');
-  }
+function vendorOrderDone(vname, oi){
+  const orders=vendorOrders.filter(o=>o.vendorName===vname&&o.type==='order');
+  const o=orders[oi];
+  const idx=vendorOrders.indexOf(o);
+  if(idx<0)return;
+  if(!confirm('발주 완료 처리하시겠습니까?'))return;
+  vendorOrders[idx].status='done';
   svVendors();go('vendor');
 }
 
-function prVendorOrder(vi){
+function openIncomingModal(vi){
+  if(!requireEdit())return;
+  const v=vendors[vi];
+  document.getElementById('mo-title').textContent='📦 입고 등록 — '+v.name;
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">품목명 *</label><input type="text" class="fi" id="vi-item" placeholder="품목명" value="${v.items?.split(',')[0]?.trim()||''}"></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="vi-qty" min="1" placeholder="수량"></div>
+      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="vi-unit" value="개"></div>
+    </div>
+    <div class="fg"><label class="fl">입고일</label><input type="date" class="fi" id="vi-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="fg"><label class="fl">재고 반영</label>
+      <select class="fi" id="vi-inv">
+        <option value="">-- 재고 품목 연결 (선택) --</option>
+        ${inv.map(it=>`<option value="${it.id}">${it.name} (현재: ${it.qty}${it.unit})</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="vi-note" placeholder="메모"></div>
+    <button class="btn bbg btn-full" onclick="submitIncoming(${vi})">✓ 입고 등록</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitIncoming(vi){
+  const v=vendors[vi];
+  const item=document.getElementById('vi-item')?.value?.trim();
+  const qty=parseInt(document.getElementById('vi-qty')?.value);
+  const unit=document.getElementById('vi-unit')?.value?.trim()||'개';
+  const note=document.getElementById('vi-note')?.value?.trim()||'';
+  const invId=document.getElementById('vi-inv')?.value||'';
+  if(!item){tst('품목명을 입력해주세요');return;}
+  if(!qty||qty<1){tst('수량을 입력해주세요');return;}
+  vendorOrders.unshift({vendorName:v.name,item,qty,unit,note,type:'incoming',ts:Date.now()});
+  if(invId){
+    const idx=inv.findIndex(it=>it.id===invId);
+    if(idx>=0){
+      inv[idx].qty+=qty;
+      txs.unshift({id:Date.now(),type:'in',iid:invId,qty,w:v.name,ts:Date.now(),memo:'[외주입고] '+v.name});
+      sv();
+      tst('✓ 입고 완료 — 재고 반영: '+inv[idx].name+' +'+qty+unit);
+    }
+  }else{
+    tst('✓ 입고 등록 완료');
+  }
+  svVendors();cmo();go('vendor');
+}
+
+function prOrder(vi){
   const v=vendors[vi];
   const item=document.getElementById('vo-item')?.value?.trim()||'';
   const qty=document.getElementById('vo-qty')?.value||'';
@@ -1228,8 +1331,7 @@ td{padding:10px;border:1px solid #ccc;text-align:center}
 .foot{font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}
 @media print{@page{size:A4;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style>
 </head><body>
-<h1>발 주 서</h1>
-<div class="co">삼성SR · 외주업체 발주</div>
+<h1>발 주 서</h1><div class="co">삼성SR · 외주업체 발주</div>
 <div class="info">
   <div class="ic"><div class="il">문서번호</div><div class="iv">${dn}</div></div>
   <div class="ic"><div class="il">발행일</div><div class="iv">${now.toLocaleDateString('ko')}</div></div>
@@ -1240,9 +1342,7 @@ td{padding:10px;border:1px solid #ccc;text-align:center}
 </div>
 <table>
   <thead><tr><th>No</th><th>품목명</th><th>수량</th><th>단위</th><th>비고</th></tr></thead>
-  <tbody>
-    <tr><td>1</td><td style="font-weight:700">${item}</td><td style="font-size:18px;font-weight:700">${qty}</td><td>${unit}</td><td>${note}</td></tr>
-  </tbody>
+  <tbody><tr><td>1</td><td style="font-weight:700">${item}</td><td style="font-size:18px;font-weight:700">${qty}</td><td>${unit}</td><td>${note}</td></tr></tbody>
 </table>
 <div class="signs">
   <div class="sc"><div class="sl">작 성</div></div>
