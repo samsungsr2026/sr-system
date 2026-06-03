@@ -1407,14 +1407,14 @@ function savePurchasePDF(){
           </tr>
         </table>
       </div>
-      <div class="info-row"><span class="info-label">발 &nbsp;송 일 &nbsp;자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
-      <div class="info-row"><span class="info-label">발 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
-      <div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
-      <div class="info-row"><span class="info-label">입 고 요 청 일 :</span> ${p.due||'-'}</div>
+      <div class="info-row"><span class="info-label">발송일자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+      <div class="info-row"><span class="info-label">발신처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+      <div class="info-row"><span class="info-label">주소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+      <div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
       <div class="divider"></div>
-      <div class="info-row"><span class="info-label">수 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
-      <div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
-      <div class="info-row"><span class="info-label">등 &nbsp;록 번 &nbsp;호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
+      <div class="info-row"><span class="info-label">수신처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
+      <div class="info-row"><span class="info-label">주소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
+      <div class="info-row"><span class="info-label">등록번호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
       <div style="margin:20px 0 6px"><div class="section-title">▶ 발주내역</div></div>
       <table>
         <thead><tr><th style="width:35%">주문품목</th><th style="width:15%">수량</th><th style="width:15%">단가 (단위)</th><th style="width:35%">금액 (비고)</th></tr></thead>
@@ -1449,7 +1449,7 @@ body{font-family:'Malgun Gothic',sans-serif;color:#111;font-size:12px}
 .page:last-child{page-break-after:auto}
 h1{font-size:31px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
 .info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
-.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-label{font-weight:600;white-space:nowrap;display:inline-block;min-width:90px}
 .info-right{margin-left:auto;font-size:13px}
 .divider{border-top:2px solid #111;margin:10px 0 16px}
 .section-title{font-size:14px;font-weight:700;margin-bottom:6px}
@@ -1493,7 +1493,7 @@ function prPurchaseDocPDF(i){
 body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:32mm 14mm 16mm;font-size:14px}
 h1{font-size:34px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
 .info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
-.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-label{font-weight:600;white-space:nowrap;display:inline-block;min-width:90px}
 .info-right{margin-left:auto;font-size:13px}
 .divider{border-top:2px solid #111;margin:10px 0 16px}
 .section-title{font-size:14px;font-weight:700;margin-bottom:6px}
@@ -1522,14 +1522,14 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
   </table>
 </div>
 <div style="height:2em"></div>
-<div class="info-row"><span class="info-label">발 &nbsp;송 일 &nbsp;자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
-<div class="info-row"><span class="info-label">발 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
-<div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
-<div class="info-row"><span class="info-label">입 고 요 청 일 :</span> ${p.due||'-'}</div>
+<div class="info-row"><span class="info-label">발송일자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="info-row"><span class="info-label">발신처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+<div class="info-row"><span class="info-label">주소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+<div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
 <div class="divider"></div>
-<div class="info-row"><span class="info-label">수 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
-<div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
-<div class="info-row"><span class="info-label">등 &nbsp;록 번 &nbsp;호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
+<div class="info-row"><span class="info-label">수신처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
+<div class="info-row"><span class="info-label">주소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
+<div class="info-row"><span class="info-label">등록번호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
 <div style="margin:24px 0 6px"><div class="section-title">▶ 발주내역</div></div>
 <table>
   <thead><tr><th style="width:35%">주문품목</th><th style="width:15%">수량</th><th style="width:15%">단가 (단위)</th><th style="width:35%">금액 (비고)</th></tr></thead>
@@ -1606,7 +1606,7 @@ function prPurchaseDoc(i){
 body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:32mm 14mm 16mm;font-size:14px}
 h1{font-size:34px;font-weight:700;text-align:left;letter-spacing:.3em;margin:0}
 .info-row{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:14px}
-.info-label{font-weight:600;white-space:nowrap;min-width:84px}
+.info-label{font-weight:600;white-space:nowrap;display:inline-block;min-width:90px}
 .info-right{margin-left:auto;font-size:13px}
 .divider{border-top:2px solid #111;margin:10px 0 16px}
 .section-title{font-size:14px;font-weight:700;margin-bottom:6px}
@@ -1637,16 +1637,16 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
   </table>
 </div>
 <div style="height:2em"></div>
-<div class="info-row"><span class="info-label">발 &nbsp;송 일 &nbsp;자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
-<div class="info-row"><span class="info-label">발 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
-<div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
-<div class="info-row"><span class="info-label">입 고 요 청 일 :</span> ${p.due||'-'}</div>
+<div class="info-row"><span class="info-label">발송일자 :</span> ${now.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="info-row"><span class="info-label">발신처 :</span> 삼성 S.R <span class="info-right">TEL : ${myTel}</span></div>
+<div class="info-row"><span class="info-label">주소 :</span> ${myAddr} <span class="info-right">FAX : ${myFax}</span></div>
+<div class="info-row"><span class="info-label">입고요청일 :</span> ${p.due||'-'}</div>
 
 <div class="divider"></div>
 
-<div class="info-row"><span class="info-label">수 &nbsp;신 &nbsp;&nbsp;처 &nbsp;:</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
-<div class="info-row"><span class="info-label">주 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
-<div class="info-row"><span class="info-label">등 &nbsp;록 번 &nbsp;호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
+<div class="info-row"><span class="info-label">수신처 :</span> <strong>${p.vendor}</strong> <span class="info-right">TEL : ${pv.tel||''}</span></div>
+<div class="info-row"><span class="info-label">주소 :</span> ${pv.addr||''} <span class="info-right">FAX : ${pv.fax||''}</span></div>
+<div class="info-row"><span class="info-label">등록번호 :</span> ${pv.bizno||''} / ${pv.category||''} / ${pv.items||''}</div>
 
 <div style="margin:24px 0 6px"><div class="section-title">▶ 발주내역</div></div>
 <table>
