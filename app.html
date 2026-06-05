@@ -224,37 +224,18 @@ select.fi option{background:#fff;color:#111}
     top: 0; left: 0; right: 0;
   }
   .topbar-center { position: static; transform: none; width: 100%; justify-content: center; order: 1; }
-  .topbar-right { flex-direction: row; align-items: center; gap: 5px; margin-left: 0; width: 100%; order: 3; }
-  .topbar-right-row { gap: 5px; width: 100%; justify-content: flex-end; }
-  .topbar-time { display: none; }
-
-  /* 1줄: 로고 + 통합관리시스템 */
   .topbar-brand { padding: 4px 8px; gap: 8px; width: 100%; justify-content: center; background: none; border: none; }
   .brand-text { font-size: 16px !important; }
   .topbar-sub { font-size: 13px !important; display: block !important; }
   .star-badge svg { width: 30px !important; height: 30px !important; }
-
-  /* 2줄: 위치검색 + 새로고침/조회전용/관리자로그인 한줄에 */
-  .topbar > div:first-child { 
-    width: auto !important; padding: 0 !important; position: static !important; 
-    order: 2; flex: 1;
-  }
-  .topbar > div:first-child button { 
-    width: 100% !important; height: 34px !important; 
-    font-size: 12px !important; padding: 0 10px !important; 
-  }
-  .topbar-right { order: 2; flex: 0 0 auto; }
-  .topbar-right-row { flex-wrap: nowrap; }
-
-  /* 2줄 컨테이너로 묶기 */
-  .topbar-center { order: 1; }
-
+  .topbar-row2 { order: 2; }
+  .topbar-right { flex-direction: row; align-items: center; gap: 5px; margin-left: 0; flex: 0 0 auto; }
+  .topbar-right-row { gap: 5px; flex-wrap: nowrap; }
+  .topbar-time { display: none; }
   #jb-sync { display: none !important; }
   .topbar-right-row button { font-size: 11px !important; padding: 4px 7px !important; white-space: nowrap; }
   #top-auth button { font-size: 11px !important; padding: 4px 7px !important; white-space: nowrap; }
   #top-status { font-size: 11px !important; }
-
-  /* 메인 상단 여백 - 2줄 상단바 높이만큼 */
   .layout { margin-top: 80px !important; }
 
   /* ── 글씨/버튼 터치 최적화 ── */
