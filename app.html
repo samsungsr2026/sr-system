@@ -214,9 +214,23 @@ select.fi option{background:#fff;color:#111}
   .main { margin-left: 0 !important; padding: 14px 14px 80px !important; }
 
   /* ── 상단바 ── */
-  .topbar { padding: 0 14px; height: 52px; gap: 10px; }
-  .topbar-right { gap: 10px; }
+  .topbar { padding: 0 10px; height: 56px; gap: 6px; justify-content: space-between; }
+  .topbar-center { position: static; transform: none; flex: 1; justify-content: center; overflow: hidden; }
+  .topbar-brand { padding: 6px 10px; gap: 8px; }
+  .brand-text { font-size: 14px !important; }
+  .topbar-sub { font-size: 12px !important; display: none; }
+  .topbar-right { flex-direction: row; align-items: center; gap: 6px; margin-left: 0; }
+  .topbar-right-row { gap: 5px; }
   .topbar-time { display: none; }
+  /* 위치검색 버튼 - 모바일에서 작게 */
+  .topbar > div:first-child { width: auto !important; padding: 0 !important; position: static !important; }
+  .topbar > div:first-child button { width: auto !important; height: 36px !important; font-size: 12px !important; padding: 0 10px !important; gap: 4px; }
+  .topbar > div:first-child button svg { width: 14px; height: 14px; }
+  /* 새로고침, 동기화 상태 숨김 */
+  #jb-sync { display: none !important; }
+  .topbar-right-row button { font-size: 11px !important; padding: 4px 8px !important; }
+  /* 별 로고 작게 */
+  .star-badge svg { width: 32px !important; height: 32px !important; }
 
   /* ── 글씨/버튼 터치 최적화 ── */
   body { font-size: 15px !important; }
