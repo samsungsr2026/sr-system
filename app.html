@@ -447,6 +447,10 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="14"/><line x1="14" y1="17.5" x2="14" y2="17.5"/><line x1="17.5" y1="14" x2="17.5" y2="14"/><line x1="21" y1="14" x2="21" y2="14"/><line x1="17.5" y1="17.5" x2="17.5" y2="17.5"/><line x1="21" y1="21" x2="21" y2="21"/><line x1="14" y1="21" x2="14" y2="21"/><line x1="17.5" y1="21" x2="17.5" y2="21"/><line x1="21" y1="17.5" x2="21" y2="17.5"/></svg>
       제품 태그 출력
     </button>
+    <button class="nav-item" onclick="go('changelog')" id="nb-changelog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      변경이력
+    </button>
     <button class="nav-item" onclick="go('loc')" id="nb-loc" style="font-weight:700;color:#1a1f35">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
       📍 위치 검색
@@ -510,6 +514,14 @@ if(localStorage.getItem('sr-data-ver')!==DATA_VER){
 let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
+let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
+function saveCL(){localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
+function addLog(type,title,detail,itemId){
+  const user=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
+  changeLogs.unshift({id:Date.now(),ts:Date.now(),type:type,title:title,detail:detail||'',itemId:itemId||'',user:user});
+  if(changeLogs.length>2000)changeLogs=changeLogs.slice(0,2000);
+  saveCL();
+}
 // 단위 표기 마이그레이션: 기존 저장 데이터의 "개" 단위를 "EA"로 변환
 (function migrateUnitEA(){
   let changed=false;
@@ -1101,6 +1113,7 @@ function render(){
   else if(tab==='pstat')m.innerHTML=rPstat();
   else if(tab==='addprod')m.innerHTML=rAddProd();
   else if(tab==='delprod')m.innerHTML=rDelProd();
+  else if(tab==='changelog')m.innerHTML=rChangeLog();
   dots();
 }
 
@@ -3052,6 +3065,7 @@ function doIO(type){
   }
   if(type==='in')inv[idx].qty+=qty;else inv[idx].qty-=qty;
   txs.unshift({id:Date.now(),type,iid,qty,w,ts:Date.now(),memo});
+  addLog('io',(type==='in'?'입고':'출고')+' — '+inv[idx].name, `수량: ${type==='in'?'+':'-'}${qty}${inv[idx].unit} / 담당: ${w}${memo?' / '+memo:''}`, iid);
   sv();tst(type==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);go('dash');
 }
 
@@ -5194,7 +5208,16 @@ function saveItemEdit(id){
     const txWorker=finalProducer||(curUser?curUser.name:'(수동조정)');
     txs.unshift({id:Date.now(),type:qDiff>0?'in':'out',iid:txId,qty:Math.abs(qDiff),w:txWorker,ts:Date.now(),memo:'[상세수정] 재고조정 '+prevQty+'→'+qty});
   }
-  sv();cmo();tst('✓ '+inv[idx].name+' 정보 저장 완료');render();
+  sv();
+  // 변경이력 기록
+  const changes=[];
+  if(loc&&loc!==inv[idx].location) changes.push(`위치: ${inv[idx].location||'-'} → ${loc}`);
+  if(qty!==prevQty) changes.push(`재고: ${prevQty} → ${qty}`);
+  if(producer&&producer!==inv[idx].producer) changes.push(`생산자: ${inv[idx].producer||'-'} → ${producer}`);
+  if(moldNo&&moldNo!==id) changes.push(`금형번호: ${id} → ${moldNo}`);
+  if(partNo&&partNo!==inv[idx].classNo) changes.push(`부품번호: ${inv[idx].classNo||'-'} → ${partNo}`);
+  if(changes.length>0) addLog('stock','품목 수정 — '+inv[idx].name, changes.join(' / '), inv[idx].id);
+  cmo();tst('✓ '+inv[idx].name+' 정보 저장 완료');render();
 }
 function modalAddWorker(itemId){
   if(!requireEdit())return;
@@ -5348,6 +5371,72 @@ function dlOrderCSV(){
 function dl(d,fn){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:'text/csv;charset=utf-8'}));a.download=fn;a.click();}
 
 // ── 전체 백업 / 복원 (JSON) ───────────────────────────────────────
+// ── 변경이력 ──────────────────────────────────────────────────────
+let clFilter='전체', clSq='';
+function rChangeLog(){
+  const typeMap={
+    '전체':'전체','io':'입출고','stock':'품목수정','location':'위치변경',
+    'addprod':'품목추가','delprod':'품목삭제','order':'발주','other':'기타'
+  };
+  const typeColor={io:'var(--blue)',stock:'var(--amber)',location:'var(--purple)',
+    addprod:'var(--green)',delprod:'var(--red)',order:'var(--text2)',other:'var(--text3)'};
+  const typeBadge={io:'bb',stock:'ba',location:'bb',addprod:'bg',delprod:'br',order:'bgr',other:'bgr'};
+
+  let list=changeLogs.filter(l=>{
+    const typeOk=clFilter==='전체'||l.type===clFilter;
+    const sqOk=!clSq||l.title.includes(clSq)||l.detail.includes(clSq)||(l.user||'').includes(clSq);
+    return typeOk&&sqOk;
+  });
+
+  return `
+  <div class="page-title">변경이력</div>
+  <div class="page-sub">총 ${changeLogs.length}건 · 조회 ${list.length}건</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+      <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="품목명, 변경내용, 담당자 검색..." value="${clSq}"
+        oninput="clSq=this.value;render()"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <button class="btn bbr" style="padding:10px 16px;font-size:13px" onclick="if(confirm('전체 변경이력을 삭제하시겠습니까?')){changeLogs=[];saveCL();render();}">🗑️ 전체 삭제</button>
+  </div>
+
+  <div class="ftabs" style="margin-bottom:14px">
+    ${Object.entries(typeMap).map(([k,v])=>`<div class="ftab${clFilter===k?' on':''}" onclick="clFilter='${k}';render()">${v}</div>`).join('')}
+  </div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>변경이력이 없습니다</div></div>`:`
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl" style="min-width:600px">
+      <thead><tr>
+        <th style="width:140px">일시</th>
+        <th style="width:70px">구분</th>
+        <th>내용</th>
+        <th>상세</th>
+        <th style="width:70px">담당자</th>
+        <th style="width:60px">삭제</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(l=>`<tr>
+          <td style="font-family:monospace;font-size:12px;color:var(--text3);white-space:nowrap">
+            ${new Date(l.ts).toLocaleDateString('ko',{month:'2-digit',day:'2-digit'})}
+            ${new Date(l.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}
+          </td>
+          <td><span class="badge ${typeBadge[l.type]||'bgr'}" style="font-size:11px">${typeMap[l.type]||l.type}</span></td>
+          <td style="font-weight:600;font-size:13px">${l.title}</td>
+          <td style="font-size:12px;color:var(--text3)">${l.detail||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${l.user||'-'}</td>
+          <td style="text-align:center">
+            <button onclick="changeLogs=changeLogs.filter(x=>x.id!=${l.id});saveCL();render()"
+              style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer">삭제</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`}`;
+}
+
 function dlBackupAll(){
   const now=new Date();
   const stamp=now.getFullYear()+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'_'+('0'+now.getHours()).slice(-2)+('0'+now.getMinutes()).slice(-2);
@@ -5373,7 +5462,8 @@ function dlBackupAll(){
       workers:WK,
       suppliers:SUPPLIERS,
       images:imgs,
-      drawings:draws
+      drawings:draws,
+      changeLogs:changeLogs
     }
   };
   const json=JSON.stringify(backup,null,2);
@@ -5413,12 +5503,14 @@ function restoreBackup(file){
       if(b.data.suppliers)SUPPLIERS=b.data.suppliers;
       if(b.data.images)imgs=b.data.images;
       if(b.data.drawings)draws=b.data.drawings;
+      if(b.data.changeLogs)changeLogs=b.data.changeLogs;
       // 저장
       sv();
       saveAccounts();
       saveWK();
       saveSUP();
       svImgs();
+      saveCL();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
