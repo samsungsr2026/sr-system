@@ -4752,6 +4752,10 @@ ${toolbar}
   <div class="sc"><div class="sl">검 토</div><div class="sn"> </div></div>
   <div class="sc"><div class="sl">승 인</div><img class="sig-img" src="${SIG}"><div class="sn"> </div></div>
 </div>
+<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #ddd;padding-top:8px;margin-top:4px">
+  <div style="font-size:9px;color:#999">출력일시 : ${new Date().toLocaleDateString('ko',{year:'numeric',month:'2-digit',day:'2-digit'})} ${new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</div>
+  <div style="font-size:9px;color:#999">삼성SR 통합관리 시스템</div>
+</div>
 
 <script>
 window.onload=function(){${isPrint?'setTimeout(function(){window.print();},300);':''}};
