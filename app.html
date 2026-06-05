@@ -293,6 +293,38 @@ select.fi option{background:#fff;color:#111}
   .mobile-tabbar { display: none !important; }
 }
 
+@media (min-width: 901px) {
+  /* PC: 상단바 원래 1줄 가로 레이아웃 강제 복원 */
+  .topbar {
+    flex-direction: row !important;
+    height: 72px !important;
+    padding: 0 24px !important;
+    align-items: center !important;
+    gap: 16px !important;
+  }
+  .topbar-center {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
+    order: 0 !important;
+  }
+  .topbar-row2 {
+    display: contents !important;
+  }
+  .topbar-right {
+    margin-left: auto !important;
+    flex-direction: row !important;
+    order: 0 !important;
+    flex: 0 0 auto !important;
+  }
+  .topbar-right-row button { font-size: 13px !important; padding: 7px 14px !important; }
+  #top-auth button { font-size: 13px !important; padding: 7px 14px !important; }
+  .topbar-time { display: block !important; }
+  #jb-sync { display: flex !important; }
+  .layout { margin-top: 72px !important; }
+}
+
 /* 하단 탭바 스타일 */
 .mobile-tabbar {
   display: none;
