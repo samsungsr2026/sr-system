@@ -213,24 +213,51 @@ select.fi option{background:#fff;color:#111}
   /* ── 메인 전체너비 + 하단 탭바 여백 ── */
   .main { margin-left: 0 !important; padding: 14px 14px 80px !important; }
 
-  /* ── 상단바 ── */
-  .topbar { padding: 0 10px; height: 56px; gap: 6px; justify-content: space-between; }
-  .topbar-center { position: static; transform: none; flex: 1; justify-content: center; overflow: hidden; }
-  .topbar-brand { padding: 6px 10px; gap: 8px; }
-  .brand-text { font-size: 14px !important; }
-  .topbar-sub { font-size: 12px !important; display: none; }
-  .topbar-right { flex-direction: row; align-items: center; gap: 6px; margin-left: 0; }
-  .topbar-right-row { gap: 5px; }
+  /* ── 상단바 3줄 레이아웃 ── */
+  .topbar { 
+    padding: 6px 10px; 
+    height: auto; 
+    flex-direction: column; 
+    align-items: stretch; 
+    gap: 5px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+  }
+  .topbar-center { position: static; transform: none; width: 100%; justify-content: center; }
+  .topbar-right { flex-direction: row; align-items: center; gap: 6px; margin-left: 0; width: 100%; justify-content: flex-end; }
+  .topbar-right-row { gap: 5px; width: 100%; justify-content: flex-end; }
   .topbar-time { display: none; }
-  /* 위치검색 버튼 - 모바일에서 작게 */
-  .topbar > div:first-child { width: auto !important; padding: 0 !important; position: static !important; }
-  .topbar > div:first-child button { width: auto !important; height: 36px !important; font-size: 12px !important; padding: 0 10px !important; gap: 4px; }
-  .topbar > div:first-child button svg { width: 14px; height: 14px; }
-  /* 새로고침, 동기화 상태 숨김 */
+
+  /* 1줄: 로고 + 통합관리시스템 */
+  .topbar-brand { padding: 4px 8px; gap: 8px; width: 100%; justify-content: center; background: none; border: none; }
+  .brand-text { font-size: 16px !important; }
+  .topbar-sub { font-size: 13px !important; display: block !important; }
+  .star-badge svg { width: 30px !important; height: 30px !important; }
+
+  /* 위치검색 버튼 */
+  .topbar > div:first-child { 
+    width: 100% !important; padding: 0 !important; position: static !important; 
+    order: 2;
+  }
+  .topbar > div:first-child button { 
+    width: 100% !important; height: 36px !important; 
+    font-size: 13px !important; padding: 0 12px !important; 
+  }
+
+  /* topbar-center를 1번줄로 */
+  .topbar-center { order: 1; }
+  /* topbar-right를 3번줄로 */
+  .topbar-right { order: 3; }
+
+  /* 2줄: 위치검색 버튼 꽉차게 */
+  /* 3줄: 새로고침, 조회전용, 관리자로그인 - 작게 */
   #jb-sync { display: none !important; }
-  .topbar-right-row button { font-size: 11px !important; padding: 4px 8px !important; }
-  /* 별 로고 작게 */
-  .star-badge svg { width: 32px !important; height: 32px !important; }
+  .topbar-right-row button { font-size: 11px !important; padding: 4px 8px !important; white-space: nowrap; }
+  #top-auth button { font-size: 11px !important; padding: 4px 8px !important; white-space: nowrap; }
+  #top-status { font-size: 11px !important; }
+
+  /* 메인 상단 여백 - 3줄 상단바 높이만큼 */
+  .layout { margin-top: 110px !important; }
 
   /* ── 글씨/버튼 터치 최적화 ── */
   body { font-size: 15px !important; }
