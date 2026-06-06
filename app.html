@@ -440,6 +440,11 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       대시보드
     </button>
+    <button class="nav-item" onclick="go('notice')" id="nb-notice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      공지사항 / 메모
+      <span id="notedot" class="nav-dot" style="display:none"></span>
+    </button>
     <button class="nav-item" onclick="go('inv')" id="nb-inv">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
       재고 조회
@@ -551,6 +556,8 @@ let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
+let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
+function saveNotices(){localStorage.setItem('sr-notices',JSON.stringify(notices));}
 function saveCL(){localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
 function addLog(type,title,detail,itemId){
   const user=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
@@ -1086,6 +1093,9 @@ function dots(){
   const mtd=document.getElementById('mt-aldot');
   if(mtd)mtd.style.display=hl?'block':'none';
   document.getElementById('pldot').style.display=hl?'flex':'none';
+  // 공지사항 dot - 중요 공지가 있으면 표시
+  const noteDot=document.getElementById('notedot');
+  if(noteDot){const hasImportant=notices.some(n=>n.important&&!n.done);noteDot.style.display=hasImportant?'flex':'none';}
   document.getElementById('inv-count').textContent='총 '+inv.length+'종 · 부족 '+inv.filter(i=>st(i)==='low').length+'건';
   const ts=document.getElementById('top-status');
   // 상단 재고부족 메시지 제거
@@ -1166,6 +1176,7 @@ function render(){
   else if(tab==='order')m.innerHTML=rOrder();
   else if(tab==='pstat')m.innerHTML=rPstat();
   else if(tab==='stats')m.innerHTML=rStats();
+  else if(tab==='notice')m.innerHTML=rNotice();
   else if(tab==='addprod')m.innerHTML=rAddProd();
   else if(tab==='delprod')m.innerHTML=rDelProd();
   else if(tab==='changelog')m.innerHTML=rChangeLog();
@@ -2258,6 +2269,23 @@ function rDash(){
           <button class="btn bbl btn-full" onclick="go('order')">📝 발주서 작성</button>
           <button class="btn bbp btn-full" onclick="go('plan')">🖨️ 생산계획서 출력</button>
         </div>
+      </div>
+      <!-- 공지사항 미리보기 -->
+      <div class="card" style="margin-top:14px;border-color:rgba(26,107,255,.2)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-title" style="margin-bottom:0">📢 공지사항</div>
+          <span style="font-size:12px;color:var(--blue);cursor:pointer" onclick="go('notice')">전체보기 →</span>
+        </div>
+        ${notices.length===0?`<div style="text-align:center;padding:14px;color:var(--text3);font-size:13px">등록된 공지가 없습니다</div>`:''}
+        ${notices.slice(0,3).map(n=>`
+          <div onclick="go('notice')" style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:flex-start;gap:8px">
+            <span style="font-size:11px;font-weight:700;color:${n.type==='notice'?'var(--blue)':n.type==='task'?'var(--green)':'var(--text3)'};flex-shrink:0;margin-top:2px">${n.type==='notice'?'📢':n.type==='task'?'✅':'📝'}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${n.done?'text-decoration:line-through;color:var(--text3)':''}">${n.important?'⭐ ':''}${n.title}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">${new Date(n.ts).toLocaleDateString('ko',{month:'2-digit',day:'2-digit'})} ${n.author||''}</div>
+            </div>
+          </div>`).join('')}
+        ${notices.length>3?`<div style="text-align:center;padding:8px 0;font-size:12px;color:var(--text3)">외 ${notices.length-3}건</div>`:''}
       </div>
     </div>
   </div>`;
@@ -5875,6 +5903,95 @@ function rChangeLog(){
   </div>`}`;
 }
 
+// ── 공지사항 / 메모 ───────────────────────────────────────────
+let noticeFilter='전체';
+function rNotice(){
+  const filtered = notices.filter(n =>
+    noticeFilter==='전체' ? true :
+    noticeFilter==='공지' ? n.type==='notice' :
+    noticeFilter==='메모' ? n.type==='memo' :
+    noticeFilter==='중요' ? n.important : true
+  );
+
+  const typeLabel = {notice:'📢 공지', memo:'📝 메모', task:'✅ 업무'};
+  const typeBg = {notice:'var(--blue-bg)', memo:'var(--bg3)', task:'var(--green-bg)'};
+  const typeBorder = {notice:'rgba(26,107,255,.3)', memo:'var(--border)', task:'rgba(13,158,114,.3)'};
+  const typeColor = {notice:'var(--blue)', memo:'var(--text2)', task:'var(--green)'};
+
+  return `
+  <div class="page-title">공지사항 / 메모</div>
+  <div class="page-sub">업무 공지 및 메모를 등록하고 공유합니다</div>
+
+  <!-- 작성 폼 -->
+  <div class="card" style="margin-bottom:16px;border-color:rgba(26,107,255,.2)">
+    <div class="card-title">✏️ 새 글 작성</div>
+    <div class="grid3" style="margin-bottom:10px">
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">구분</label>
+        <select class="fi" id="n-type">
+          <option value="notice">📢 공지</option>
+          <option value="memo">📝 메모</option>
+          <option value="task">✅ 업무</option>
+        </select>
+      </div>
+      <div class="fg" style="margin-bottom:0;grid-column:span 2">
+        <label class="fl">제목</label>
+        <input type="text" class="fi" id="n-title" placeholder="제목을 입력하세요">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">내용</label>
+      <textarea class="fi" id="n-body" rows="3" placeholder="내용을 입력하세요" style="resize:vertical;line-height:1.6"></textarea>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="n-important" style="accent-color:var(--red);width:16px;height:16px">
+        ⭐ 중요 표시
+      </label>
+      <button class="btn bbl" onclick="addNotice()" style="padding:10px 24px">등록</button>
+    </div>
+  </div>
+
+  <!-- 필터 -->
+  <div class="ftabs" style="margin-bottom:14px">
+    ${['전체','공지','메모','업무','중요'].map(f=>`<div class="ftab${noticeFilter===f?' on':''}" onclick="noticeFilter='${f}';render()">${f} ${f==='전체'?notices.length:f==='중요'?notices.filter(n=>n.important).length:notices.filter(n=>n.type===(f==='공지'?'notice':f==='메모'?'memo':'task')).length}</div>`).join('')}
+  </div>
+
+  <!-- 목록 -->
+  ${!filtered.length ? `<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>등록된 내용이 없습니다</div></div>` :
+    filtered.map(n => `
+    <div class="card" style="margin-bottom:10px;border-color:${typeBorder[n.type]||'var(--border)'};${n.important?'border-left:4px solid var(--red)':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="background:${typeBg[n.type]};color:${typeColor[n.type]};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700">${typeLabel[n.type]||n.type}</span>
+            ${n.important?'<span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">⭐ 중요</span>':''}
+            ${n.type==='task'?`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;color:var(--text3)"><input type="checkbox" ${n.done?'checked':''} style="accent-color:var(--green)" onchange="notices.find(x=>x.id===${n.id}).done=this.checked;saveNotices();dots();render()"> 완료</label>`:''}
+            <span style="font-size:11px;color:var(--text3)">${new Date(n.ts).toLocaleDateString('ko',{month:'2-digit',day:'2-digit'})} ${new Date(n.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</span>
+            <span style="font-size:11px;color:var(--text3)">${n.author||''}</span>
+          </div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:5px;${n.done?'text-decoration:line-through;color:var(--text3)':''}">${n.title}</div>
+          <div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6">${n.body||''}</div>
+        </div>
+        <button onclick="if(confirm('삭제하시겠습니까?')){notices=notices.filter(x=>x.id!==${n.id});saveNotices();render();}"
+          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px">✕</button>
+      </div>
+    </div>`).join('')}`;
+}
+
+function addNotice(){
+  const type=document.getElementById('n-type')?.value||'notice';
+  const title=document.getElementById('n-title')?.value?.trim()||'';
+  const body=document.getElementById('n-body')?.value?.trim()||'';
+  const important=document.getElementById('n-important')?.checked||false;
+  if(!title){tst('제목을 입력해주세요');return;}
+  const author=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
+  notices.unshift({id:Date.now(),ts:Date.now(),type,title,body,important,done:false,author});
+  saveNotices();
+  tst('✅ 등록 완료');
+  render();
+}
+
 function dlBackupAll(){
   const now=new Date();
   const stamp=now.getFullYear()+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'_'+('0'+now.getHours()).slice(-2)+('0'+now.getMinutes()).slice(-2);
@@ -5901,7 +6018,8 @@ function dlBackupAll(){
       suppliers:SUPPLIERS,
       images:imgs,
       drawings:draws,
-      changeLogs:changeLogs
+      changeLogs:changeLogs,
+      notices:notices
     }
   };
   const json=JSON.stringify(backup,null,2);
@@ -5942,13 +6060,8 @@ function restoreBackup(file){
       if(b.data.images)imgs=b.data.images;
       if(b.data.drawings)draws=b.data.drawings;
       if(b.data.changeLogs)changeLogs=b.data.changeLogs;
-      // 저장
-      sv();
-      saveAccounts();
-      saveWK();
-      saveSUP();
-      svImgs();
-      saveCL();
+      if(b.data.notices)notices=b.data.notices;
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
@@ -6346,6 +6459,10 @@ document.addEventListener('click',function(e){
     <button onclick="go('delprod');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--red-bg);border:1px solid rgba(212,32,72,.3);border-radius:10px;cursor:pointer;color:var(--red);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
       제품삭제
+    </button>
+    <button onclick="go('notice');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);border-radius:10px;cursor:pointer;color:var(--blue);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      공지/메모
     </button>
     <button onclick="go('stats');toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
