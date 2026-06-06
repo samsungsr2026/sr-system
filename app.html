@@ -5440,6 +5440,67 @@ function dl(d,fn){const a=document.createElement('a');a.href=URL.createObjectURL
 // ── 전체 백업 / 복원 (JSON) ───────────────────────────────────────
 // ── 변경이력 ──────────────────────────────────────────────────────
 let clFilter='전체', clSq='';
+function printChangeLog(){
+  if(!changeLogs.length){tst('출력할 변경이력이 없습니다');return;}
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
+  const typeBg={io:'#dbeafe',stock:'#fef3c7',location:'#ede9fe',addprod:'#d1fae5',delprod:'#fee2e2',order:'#f3f4f6',other:'#f3f4f6'};
+  const typeColor={io:'#1d4ed8',stock:'#92400e',location:'#5b21b6',addprod:'#065f46',delprod:'#b91c1c',order:'#374151',other:'#374151'};
+  const now = new Date();
+  const rows = changeLogs.map((l,i)=>`
+    <tr>
+      <td style="text-align:center">${i+1}</td>
+      <td style="white-space:nowrap">${new Date(l.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})} ${new Date(l.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td style="text-align:center"><span style="background:${typeBg[l.type]||'#f3f4f6'};color:${typeColor[l.type]||'#374151'};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700">${typeMap[l.type]||l.type}</span></td>
+      <td style="font-weight:600">${l.title}</td>
+      <td style="color:#555">${l.detail||'-'}</td>
+      <td style="text-align:center">${l.user||'-'}</td>
+    </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>변경이력</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12px}
+h1{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px}
+.sub{text-align:center;color:#666;font-size:12px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#1a1f2e;color:#fff;padding:7px 6px;font-size:11px;font-weight:600;text-align:center;border:1px solid #444}
+td{padding:6px;border:1px solid #ccc;font-size:11px;vertical-align:middle}
+tr:nth-child(even) td{background:#f8f9ff}
+.foot{font-size:10px;color:#999;text-align:right;border-top:1px solid #ddd;padding-top:8px;display:flex;justify-content:space-between}
+@media print{
+  @page{size:A4;margin:10mm}
+  body{padding:0}
+  th{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f8f9ff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  span{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
+</style></head><body>
+<h1>변경이력</h1>
+<div class="sub">삼성SR 통합관리 시스템 · 총 ${changeLogs.length}건 · 출력일시: ${now.toLocaleString('ko')}</div>
+<table>
+  <thead><tr>
+    <th style="width:4%">No</th>
+    <th style="width:14%">일시</th>
+    <th style="width:9%">구분</th>
+    <th style="width:28%">내용</th>
+    <th style="width:36%">상세</th>
+    <th style="width:9%">담당자</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="foot">
+  <span>삼성SR 통합관리 시스템</span>
+  <span>출력: ${now.toLocaleString('ko')}</span>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const pw=window.open('','_blank','width=950,height=700');
+  if(pw){pw.document.write(html);pw.document.close();}
+  else tst('팝업 허용 후 다시 시도해주세요');
+  tst('🖨️ 변경이력 출력 준비 완료');
+}
+
 function dlChangeLog(){
   if(!changeLogs.length){tst('저장할 변경이력이 없습니다');return;}
   const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
@@ -5480,6 +5541,7 @@ function rChangeLog(){
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
     </div>
     <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlChangeLog()">📄 CSV 저장</button>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="printChangeLog()">🖨️ 출력</button>
     <button class="btn bbr" style="padding:10px 16px;font-size:13px" onclick="if(confirm('전체 변경이력을 삭제하시겠습니까?')){changeLogs=[];saveCL();render();}">🗑️ 전체 삭제</button>
   </div>
 
