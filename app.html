@@ -1107,19 +1107,37 @@ function dots(){
 
 function go(t){
   tab=t;
-  if(t!=='plan') planSel={};  // 생산계획서 탭 벗어나면 체크 초기화
+  if(t!=='plan') planSel={};
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+t);
   if(nb)nb.classList.add('on');
-  // 모바일 하단 탭바 활성화
   document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('on'));
   const mb=document.getElementById('mt-'+t);
   if(mb)mb.classList.add('on');
-  // 더보기 메뉴 닫기
+  const mm=document.getElementById('mobile-more-menu');
+  if(mm)mm.style.display='none';
+  // 히스토리에 현재 탭 상태 저장
+  if(history.state?.tab !== t){
+    history.pushState({tab:t}, '', '#'+t);
+  }
+  render();
+}
+
+// 뒤로가기 처리
+window.addEventListener('popstate', function(e){
+  const t = e.state?.tab || 'dash';
+  tab = t;
+  if(t!=='plan') planSel={};
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
+  const nb=document.getElementById('nb-'+t);
+  if(nb)nb.classList.add('on');
+  document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('on'));
+  const mb=document.getElementById('mt-'+t);
+  if(mb)mb.classList.add('on');
   const mm=document.getElementById('mobile-more-menu');
   if(mm)mm.style.display='none';
   render();
-}
+});
 function goIO(type){
   scanType=type;
   ioMode='manual';
@@ -5896,7 +5914,9 @@ document.addEventListener('click',function(e){
 });
 
 tick();setInterval(tick,30000);
-render();dots(); // 로컬 데이터로 즉시 화면 표시
+// 초기 히스토리 상태 등록
+history.replaceState({tab:'dash'}, '', '#dash');
+render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
 setInterval(jbPull, 60000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
