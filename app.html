@@ -5440,6 +5440,19 @@ function dl(d,fn){const a=document.createElement('a');a.href=URL.createObjectURL
 // ── 전체 백업 / 복원 (JSON) ───────────────────────────────────────
 // ── 변경이력 ──────────────────────────────────────────────────────
 let clFilter='전체', clSq='';
+function dlChangeLog(){
+  if(!changeLogs.length){tst('저장할 변경이력이 없습니다');return;}
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
+  const B='\uFEFF';
+  const rows=changeLogs.map(l=>`${new Date(l.ts).toLocaleString('ko')},"${typeMap[l.type]||l.type}","${l.title}","${l.detail||''}","${l.user||''}"`);
+  const csv=B+'일시,구분,내용,상세,담당자\n'+rows.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='변경이력_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  tst('📄 변경이력 저장 완료');
+}
+
 function rChangeLog(){
   const typeMap={
     '전체':'전체','io':'입출고','stock':'품목수정','location':'위치변경',
@@ -5466,6 +5479,7 @@ function rChangeLog(){
         oninput="clSq=this.value;render()"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
     </div>
+    <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlChangeLog()">📄 CSV 저장</button>
     <button class="btn bbr" style="padding:10px 16px;font-size:13px" onclick="if(confirm('전체 변경이력을 삭제하시겠습니까?')){changeLogs=[];saveCL();render();}">🗑️ 전체 삭제</button>
   </div>
 
