@@ -294,7 +294,6 @@ select.fi option{background:#fff;color:#111}
 }
 
 @media (min-width: 901px) {
-  /* PC: 상단바 원래 1줄 가로 레이아웃 강제 복원 */
   .topbar {
     flex-direction: row !important;
     height: 72px !important;
@@ -309,12 +308,20 @@ select.fi option{background:#fff;color:#111}
     width: auto !important;
     order: 0 !important;
   }
-  /* PC에서 topbar-row2(위치검색+버튼묶음) 해체 - 위치검색 버튼만 숨김 */
   .topbar-row2 {
     display: contents !important;
   }
+  /* PC: 위치검색 버튼 오른쪽에 작게 */
   .topbar-row2 > button:first-child {
-    display: none !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: 32px !important;
+    font-size: 12px !important;
+    padding: 0 12px !important;
+    border-radius: 6px !important;
+    order: 10 !important;
+    margin-left: 6px !important;
   }
   .topbar-right {
     margin-left: auto !important;
