@@ -595,6 +595,10 @@ function goMaster(t){
 }
 
 function toggleMasterMenu(){
+  if(!curUser||curUser.role!=='master'){
+    tst('🔒 마스터 관리자 로그인 후 이용 가능합니다');
+    return;
+  }
   const menu = document.getElementById('master-menu');
   const arrow = document.getElementById('master-arrow');
   if(!menu) return;
@@ -6390,6 +6394,11 @@ function doLogout(){
   if(!curUser)return;
   if(!confirm('로그아웃 하시겠습니까?\n로그아웃 후에는 조회만 가능합니다.'))return;
   curUser=null;saveCurUser();
+  // 마스터 메뉴 자동 접기
+  const menu=document.getElementById('master-menu');
+  const arrow=document.getElementById('master-arrow');
+  if(menu) menu.style.display='none';
+  if(arrow) arrow.style.transform='';
   tst('로그아웃 되었습니다 (조회 전용 모드)');
   render();
 }
