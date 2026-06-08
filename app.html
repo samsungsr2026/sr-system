@@ -644,7 +644,11 @@ let planSel={};
 let vendors=JSON.parse(localStorage.getItem('sr-vendors')||'[]');
 let purchaseVendors=JSON.parse(localStorage.getItem('sr-purchase-vendors')||'[]');
 let purchases=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
-function svPurchase(){localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
+function svPurchase(){
+  localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));
+  localStorage.setItem('sr-purchases',JSON.stringify(purchases));
+  svPurchaseCloud(); // Gist 동기화
+}
 
 // 거래업체 목록 접이식
 function togglePVList(){
@@ -1005,11 +1009,13 @@ function requireEdit(){
 // ── GitHub Gist 실시간 공유 DB ──────────────────────────────────
 const GH_TOKEN = ['ghp_YGl4pUNP','LCajSvnjVBJm','NsI0ZNTsz41nlaKK'].join('');
 const GH = {
-  inv:      {id:'4162865e1dbda806ed1ec7552e38fd87', file:'sr-inv.json'},
-  tx:       {id:'6995fff57c30682680012326770ab906', file:'sr-tx.json'},
-  wk:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
-  accounts: {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
-  orders:   {id:'6995fff57c30682680012326770ab906', file:'sr-orders.json'}
+  inv:            {id:'4162865e1dbda806ed1ec7552e38fd87', file:'sr-inv.json'},
+  tx:             {id:'6995fff57c30682680012326770ab906', file:'sr-tx.json'},
+  wk:             {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
+  accounts:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
+  orders:         {id:'6995fff57c30682680012326770ab906', file:'sr-orders.json'},
+  purchases:      {id:'6995fff57c30682680012326770ab906', file:'sr-purchases.json'},
+  purchaseVendors:{id:'6995fff57c30682680012326770ab906', file:'sr-purchase-vendors.json'}
 };
 const GH_HDR = {
   'Content-Type': 'application/json',
@@ -1064,16 +1070,28 @@ async function sv() {
   _saving = false;
 }
 
+// 발주 데이터 Gist 동기화 저장
+async function svPurchaseCloud() {
+  try {
+    await Promise.all([
+      cfSet('purchases', purchases),
+      cfSet('purchaseVendors', purchaseVendors)
+    ]);
+  } catch(e) { /* 오프라인 무시 */ }
+}
+
 async function jbPull() {
   if (_saving) return;
   jbStat('🔄 동기화 중...');
   try {
-    const [ri, rt, ro, rw, ra] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts')]);
+    const [ri, rt, ro, rw, ra, rp, rpv] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts'), cfGet('purchases'), cfGet('purchaseVendors')]);
     if (Array.isArray(ri) && ri.length > 0) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ro)) { orders = ro; localStorage.setItem('sr-orders', JSON.stringify(orders)); }
     if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
     if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
+    if (Array.isArray(rp)) { purchases = rp; localStorage.setItem('sr-purchases', JSON.stringify(purchases)); }
+    if (Array.isArray(rpv) && rpv.length > 0) { purchaseVendors = rpv; localStorage.setItem('sr-purchase-vendors', JSON.stringify(purchaseVendors)); }
     const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
     const ae = document.activeElement;
     const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
@@ -1090,12 +1108,14 @@ async function jbPull() {
   if (_saving) return;
   jbStat('🔄 동기화 중...');
   try {
-    const [ri, rt, ro, rw, ra] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts')]);
+    const [ri, rt, ro, rw, ra, rp, rpv] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts'), cfGet('purchases'), cfGet('purchaseVendors')]);
     if (Array.isArray(ri)) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ro)) { orders = ro; localStorage.setItem('sr-orders', JSON.stringify(orders)); }
     if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
     if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
+    if (Array.isArray(rp)) { purchases = rp; localStorage.setItem('sr-purchases', JSON.stringify(purchases)); }
+    if (Array.isArray(rpv) && rpv.length > 0) { purchaseVendors = rpv; localStorage.setItem('sr-purchase-vendors', JSON.stringify(purchaseVendors)); }
     const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
     const ae = document.activeElement;
     const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
