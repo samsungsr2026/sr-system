@@ -6074,12 +6074,12 @@ function rDailyReport(){
         <th style="width:120px">작업</th>
       </tr></thead>
       <tbody>
-        ${dailyReports.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<tr>
-          <td style="font-family:monospace;font-weight:600">${r.date}</td>
+        ${dailyReports.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<tr onclick="loadDailyReport('${r.date}')" style="cursor:pointer" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          <td style="font-family:monospace;font-weight:600;color:var(--blue)">${r.date}</td>
           <td style="text-align:center">${r.weather||'-'}</td>
           <td style="font-size:13px;color:var(--text2)">${(r.work||'').slice(0,40)}${(r.work||'').length>40?'...':''}</td>
           <td style="font-size:12px;color:${r.issue?'var(--red)':'var(--text3)'}">${r.issue?(r.issue.slice(0,20)+(r.issue.length>20?'...':'')):'없음'}</td>
-          <td style="text-align:center">
+          <td style="text-align:center" onclick="event.stopPropagation()">
             ${r.approved
               ? `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
                    <span style="background:var(--green-bg);color:var(--green);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700">✅ 승인완료</span>
@@ -6088,7 +6088,7 @@ function rDailyReport(){
               : `<button onclick="approveDailyReport('${r.date}')" style="background:var(--purple-bg);border:1px solid rgba(109,79,207,.3);color:var(--purple);border-radius:6px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer">🔐 승인</button>`
             }
           </td>
-          <td style="text-align:center">
+          <td style="text-align:center" onclick="event.stopPropagation()">
             <div style="display:flex;gap:6px;justify-content:center">
               <button onclick="viewDailyReport('${r.date}')" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">보기</button>
               <button onclick="printOneDailyReport('${r.date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">출력</button>
@@ -6099,6 +6099,29 @@ function rDailyReport(){
       </tbody>
     </table>`}
   </div>`;
+}
+
+function loadDailyReport(date){
+  const r = dailyReports.find(x=>x.date===date);
+  if(!r) return;
+  // 작성폼으로 스크롤
+  window.scrollTo({top:0, behavior:'smooth'});
+  // 폼에 내용 채우기
+  setTimeout(()=>{
+    const dt = document.getElementById('dr-date');
+    const wt = document.getElementById('dr-weather');
+    const wk = document.getElementById('dr-work');
+    const is = document.getElementById('dr-issue');
+    const pl = document.getElementById('dr-plan');
+    const io = document.getElementById('dr-io');
+    if(dt) dt.value = r.date;
+    if(wt) wt.value = r.weather||'☀️ 맑음';
+    if(wk) wk.value = r.work||'';
+    if(is) is.value = r.issue||'';
+    if(pl) pl.value = r.plan||'';
+    if(io) io.value = r.io||'';
+    tst('📋 '+date+' 업무일지 불러오기 완료');
+  }, 300);
 }
 
 function approveDailyReport(date){
