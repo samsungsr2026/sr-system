@@ -568,7 +568,10 @@ let WK=JSON.parse(localStorage.getItem('sr-workers')||'["정창식","이창호",
 }
 // 공급업체 목록 (발주서 작성 시 선택)
 let SUPPLIERS=JSON.parse(localStorage.getItem('sr-suppliers')||'["성진테크","대덕","동양고무"]');
-function saveSUP(){localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
+function saveSUP(){
+  localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
+  cfSet('suppliers',SUPPLIERS).catch(()=>{});
+}
 // 데이터 버전 체크 - 실제 데이터로 업데이트
 const DATA_VER='v2025-final';
 if(localStorage.getItem('sr-data-ver')!==DATA_VER){
@@ -582,8 +585,14 @@ let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
-function saveNotices(){localStorage.setItem('sr-notices',JSON.stringify(notices));}
-function saveDR(){localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
+function saveNotices(){
+  localStorage.setItem('sr-notices',JSON.stringify(notices));
+  cfSet('notices',notices).catch(()=>{});
+}
+function saveDR(){
+  localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));
+  cfSet('dailyreport',dailyReports).catch(()=>{});
+}
 
 // 마스터 전용 메뉴 이동
 function goMaster(t){
@@ -606,7 +615,10 @@ function toggleMasterMenu(){
   menu.style.display = isOpen ? 'none' : 'block';
   if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
-function saveCL(){localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
+function saveCL(){
+  localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));
+  cfSet('changelog',changeLogs).catch(()=>{});
+}
 function addLog(type,title,detail,itemId){
   const user=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
   changeLogs.unshift({id:Date.now(),ts:Date.now(),type:type,title:title,detail:detail||'',itemId:itemId||'',user:user});
@@ -647,7 +659,7 @@ let purchases=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
 function svPurchase(){
   localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));
   localStorage.setItem('sr-purchases',JSON.stringify(purchases));
-  svPurchaseCloud(); // Gist 동기화
+  Promise.all([cfSet('purchases',purchases),cfSet('purchaseVendors',purchaseVendors)]).catch(()=>{});
 }
 
 // 거래업체 목록 접이식
@@ -906,7 +918,9 @@ async function gdDeleteFile(itemId, fileId){
 function svImgs(){
   localStorage.setItem('sr-imgs',JSON.stringify(imgs));
   localStorage.setItem('sr-draws',JSON.stringify(draws));
-  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));}catch(e){}
+  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));
+  cfSet('imgs',imgs).catch(()=>{});
+}catch(e){}
 }
 function getImg(id){return imgs[id]||'';}
 // 도면 데이터를 {type,name,data,isImage} 형태로 정규화하여 반환
@@ -1011,11 +1025,16 @@ const GH_TOKEN = ['ghp_YGl4pUNP','LCajSvnjVBJm','NsI0ZNTsz41nlaKK'].join('');
 const GH = {
   inv:            {id:'4162865e1dbda806ed1ec7552e38fd87', file:'sr-inv.json'},
   tx:             {id:'6995fff57c30682680012326770ab906', file:'sr-tx.json'},
-  wk:             {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
-  accounts:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
   orders:         {id:'6995fff57c30682680012326770ab906', file:'sr-orders.json'},
   purchases:      {id:'6995fff57c30682680012326770ab906', file:'sr-purchases.json'},
-  purchaseVendors:{id:'6995fff57c30682680012326770ab906', file:'sr-purchase-vendors.json'}
+  purchaseVendors:{id:'6995fff57c30682680012326770ab906', file:'sr-purchase-vendors.json'},
+  wk:             {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
+  accounts:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
+  notices:        {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-notices.json'},
+  dailyreport:    {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-dailyreport.json'},
+  changelog:      {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-changelog.json'},
+  suppliers:      {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-suppliers.json'},
+  imgs:           {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-imgs.json'}
 };
 const GH_HDR = {
   'Content-Type': 'application/json',
@@ -1062,73 +1081,50 @@ async function sv() {
   _saving = true;
   jbStat('💾 저장 중...');
   try {
-    await Promise.all([cfSet('inv', inv), cfSet('tx', txs), cfSet('orders', orders)]);
-    jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 저장됨', '#0d9e72');
-  } catch(e) {
-    jbStat('⚠️ 저장오류', '#c07800');
-  }
+    await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  } catch(e) { jbStat('⚠️ 저장오류','#c07800'); }
   _saving = false;
 }
 
-// 발주 데이터 Gist 동기화 저장
-async function svPurchaseCloud() {
+
+async function jbPull() {
+  if (_saving) return;
+  jbStat('🔄 동기화 중...');
   try {
-    await Promise.all([
-      cfSet('purchases', purchases),
-      cfSet('purchaseVendors', purchaseVendors)
+    const [ri,rt,ro,rw,ra,rp,rpv,rn,rdr,rcl,rs,rim] = await Promise.all([
+      cfGet('inv'), cfGet('tx'), cfGet('orders'),
+      cfGet('wk'), cfGet('accounts'),
+      cfGet('purchases'), cfGet('purchaseVendors'),
+      cfGet('notices'), cfGet('dailyreport'), cfGet('changelog'),
+      cfGet('suppliers'), cfGet('imgs')
     ]);
-  } catch(e) { /* 오프라인 무시 */ }
-}
-
-async function jbPull() {
-  if (_saving) return;
-  jbStat('🔄 동기화 중...');
-  try {
-    const [ri, rt, ro, rw, ra, rp, rpv] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts'), cfGet('purchases'), cfGet('purchaseVendors')]);
-    if (Array.isArray(ri) && ri.length > 0) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
-    if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
-    if (Array.isArray(ro)) { orders = ro; localStorage.setItem('sr-orders', JSON.stringify(orders)); }
-    if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
-    if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
-    if (Array.isArray(rp)) { purchases = rp; localStorage.setItem('sr-purchases', JSON.stringify(purchases)); }
-    if (Array.isArray(rpv) && rpv.length > 0) { purchaseVendors = rpv; localStorage.setItem('sr-purchase-vendors', JSON.stringify(purchaseVendors)); }
-    const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
-    const ae = document.activeElement;
-    const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
-    if (!isTyping && !inputTabs.includes(tab)) { render(); dots(); }
-    else { dots(); }
-    jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
+    if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
+    if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
+    if(Array.isArray(ro)){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
+    if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
+    if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
+    if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
+    if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}
+    if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
+    if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
+    if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
+    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
+    if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
+    const inputTabs=['io','plan','barcode','loc','order','addprod','set','alert','purchase','dailyreport'];
+    const ae=document.activeElement;
+    const isTyping=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
+    if(!isTyping&&!inputTabs.includes(tab)){render();dots();}
+    else{dots();}
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 동기화','#0d9e72');
   } catch(e) {
-    jbStat('⚠️ 연결오류', '#c07800');
-    render(); dots();
-  }
-}
-
-async function jbPull() {
-  if (_saving) return;
-  jbStat('🔄 동기화 중...');
-  try {
-    const [ri, rt, ro, rw, ra, rp, rpv] = await Promise.all([cfGet('inv'), cfGet('tx'), cfGet('orders'), cfGet('wk'), cfGet('accounts'), cfGet('purchases'), cfGet('purchaseVendors')]);
-    if (Array.isArray(ri)) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
-    if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
-    if (Array.isArray(ro)) { orders = ro; localStorage.setItem('sr-orders', JSON.stringify(orders)); }
-    if (Array.isArray(rw) && rw.length > 0) { WK = rw; localStorage.setItem('sr-workers', JSON.stringify(WK)); }
-    if (Array.isArray(ra) && ra.length > 0) { accounts = ra; localStorage.setItem('sr-accounts', JSON.stringify(accounts)); }
-    if (Array.isArray(rp)) { purchases = rp; localStorage.setItem('sr-purchases', JSON.stringify(purchases)); }
-    if (Array.isArray(rpv) && rpv.length > 0) { purchaseVendors = rpv; localStorage.setItem('sr-purchase-vendors', JSON.stringify(purchaseVendors)); }
-    const inputTabs = ['io', 'plan', 'barcode', 'loc', 'order', 'addprod', 'set', 'alert'];
-    const ae = document.activeElement;
-    const isTyping = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
-    if (!isTyping && !inputTabs.includes(tab)) { render(); dots(); }
-    else { dots(); }
-    jbStat('✅ ' + new Date().toLocaleTimeString('ko', {hour:'2-digit', minute:'2-digit'}) + ' 동기화', '#0d9e72');
-  } catch(e) {
-    jbStat('⚠️ 오프라인 모드', '#c07800');
-    // 서버 연결 실패시 로컬 데이터로 화면 표시
-    const ae2 = document.activeElement;
+    jbStat('⚠️ 오프라인 모드','#c07800');
+    const ae2=document.activeElement;
     if(!ae2||(ae2.tagName!=='INPUT'&&ae2.tagName!=='TEXTAREA')){render();dots();}
   }
 }
+
+// jbPull 통합됨
 
 // 파일 업로드 처리 - 사진은 이미지만, 도면은 모든 파일 허용
 function handleImgUpload(itemId,kind,inputEl){
