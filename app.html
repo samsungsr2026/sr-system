@@ -1574,7 +1574,13 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 .note-box{border:1px solid #999;padding:9px 13px;margin-bottom:10px;min-height:36px;font-size:14px}
 .closing{text-align:center;font-size:14px;margin-bottom:12px;line-height:1.9}
 .footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
-@media print{@page{size:A4;margin:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+@media print{
+  @page{size:A4;margin:0}
+  
+  th{background:#f0f0f0!important;color:#111!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .box-h{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f5f5f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 </style></head><body>
 ${pages}
 <script>window.onload=function(){window.print();}<\/script>
@@ -1618,7 +1624,13 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 .note-box{border:1px solid #999;padding:9px 13px;margin-bottom:12px;min-height:36px;font-size:14px}
 .closing{text-align:center;font-size:14px;margin-bottom:14px;line-height:1.9}
 .footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
-@media print{@page{size:A4;margin:0}body{padding:12mm 14mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+@media print{
+  @page{size:A4;margin:0}
+  body{padding:12mm 14mm}
+  th{background:#f0f0f0!important;color:#111!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .box-h{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f5f5f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 </style></head><body>
 <div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
   <h1>발 주 서</h1>
@@ -1732,7 +1744,13 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 .closing{text-align:center;font-size:14px;margin-bottom:14px;line-height:1.9}
 .incoming-table th{background:#f5f5f5}
 .footer-name{text-align:center;font-size:22px;font-weight:700;margin-top:10px}
-@media print{@page{size:A4;margin:0}body{padding:24mm 14mm 12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+@media print{
+  @page{size:A4;margin:0}
+  body{padding:24mm 14mm 12mm}
+  th{background:#f0f0f0!important;color:#111!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .box-h{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f5f5f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 </style></head><body>
 
 <div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
@@ -2104,12 +2122,18 @@ h1{font-size:24px;font-weight:700;text-align:center;margin-bottom:4px}
 .info{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #222;margin-bottom:16px}
 .ic{padding:8px 12px;border:.5px solid #ccc}.il{font-size:10px;color:#666;margin-bottom:2px}.iv{font-weight:600}
 table{width:100%;border-collapse:collapse;margin-bottom:16px}
-th{background:#1a1f2e;color:#fff;padding:10px;font-size:12px;text-align:center;border:1px solid #333}
+th{background:#f0f0f0;color:#111;padding:10px;font-size:12px;text-align:center;border:1px solid #bbb}
 td{padding:10px;border:1px solid #ccc;text-align:center}
 .signs{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #333;margin-bottom:16px}
 .sc{padding:6px;border:.5px solid #ccc;text-align:center;height:60px}.sl{font-size:9px;color:#888}
 .foot{font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}
-@media print{@page{size:A4;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style>
+@media print{
+  @page{size:A4;margin:12mm}
+  
+  th{background:#f0f0f0!important;color:#111!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .box-h{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f5f5f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}</style>
 </head><body>
 <h1>발 주 서</h1><div class="co">삼성SR · 외주업체 발주</div>
 <div class="info">
@@ -4819,7 +4843,13 @@ td{padding:6px 8px;border:1px solid #ccc;font-size:11px;vertical-align:middle}
 tr:nth-child(even) td{background:#f8f9ff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .sec{font-size:13px;font-weight:700;margin:14px 0 8px;border-left:4px solid #1a6bff;padding-left:8px}
 .foot{font-size:10px;color:#999;display:flex;justify-content:space-between;border-top:1px solid #ddd;padding-top:8px;margin-top:4px}
-@media print{@page{size:A4;margin:12mm}body{padding:0}}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{padding:0}
+  th{background:#f0f0f0!important;color:#111!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .box-h{background:#444!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  tr:nth-child(even) td{background:#f5f5f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 </style></head><body>
 <h1>입출고 통계 리포트</h1>
 <div class="sub">삼성SR 통합관리 시스템 · 출력일시: ${now.toLocaleString('ko')}</div>
@@ -5030,13 +5060,13 @@ h1{font-size:32px;font-weight:700;text-align:center;margin-bottom:6px;letter-spa
 .toolbar{display:flex;align-items:center;justify-content:space-between;background:#eef2fc;border:2px solid #1a6bff;border-radius:10px;padding:14px 22px;margin-bottom:24px}
 .top{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
 .box{border:1.5px solid #222}
-.box-h{background:#1a1f2e;color:#fff;padding:6px 10px;font-size:13px;font-weight:700}
+.box-h{background:#444;color:#fff;padding:6px 10px;font-size:13px;font-weight:700}
 .ic{padding:5px 10px;border-bottom:.5px solid #ccc;display:flex;align-items:center;min-height:30px}
 .ic:last-child{border-bottom:none}
 .il{font-size:17px;color:#666;width:110px;flex-shrink:0}
 .iv{font-weight:600;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 table{width:100%;border-collapse:collapse;margin-bottom:28px;table-layout:fixed}
-th{background:#1a1f2e;color:#fff;padding:6px 2px;font-size:11px;font-weight:600;text-align:center;border:1.5px solid #888;white-space:nowrap;overflow:hidden}
+th{background:#f0f0f0;color:#111;padding:6px 2px;font-size:11px;font-weight:600;text-align:center;border:1.5px solid #bbb;white-space:nowrap;overflow:hidden}
 td{padding:6px 4px;border:1.5px solid #ccc;font-size:13px;vertical-align:middle;white-space:nowrap;overflow:hidden}
 tr:nth-child(even) td{background:#f5f7ff}
 .c{text-align:center}.m{font-family:monospace;font-weight:600;text-align:center}
@@ -5800,7 +5830,7 @@ body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12
 h1{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#666;font-size:12px;margin-bottom:16px}
 table{width:100%;border-collapse:collapse;margin-bottom:14px}
-th{background:#1a1f2e;color:#fff;padding:7px 6px;font-size:11px;font-weight:600;text-align:center;border:1px solid #444}
+th{background:#f0f0f0;color:#111;padding:7px 6px;font-size:11px;font-weight:600;text-align:center;border:1px solid #bbb}
 td{padding:6px;border:1px solid #ccc;font-size:11px;vertical-align:middle}
 tr:nth-child(even) td{background:#f8f9ff}
 .foot{font-size:10px;color:#999;text-align:right;border-top:1px solid #ddd;padding-top:8px;display:flex;justify-content:space-between}
