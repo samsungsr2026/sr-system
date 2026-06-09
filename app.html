@@ -5669,7 +5669,7 @@ function opD(id){
           <option value="active">✅ 생산중</option>
           <option value="stop">🚫 중단</option>
         </select>
-        <script>document.getElementById('edit-prodstatus').value='${(it.prodStatus||'active')}';</script>
+        <script>document.getElementById('edit-prodstatus').value="${it.prodStatus||'active'}";</script>
         <div id="prod-stop-wrap" style="display:${(it.prodStatus||'')==='stop'?'block':'none'}">
           <div style="font-size:11px;color:var(--text3);margin-bottom:5px">중단 일자</div>
           <input type="date" id="edit-prodstop" value="${it.prodStop||new Date().toISOString().slice(0,10)}"
