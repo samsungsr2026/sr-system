@@ -2941,6 +2941,7 @@ function doIO2(type){
   }
   if(type==='in')inv[idx].qty+=qty;else inv[idx].qty-=qty;
   txs.unshift({id:Date.now(),type,iid,qty,w,ts:Date.now(),memo});
+  addLog('io',(type==='in'?'입고':'출고')+' — '+inv[idx].name, `수량: ${type==='in'?'+':'-'}${qty}${inv[idx].unit} / 담당: ${w}${memo?' / '+memo:''}`, iid);
   sv();manIOSelected[type]=null;
   tst(type==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);
   go('dash');
@@ -3006,6 +3007,7 @@ function doScanIO(){
   }
   if(scanType==='in')inv[idx].qty+=qty;else inv[idx].qty-=qty;
   txs.unshift({id:Date.now(),type:scanType,iid:scanId,qty,w,ts:Date.now(),memo:'[스캔]'+memo});
+  addLog('io',(scanType==='in'?'입고':'출고')+' — '+inv[idx].name, `수량: ${scanType==='in'?'+':'-'}${qty}${inv[idx].unit} / 담당: ${w}${memo?' / [스캔]'+memo:' [스캔]'}`, scanId);
   sv();scanId=null;tst(scanType==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);go('dash');
 }
 
@@ -3553,6 +3555,7 @@ function apIO(){
   if(okIn>0)parts.push(`입고 ${okIn}건(+${totalInQty.toLocaleString()}EA)`);
   msg+=parts.join(' · ');
   if(fail>0)msg+=` · ❌ 실패 ${fail}건`;
+  if(okIn>0||okOut>0) addLog('io','일괄 입출고',`입고 ${okIn}건 +${totalInQty}EA / 출고 ${okOut}건 -${totalOutQty}EA${fail?' / 실패 '+fail+'건':''}`);
   tst(msg,3500);
   go('dash');
 }
@@ -4667,6 +4670,7 @@ function saveOrder(){
   // appliedStock: 출력 시 재고 반영 여부 (false = 아직 미반영)
   orders.unshift({docNo,vendor,w,due,memo,ts:Date.now(),items,printedAt:null,appliedStock:false});
   sv();
+  addLog('order','발주서 발행 — '+vendor, `문서번호: ${docNo} / 품목 ${items.length}건 / 담당: ${w}`);
   orderItems=[];orderSq='';
   orderForm={vendor:'',w:'',due:'',memo:''}; // 입력값 초기화
   tst('✅ 발주서 발행 완료 ('+docNo+') · 미리보기에서 출력하세요',2800);
@@ -4929,6 +4933,7 @@ function delOneProd(idx){
   inv.splice(idx, 1);
   delSel.clear();
   sv();
+  addLog('delprod','품목 삭제 — '+it.name, `금형번호: ${iid}`);
   tst('🗑️ '+it.name+' 삭제 완료', 2200);
   render();
 }
@@ -4943,6 +4948,7 @@ function confirmDelProd(){
   idxList.forEach(idx=>{ inv.splice(idx,1); });
   delSel.clear();
   sv();
+  addLog('delprod','품목 삭제 '+idxList.length+'건', names.slice(0,5).join(', ')+(names.length>5?' 외 '+(names.length-5)+'건':''));
   tst('🗑️ '+idxList.length+'개 품목 삭제 완료', 2500);
   render();
 }
@@ -4978,6 +4984,7 @@ function addNewProduct(){
   const newItem={id:moldNo,name,cat,unit,packUnit,qty,min,e,classNo,material,rubberWeight,steelWeight,moldLoc,cavity,location,producer,avgOut,barcode,note};
   inv.push(newItem);
   sv();
+  addLog('addprod','품목 추가 — '+name, `금형번호: ${moldNo} / 부품번호: ${classNo||'-'} / 재질: ${material||'-'}`);
   // 사진/도면 저장
   var picFile=document.getElementById('np-pic-file');
   var drawFile=document.getElementById('np-draw-file');
@@ -6131,7 +6138,7 @@ function rdXLFile(file){
   };
   r.readAsText(file,'utf-8');
 }
-function apXL(){if(!requireEdit())return;if(!pendXL)return;inv=pendXL;sv();pendXL=null;tst('✅ '+inv.length+'개 품목 등록 완료');go('dash');}
+function apXL(){if(!requireEdit())return;if(!pendXL)return;const cnt=pendXL.length;inv=pendXL;sv();addLog('addprod','품목 CSV 일괄 등록',`총 ${cnt}개 품목 업로드`);pendXL=null;tst('✅ '+cnt+'개 품목 등록 완료');go('dash');}
 function dlCSV(){
   const B='\uFEFF';
   // 모든 필드 포함하여 내보내기
@@ -6490,6 +6497,7 @@ function saveDailyReport(){
   if(existing>=0) dailyReports[existing]=report;
   else dailyReports.push(report);
   saveDR();
+  addLog('other','업무일지 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
   tst('✅ 업무일지 저장 완료');
   render();
 }
@@ -6662,6 +6670,7 @@ function addNotice(){
   const author=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
   notices.unshift({id:Date.now(),ts:Date.now(),type,title,body,important,done:false,author});
   saveNotices();
+  addLog('other','공지사항 등록 — '+title, `유형: ${type} / 작성: ${author}`);
   tst('✅ 등록 완료');
   render();
 }
