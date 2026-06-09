@@ -1220,7 +1220,11 @@ async function sv() {
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
-  if (_saving) return;
+  if (_saving) {
+    // 저장 중이면 잠시 후 재시도
+    setTimeout(sv, 500);
+    return;
+  }
   _saving = true;
   jbStat('💾 저장 중...');
   try {
@@ -6028,6 +6032,7 @@ function saveItemEdit(id){
   inv[idx].steelWeight=steelWeight;
   inv[idx].cavity=cavity||0;
   if(prodStatus)inv[idx].prodStatus=prodStatus;
+  else inv[idx].prodStatus='active';
   inv[idx].prodStop=prodStatus==='stop'?prodStop:'';
   // 재고 수량이 달라진 경우 → 생산자별 현황에 즉시 반영되도록 트랜잭션 자동 생성
   const qDiff=qty-prevQty;
