@@ -1263,7 +1263,18 @@ async function jbPull() {
       // 병합된 전체를 Gist에도 다시 저장
       cfSet('dailyreport', dailyReports).catch(()=>{});
     }
-    if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
+    if(Array.isArray(rcl)){
+      // 로컬과 Gist 병합 (id 기준 중복제거, 최신순 정렬)
+      const local=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
+      const merged=[...rcl];
+      local.forEach(lr=>{if(!merged.find(r=>r.id===lr.id))merged.push(lr);});
+      merged.sort((a,b)=>b.ts-a.ts);
+      if(merged.length>2000)merged.splice(2000);
+      changeLogs=merged;
+      localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));
+      // 병합 결과를 Gist에도 반영
+      cfSet('changelog',changeLogs).catch(()=>{});
+    }
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     const inputTabs=['io','plan','barcode','loc','order','addprod','set','alert','purchase','dailyreport'];
