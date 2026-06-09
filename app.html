@@ -5442,7 +5442,7 @@ h1{font-size:32px;font-weight:700;text-align:center;margin-bottom:6px;letter-spa
 .iv{font-weight:600;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 table{width:100%;border-collapse:collapse;margin-bottom:28px;table-layout:fixed}
 th{background:#e8e8e8;color:#111;padding:6px 2px;font-size:11px;font-weight:600;text-align:center;border:1.5px solid #bbb;white-space:nowrap;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-td{padding:6px 4px;border:1.5px solid #ccc;font-size:13px;vertical-align:middle;white-space:nowrap;overflow:hidden}
+td{padding:6px 4px;border:1.5px solid #ccc;font-size:13px;vertical-align:middle;white-space:normal;overflow:visible}
 tr:nth-child(even) td{background:#f5f7ff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .c{text-align:center}.m{font-family:monospace;font-weight:600;text-align:center}
 .big{font-size:13px;color:#1a4e8f;font-weight:700;text-align:center;white-space:nowrap}
@@ -5480,23 +5480,23 @@ ${toolbar}
     <div class="ic"><span class="il">담당자</span><span class="iv">${o.w||'-'}</span></div>
   </div>
 </div>
-<table>
+<table style="table-layout:fixed;width:100%">
   <thead><tr>
     <th style="width:3%">No</th>
     <th style="width:11%">금형번호</th>
-    <th style="width:11%">부품번호</th>
-    <th style="width:9%">제품위치</th>
+    <th style="width:19%">부품번호</th>
+    <th style="width:19%">제품위치</th>
     <th style="width:11%">발주수량</th>
     <th style="width:8%">현재고</th>
-    <th style="width:35%">품목명</th>
-    <th style="width:12%">생산자</th>
+    <th style="width:19%">품목명</th>
+    <th style="width:10%">생산자</th>
   </tr></thead>
   <tbody>
     ${o.items.map((it,idx)=>`<tr>
       <td class="c">${idx+1}</td>
       <td class="m" style="color:#1a4e8f">${it.id}</td>
-      <td class="m" style="color:#555">${it.classNo||'-'}</td>
-      <td class="m" style="color:#1a4e8f;font-size:${(it.location||'—').length>8?'9px':(it.location||'—').length>6?'10px':'11px'};white-space:nowrap;overflow:hidden">${it.location||'—'}</td>
+      <td class="m" style="color:#555;white-space:normal;overflow:visible;word-break:break-all">${it.classNo||'-'}</td>
+      <td class="m" style="color:#1a4e8f;white-space:normal;overflow:visible;word-break:break-all">${it.location||'—'}</td>
       <td class="big">${(it.qty||0).toLocaleString()} <span style="font-size:60%;font-weight:600">${it.unit}</span></td>
       <td class="m" style="color:#555">${(it.curQty||0).toLocaleString()}</td>
       <td>${it.name}</td>
