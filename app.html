@@ -1185,6 +1185,7 @@ const GH_HDR = {
   'Accept': 'application/vnd.github.v3+json'
 };
 let _saving = false;
+let _lastSave = 0; // 마지막 로컬 저장 시각
 
 function jbStat(msg, color) {
   const el = document.getElementById('jb-sync');
@@ -1220,6 +1221,7 @@ async function sv() {
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
+  _lastSave = Date.now();
   if (_saving) {
     // 저장 중이면 잠시 후 재시도
     setTimeout(sv, 500);
@@ -1246,9 +1248,10 @@ async function jbPull() {
       cfGet('notices'), cfGet('dailyreport'), cfGet('changelog'),
       cfGet('suppliers'), cfGet('imgs')
     ]);
-    if(Array.isArray(ri)&&ri.length>0&&!_saving){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
-    if(Array.isArray(rt)&&!_saving){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
-    if(Array.isArray(ro)&&!_saving){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
+    const _recentSave = (Date.now() - _lastSave) < 8000; // 8초 이내 저장한 경우
+    if(Array.isArray(ri)&&ri.length>0&&!_recentSave){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
+    if(Array.isArray(rt)&&!_recentSave){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
+    if(Array.isArray(ro)&&!_recentSave){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
     if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
