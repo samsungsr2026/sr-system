@@ -5666,10 +5666,9 @@ function opD(id){
         <div style="font-size:11px;color:var(--text3);margin:10px 0 6px;font-weight:700">생산 여부</div>
         <select id="edit-prodstatus" class="fi" style="font-size:13px;font-weight:700;margin-bottom:8px"
           onchange="document.getElementById('prod-stop-wrap').style.display=this.value==='stop'?'block':'none'">
-          <option value="active">✅ 생산중</option>
-          <option value="stop">🚫 중단</option>
+          <option value="active" ${it.prodStatus!=='stop'?'selected':''}>✅ 생산중</option>
+          <option value="stop" ${it.prodStatus==='stop'?'selected':''}>🚫 중단</option>
         </select>
-        <script>document.getElementById('edit-prodstatus').value="${it.prodStatus||'active'}";</script>
         <div id="prod-stop-wrap" style="display:${(it.prodStatus||'')==='stop'?'block':'none'}">
           <div style="font-size:11px;color:var(--text3);margin-bottom:5px">중단 일자</div>
           <input type="date" id="edit-prodstop" value="${it.prodStop||new Date().toISOString().slice(0,10)}"
