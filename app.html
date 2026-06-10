@@ -1184,8 +1184,7 @@ const GH_HDR = {
   'Authorization': 'token ' + GH_TOKEN,
   'Accept': 'application/vnd.github.v3+json'
 };
-let _saving = false;
-let _lastSave = 0; // 마지막 로컬 저장 시각
+let _lastSave = 0;
 
 function jbStat(msg, color) {
   const el = document.getElementById('jb-sync');
@@ -1218,31 +1217,20 @@ async function cfSet(key, data) {
 }
 
 async function sv() {
-  const _now = Date.now();
   localStorage.setItem('sr-inv', JSON.stringify(inv));
-  localStorage.setItem('sr-inv-savedAt', String(_now));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
-  _lastSave = _now;
-  if (_saving) {
-    // 저장 중이면 잠시 후 재시도
-    setTimeout(sv, 500);
-    return;
-  }
-  _saving = true;
   jbStat('💾 저장 중...');
   try {
     await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
-    _lastSave = Date.now(); // Gist 업로드 완료 시각
+    _lastSave = Date.now();
     localStorage.setItem('sr-inv-savedAt', String(_lastSave));
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   } catch(e) { jbStat('⚠️ 저장오류','#c07800'); }
-  _saving = false;
 }
 
 
 async function jbPull() {
-  if (_saving) return;
   jbStat('🔄 동기화 중...');
   try {
     const [ri,rt,ro,rw,ra,rp,rpv,rn,rdr,rcl,rs,rim] = await Promise.all([
