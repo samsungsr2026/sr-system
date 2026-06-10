@@ -4490,11 +4490,13 @@ function rOrder(){
           <div class="fg"><label class="fl">담당자</label><select class="fi" id="ord-w" onchange="orderForm.w=this.value">${wOpts}</select></div>
           <div class="fg"><label class="fl">납기 희망일</label><input type="date" class="fi" id="ord-due" value="${dueVal}" oninput="orderForm.due=this.value"></div>
         </div>
-        <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ord-memo" placeholder="긴급, 결제조건 등" value="${orderForm.memo||''}" oninput="orderForm.memo=this.value"></div>
-        <div class="fg">
-          <label class="fl">배송방법</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${ ['택배','직송','방문','기타'].map(d=>`<label style="display:flex;align-items:center;gap:5px;padding:8px 16px;border-radius:8px;border:2px solid ${orderForm.delivery===d?'var(--blue)':'var(--border)'};background:${orderForm.delivery===d?'var(--blue-bg)':'var(--bg3)'};cursor:pointer;font-size:13px;font-weight:700;color:${orderForm.delivery===d?'var(--blue)':'var(--text2)'};transition:all .15s"><input type="radio" name="ord-delivery" value="${d}" ${orderForm.delivery===d?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue);margin-right:4px">${d}</label>`).join('') }
+        <div class="grid2" style="margin-bottom:0;gap:10px">
+          <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ord-memo" placeholder="긴급, 결제조건 등" value="${orderForm.memo||''}" oninput="orderForm.memo=this.value"></div>
+          <div class="fg">
+            <label class="fl">배송방법</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${ ['택배','직송','방문','기타'].map(d=>`<label style="display:flex;align-items:center;gap:4px;padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="${d}" ${orderForm.delivery===d?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">${d}</label>`).join('') }
+            </div>
           </div>
         </div>
 
