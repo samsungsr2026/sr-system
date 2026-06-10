@@ -1255,10 +1255,11 @@ async function jbPull() {
     // ── 병합 헬퍼: id 기준 중복제거, ts 최신 우선 ──────────────────
     function mergeById(local, remote) {
       const map = {};
+      const key = x => x.id || x.docNo || x.ts || JSON.stringify(x).slice(0,40);
       // remote 먼저 넣고
-      (remote||[]).forEach(x=>{ if(x&&x.id) map[x.id]=x; });
+      (remote||[]).forEach(x=>{ if(x) map[key(x)]=x; });
       // local이 더 최신이면 덮어씀
-      (local||[]).forEach(x=>{ if(!x||!x.id) return; if(!map[x.id]||(x.ts||0)>=(map[x.id].ts||0)) map[x.id]=x; });
+      (local||[]).forEach(x=>{ if(!x) return; const k=key(x); if(!map[k]||(x.ts||0)>=(map[k].ts||0)) map[k]=x; });
       return Object.values(map).sort((a,b)=>(b.ts||0)-(a.ts||0));
     }
     function mergeByDate(local, remote) {
