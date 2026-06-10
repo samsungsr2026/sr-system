@@ -1219,7 +1219,7 @@ async function jbPull() {
     // Firebase에서 모든 데이터 한번에 읽기
     const fbAll = await fetch(`${FB}/sr.json`).then(r=>r.ok?r.json():null).catch(()=>null);
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
-    // Firebase가 비어있으면 로컬 데이터 업로드 (첫 기기가 마스터)
+    // Firebase가 비어있으면 현재 로컬 데이터를 전체 업로드 (초기 세팅)
     if(!fbAll.inv || (Array.isArray(fbAll.inv) && fbAll.inv.length===0)) {
       jbStat('📤 초기 데이터 업로드 중...','#c07800');
       await fetch(`${FB}/sr.json`, {method:'PUT', headers:{'Content-Type':'application/json'},
@@ -1232,121 +1232,25 @@ async function jbPull() {
       jbStat('✅ 초기 업로드 완료','#0d9e72');
       return;
     }
-    const ri=fbAll['inv'];
-    const rt=fbAll['tx'], ro=fbAll['orders'], rp=fbAll['purchases'], rpv=fbAll['purchaseVendors'];
-    const rw=fbAll['wk'], ra=fbAll['accounts'], rn=fbAll['notices'], rdr=fbAll['dailyreport'], rcl=fbAll['changelog'], rs=fbAll['suppliers'], rim=fbAll['imgs'];
-    // ── 병합 헬퍼: id 기준 중복제거, ts 최신 우선 ──────────────────
-    function mergeById(local, remote) {
-      const map = {};
-      const key = x => x.id || x.docNo || x.ts || JSON.stringify(x).slice(0,40);
-      // remote 먼저 넣고
-      (remote||[]).forEach(x=>{ if(x) map[key(x)]=x; });
-      // local이 더 최신이면 덮어씀
-      (local||[]).forEach(x=>{ if(!x) return; const k=key(x); if(!map[k]||(x.ts||0)>=(map[k].ts||0)) map[k]=x; });
-      return Object.values(map).sort((a,b)=>(b.ts||0)-(a.ts||0));
-    }
-    function mergeByDate(local, remote) {
-      const map = {};
-      (remote||[]).forEach(x=>{ if(x&&x.date) map[x.date]=x; });
-      (local||[]).forEach(x=>{ if(!x||!x.date) return; map[x.date]=x; });
-      return Object.values(map).sort((a,b)=>b.date.localeCompare(a.date));
-    }
-    function mergeStrArr(local, remote) {
-      const s = new Set([...(remote||[]), ...(local||[])]);
-      return [...s];
-    }
+    // ── Firebase 데이터를 그대로 사용 (Firebase = 단일 진실 공급원) ──
+    const ri=fbAll['inv'],    rt=fbAll['tx'],
+          ro=fbAll['orders'], rp=fbAll['purchases'],
+          rpv=fbAll['purchaseVendors'], rw=fbAll['wk'],
+          ra=fbAll['accounts'], rn=fbAll['notices'],
+          rdr=fbAll['dailyreport'], rcl=fbAll['changelog'],
+          rs=fbAll['suppliers'], rim=fbAll['imgs'];
 
-    // inv: id 기준 병합 (로컬 최신 우선)
-    if(Array.isArray(ri)&&ri.length>0){
-      const localInv=JSON.parse(localStorage.getItem('sr-inv')||'[]');
-      inv=mergeById(localInv,ri);
-      localStorage.setItem('sr-inv',JSON.stringify(inv));
-    }
-    // tx: id 기준 병합
-    if(Array.isArray(rt)&&rt.length>0){
-      const localTx=JSON.parse(localStorage.getItem('sr-tx')||'[]');
-      txs=mergeById(localTx,rt);
-      localStorage.setItem('sr-tx',JSON.stringify(txs));
-    }
-    // orders: id 기준 병합
-    if(Array.isArray(ro)){
-      const localOrd=JSON.parse(localStorage.getItem('sr-orders')||'[]');
-      orders=mergeById(localOrd,ro);
-      localStorage.setItem('sr-orders',JSON.stringify(orders));
-      cfSet('orders',orders).catch(()=>{});
-    }
-    // purchases: id 기준 병합 (Firebase 비어있으면 로컬 유지)
-    {
-      const localPur=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
-      if(Array.isArray(rp)&&rp.length>0){
-        purchases=mergeById(localPur,rp);
-      } else if(localPur.length>0){
-        purchases=localPur;
-        cfSet('purchases',purchases).catch(()=>{});
-      }
-      localStorage.setItem('sr-purchases',JSON.stringify(purchases));
-      if(Array.isArray(rp)&&rp.length>0) cfSet('purchases',purchases).catch(()=>{});
-    }
-    // purchaseVendors: name 기준 병합 (Firebase 비어있으면 로컬 우선)
-    {
-      const localPV=JSON.parse(localStorage.getItem('sr-purchase-vendors')||'[]');
-      if(Array.isArray(rpv)&&rpv.length>0){
-        const map={}; rpv.forEach(x=>{if(x&&x.name)map[x.name]=x;}); localPV.forEach(x=>{if(x&&x.name)map[x.name]=x;});
-        purchaseVendors=Object.values(map);
-      } else if(localPV.length>0){
-        purchaseVendors=localPV;
-        cfSet('purchaseVendors',purchaseVendors).catch(()=>{}); // 로컬→Firebase 업로드
-      }
-      localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));
-      if(Array.isArray(rpv)&&rpv.length>0) cfSet('purchaseVendors',purchaseVendors).catch(()=>{});
-    }
-    // notices: id 기준 병합
-    if(Array.isArray(rn)){
-      const localN=JSON.parse(localStorage.getItem('sr-notices')||'[]');
-      notices=mergeById(localN,rn);
-      localStorage.setItem('sr-notices',JSON.stringify(notices));
-      cfSet('notices',notices).catch(()=>{});
-    }
-    // suppliers: 문자열 배열 병합 (Firebase 비어있으면 로컬 우선)
-    {
-      const localS=JSON.parse(localStorage.getItem('sr-suppliers')||'[]');
-      if(Array.isArray(rs)&&rs.length>0){
-        SUPPLIERS=mergeStrArr(localS,rs);
-      } else if(localS.length>0){
-        SUPPLIERS=localS;
-        cfSet('suppliers',SUPPLIERS).catch(()=>{});
-      }
-      localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
-      if(Array.isArray(rs)&&rs.length>0) cfSet('suppliers',SUPPLIERS).catch(()=>{});
-    }
+    if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
+    if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
+    if(Array.isArray(ro)){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
+    if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
+    if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
-    if(Array.isArray(rdr)){
-      // 로컬 데이터와 병합 (날짜 기준 - 로컬 우선)
-      const local = JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
-      const merged = [...rdr];
-      local.forEach(lr=>{
-        if(!merged.find(r=>r.date===lr.date)) merged.push(lr);
-      });
-      merged.sort((a,b)=>b.date.localeCompare(a.date));
-      dailyReports = merged;
-      localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));
-      // 병합된 전체를 Gist에도 다시 저장
-      cfSet('dailyreport', dailyReports).catch(()=>{});
-    }
-    if(Array.isArray(rcl)){
-      // 로컬과 Gist 병합 (id 기준 중복제거, 최신순 정렬)
-      const local=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
-      const merged=[...rcl];
-      local.forEach(lr=>{if(!merged.find(r=>r.id===lr.id))merged.push(lr);});
-      merged.sort((a,b)=>b.ts-a.ts);
-      if(merged.length>2000)merged.splice(2000);
-      changeLogs=merged;
-      localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));
-      // 병합 결과를 Gist에도 반영
-      cfSet('changelog',changeLogs).catch(()=>{});
-    }
-    // suppliers: 위 병합 로직에서 처리됨
+    if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
+    if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
+    if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
+    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
