@@ -1218,10 +1218,12 @@ async function cfSet(key, data) {
 }
 
 async function sv() {
+  const _now = Date.now();
   localStorage.setItem('sr-inv', JSON.stringify(inv));
+  localStorage.setItem('sr-inv-savedAt', String(_now));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
-  _lastSave = Date.now();
+  _lastSave = _now;
   if (_saving) {
     // 저장 중이면 잠시 후 재시도
     setTimeout(sv, 500);
@@ -1231,6 +1233,8 @@ async function sv() {
   jbStat('💾 저장 중...');
   try {
     await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
+    _lastSave = Date.now(); // Gist 업로드 완료 시각
+    localStorage.setItem('sr-inv-savedAt', String(_lastSave));
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   } catch(e) { jbStat('⚠️ 저장오류','#c07800'); }
   _saving = false;
@@ -1248,10 +1252,13 @@ async function jbPull() {
       cfGet('notices'), cfGet('dailyreport'), cfGet('changelog'),
       cfGet('suppliers'), cfGet('imgs')
     ]);
-    const _recentSave = (Date.now() - _lastSave) < 8000; // 8초 이내 저장한 경우
-    if(Array.isArray(ri)&&ri.length>0&&!_recentSave){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
-    if(Array.isArray(rt)&&!_recentSave){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
-    if(Array.isArray(ro)&&!_recentSave){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
+    // 로컬 저장 시각 vs Gist 저장 시각 비교 - 로컬이 더 최신이면 덮어쓰지 않음
+    const _localInvAt = parseInt(localStorage.getItem('sr-inv-savedAt')||'0');
+    const _gistInvAt = ri&&ri[0]&&ri[0]._savedAt ? ri[0]._savedAt : 0;
+    const _localIsNewer = (_localInvAt > _gistInvAt) || (Date.now() - _lastSave < 15000);
+    if(Array.isArray(ri)&&ri.length>0&&!_localIsNewer){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
+    if(Array.isArray(rt)&&!_localIsNewer){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
+    if(Array.isArray(ro)&&!_localIsNewer){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
     if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
