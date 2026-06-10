@@ -1233,13 +1233,26 @@ async function sv() {
 async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
-    const [ri,rt,ro,rw,ra,rp,rpv,rn,rdr,rcl,rs,rim] = await Promise.all([
-      cfGet('inv'), cfGet('tx'), cfGet('orders'),
-      cfGet('wk'), cfGet('accounts'),
-      cfGet('purchases'), cfGet('purchaseVendors'),
-      cfGet('notices'), cfGet('dailyreport'), cfGet('changelog'),
-      cfGet('suppliers'), cfGet('imgs')
+    // Gist 3개만 호출 (API 절약)
+    async function getGist(id) {
+      const r = await fetch('https://api.github.com/gists/'+id, {headers:GH_HDR});
+      if(!r.ok) return {};
+      const d = await r.json();
+      const out = {};
+      for(const [fn, fd] of Object.entries(d.files||{})) {
+        const key = fn.replace('sr-','').replace('.json','');
+        try { out[key] = JSON.parse(fd.content); } catch(e) {}
+      }
+      return out;
+    }
+    const [g1,g2,g3] = await Promise.all([
+      getGist('4162865e1dbda806ed1ec7552e38fd87'),
+      getGist('6995fff57c30682680012326770ab906'),
+      getGist('b001fb21395763d6e67b8bc11a77b708')
     ]);
+    const ri=g1['inv'];
+    const rt=g2['tx'], ro=g2['orders'], rp=g2['purchases'], rpv=g2['purchase-vendors'];
+    const rw=g3['wk'], ra=g3['accounts'], rn=g3['notices'], rdr=g3['dailyreport'], rcl=g3['changelog'], rs=g3['suppliers'], rim=g3['imgs'];
     // ── 병합 헬퍼: id 기준 중복제거, ts 최신 우선 ──────────────────
     function mergeById(local, remote) {
       const map = {};
@@ -7157,7 +7170,7 @@ tick();setInterval(tick,30000);
 history.replaceState({tab:'dash'}, '', '#dash');
 render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
-setInterval(jbPull, 10000);
+setInterval(jbPull, 30000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
