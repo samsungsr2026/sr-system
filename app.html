@@ -5039,8 +5039,9 @@ function openVendorStatDetail(vendor, period){
       :'<span class="badge ba">미반영</span>';
     const items=o.items||[];
     // 발주서 행 (헤더)
+    const docNoSafe = o.docNo.replace(/"/g,'&quot;');
     rows+='<tr style="background:var(--bg3)">'
-      +'<td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px">'+o.docNo+'</td>'
+      +'<td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px;cursor:pointer;text-decoration:underline" onclick="previewOrderByDocNo(&quot;'+docNoSafe+'&quot;)" title="클릭시 발주서 보기">'+o.docNo+' 👁️</td>'
       +'<td style="font-size:12px">'+dt+'</td>'
       +'<td style="font-size:12px;color:var(--text2)">담당: '+(o.w||'-')+'</td>'
       +'<td style="text-align:center;font-size:12px;color:var(--text2)">'+items.length+'종</td>'
@@ -5688,6 +5689,12 @@ window.onload=function(){${isPrint?'setTimeout(function(){window.print();},300);
 }
 
 // 발주서 미리보기 (재고 반영 안 함, 출력완료 기록 안 함)
+function previewOrderByDocNo(docNo){
+  const i=orders.findIndex(function(o){return o.docNo===docNo;});
+  if(i<0){tst('발주서를 찾을 수 없습니다');return;}
+  previewOrder(i);
+}
+
 function previewOrder(i){
   const o=orders[i];
   if(!o)return;
