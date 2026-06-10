@@ -5070,6 +5070,36 @@ let pstatRange='day'; // day | week | month
 
 // ── 통계 / 리포트 ─────────────────────────────────────────────
 let statsRange = '6'; // 최근 N개월
+function openVendorDetail(vendor){
+  const vOrders=orders.filter(function(o){return (o.vendor||'미지정')===vendor;})
+    .sort(function(a,b){return b.ts-a.ts;});
+  let rows='';
+  vOrders.forEach(function(o){
+    const dt=new Date(o.ts).toLocaleDateString('ko',{year:'numeric',month:'2-digit',day:'2-digit'});
+    const itemNames=(o.items||[]).map(function(it){return it.name||it.id||'-';}).join(', ');
+    const status=o.appliedStock
+      ?'<span class="badge bg">반영완료</span>'
+      :'<span class="badge ba">미반영</span>';
+    rows+='<tr>'
+      +'<td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px">'+o.docNo+'</td>'
+      +'<td>'+dt+'</td>'
+      +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+itemNames+'">'+itemNames+'</td>'
+      +'<td style="text-align:center;font-family:monospace">'+((o.items||[]).length)+'종</td>'
+      +'<td style="color:var(--text2);font-size:12px">'+( o.w||'-')+'</td>'
+      +'<td>'+status+'</td>'
+      +'</tr>';
+  });
+  document.getElementById('mo-title').textContent='🏭 '+vendor+' 납품내역 ('+vOrders.length+'건)';
+  document.getElementById('mb').innerHTML=
+    '<div style="overflow-x:auto">'
+    +'<table class="tbl" style="min-width:580px">'
+    +'<thead><tr><th>문서번호</th><th>발주일</th><th>품목</th><th>품목수</th><th>담당자</th><th>상태</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+    +(vOrders.length===0?'<div style="text-align:center;padding:20px;color:var(--text3)">발주 내역 없음</div>':'');
+  document.getElementById('ov').classList.add('on');
+}
+
 function rVendorStats(){
   if(!orders.length) return '<div style="text-align:center;padding:20px;color:var(--text3)">발주 데이터 없음</div>';
   const vmap={};
@@ -5091,8 +5121,9 @@ function rVendorStats(){
     const v=entry[0], d=entry[1];
     const pct=Math.round(d.cnt/maxCnt*100);
     const tot=Math.round(d.cnt/orders.length*100);
-    rows+='<tr>'
-      +'<td style="font-weight:700">'+v+'</td>'
+    const venc=v.replace(/'/g,"\'");
+    rows+='<tr style="cursor:pointer" onclick="openVendorDetail(''+venc+'')">'
+      +'<td style="font-weight:700;color:var(--blue)">'+v+' <span style="font-size:11px;color:var(--text3)">▶</span></td>'
       +'<td style="font-family:monospace;font-weight:700;color:var(--blue);text-align:center">'+d.cnt+'건</td>'
       +'<td style="min-width:120px"><div style="display:flex;align-items:center;gap:8px">'
       +'<div style="flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden">'
@@ -5104,7 +5135,7 @@ function rVendorStats(){
       +'</tr>';
   });
   return '<div style="overflow-x:auto"><table class="tbl" style="min-width:600px">'
-    +'<thead><tr><th>업체명</th><th>발주건수</th><th>납품비중</th><th>총품목수</th><th>반영완료</th><th>최근발주일</th></tr></thead>'
+    +'<thead><tr><th>업체명 (클릭시 상세)</th><th>발주건수</th><th>납품비중</th><th>총품목수</th><th>반영완료</th><th>최근발주일</th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table></div>';
 }
 
