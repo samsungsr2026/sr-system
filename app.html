@@ -4493,8 +4493,8 @@ function rOrder(){
         <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ord-memo" placeholder="긴급, 결제조건 등" value="${orderForm.memo||''}" oninput="orderForm.memo=this.value"></div>
         <div class="fg">
           <label class="fl">배송방법</label>
-          <div style="display:flex;gap:8px">
-            ${['직접납품','택배','직송','퀵서비스'].map(d=>`<label style="display:flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;border:1px solid \${orderForm.delivery===d?'var(--blue)':'var(--border)'};background:\${orderForm.delivery===d?'var(--blue-bg)':'var(--bg3)'};cursor:pointer;font-size:13px;font-weight:600;color:\${orderForm.delivery===d?'var(--blue)':'var(--text2)'}"><input type="radio" name="ord-delivery" value="\${d}" \${orderForm.delivery===d?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">\${d}</label>`).join('')}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${ ['택배','직송','방문','기타'].map(d=>`<label style="display:flex;align-items:center;gap:5px;padding:8px 16px;border-radius:8px;border:2px solid ${orderForm.delivery===d?'var(--blue)':'var(--border)'};background:${orderForm.delivery===d?'var(--blue-bg)':'var(--bg3)'};cursor:pointer;font-size:13px;font-weight:700;color:${orderForm.delivery===d?'var(--blue)':'var(--text2)'};transition:all .15s"><input type="radio" name="ord-delivery" value="${d}" ${orderForm.delivery===d?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue);margin-right:4px">${d}</label>`).join('') }
           </div>
         </div>
 
