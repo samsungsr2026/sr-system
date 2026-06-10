@@ -1252,18 +1252,76 @@ async function jbPull() {
       cfGet('notices'), cfGet('dailyreport'), cfGet('changelog'),
       cfGet('suppliers'), cfGet('imgs')
     ]);
-    // 로컬 저장 시각 vs Gist 저장 시각 비교 - 로컬이 더 최신이면 덮어쓰지 않음
-    const _localInvAt = parseInt(localStorage.getItem('sr-inv-savedAt')||'0');
-    const _gistInvAt = ri&&ri[0]&&ri[0]._savedAt ? ri[0]._savedAt : 0;
-    const _localIsNewer = (_localInvAt > _gistInvAt) || (Date.now() - _lastSave < 15000);
-    if(Array.isArray(ri)&&ri.length>0&&!_localIsNewer){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
-    if(Array.isArray(rt)&&!_localIsNewer){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
-    if(Array.isArray(ro)&&!_localIsNewer){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
+    // ── 병합 헬퍼: id 기준 중복제거, ts 최신 우선 ──────────────────
+    function mergeById(local, remote) {
+      const map = {};
+      // remote 먼저 넣고
+      (remote||[]).forEach(x=>{ if(x&&x.id) map[x.id]=x; });
+      // local이 더 최신이면 덮어씀
+      (local||[]).forEach(x=>{ if(!x||!x.id) return; if(!map[x.id]||(x.ts||0)>=(map[x.id].ts||0)) map[x.id]=x; });
+      return Object.values(map).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    }
+    function mergeByDate(local, remote) {
+      const map = {};
+      (remote||[]).forEach(x=>{ if(x&&x.date) map[x.date]=x; });
+      (local||[]).forEach(x=>{ if(!x||!x.date) return; map[x.date]=x; });
+      return Object.values(map).sort((a,b)=>b.date.localeCompare(a.date));
+    }
+    function mergeStrArr(local, remote) {
+      const s = new Set([...(remote||[]), ...(local||[])]);
+      return [...s];
+    }
+
+    // inv: id 기준 병합 (로컬 최신 우선)
+    if(Array.isArray(ri)&&ri.length>0){
+      const localInv=JSON.parse(localStorage.getItem('sr-inv')||'[]');
+      inv=mergeById(localInv,ri);
+      localStorage.setItem('sr-inv',JSON.stringify(inv));
+    }
+    // tx: id 기준 병합
+    if(Array.isArray(rt)&&rt.length>0){
+      const localTx=JSON.parse(localStorage.getItem('sr-tx')||'[]');
+      txs=mergeById(localTx,rt);
+      localStorage.setItem('sr-tx',JSON.stringify(txs));
+    }
+    // orders: id 기준 병합
+    if(Array.isArray(ro)){
+      const localOrd=JSON.parse(localStorage.getItem('sr-orders')||'[]');
+      orders=mergeById(localOrd,ro);
+      localStorage.setItem('sr-orders',JSON.stringify(orders));
+      cfSet('orders',orders).catch(()=>{});
+    }
+    // purchases: id 기준 병합
+    if(Array.isArray(rp)){
+      const localPur=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
+      purchases=mergeById(localPur,rp);
+      localStorage.setItem('sr-purchases',JSON.stringify(purchases));
+      cfSet('purchases',purchases).catch(()=>{});
+    }
+    // purchaseVendors: name 기준 병합
+    if(Array.isArray(rpv)){
+      const localPV=JSON.parse(localStorage.getItem('sr-purchase-vendors')||'[]');
+      const map={}; rpv.forEach(x=>{if(x&&x.name)map[x.name]=x;}); localPV.forEach(x=>{if(x&&x.name)map[x.name]=x;});
+      purchaseVendors=Object.values(map);
+      localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));
+      cfSet('purchaseVendors',purchaseVendors).catch(()=>{});
+    }
+    // notices: id 기준 병합
+    if(Array.isArray(rn)){
+      const localN=JSON.parse(localStorage.getItem('sr-notices')||'[]');
+      notices=mergeById(localN,rn);
+      localStorage.setItem('sr-notices',JSON.stringify(notices));
+      cfSet('notices',notices).catch(()=>{});
+    }
+    // suppliers: 문자열 배열 병합
+    if(Array.isArray(rs)){
+      const localS=JSON.parse(localStorage.getItem('sr-suppliers')||'[]');
+      SUPPLIERS=mergeStrArr(localS,rs);
+      localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
+      cfSet('suppliers',SUPPLIERS).catch(()=>{});
+    }
     if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
-    if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
-    if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}
-    if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
     if(Array.isArray(rdr)){
       // 로컬 데이터와 병합 (날짜 기준 - 로컬 우선)
       const local = JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
@@ -1289,7 +1347,7 @@ async function jbPull() {
       // 병합 결과를 Gist에도 반영
       cfSet('changelog',changeLogs).catch(()=>{});
     }
-    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
+    // suppliers: 위 병합 로직에서 처리됨
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     const inputTabs=['io','plan','barcode','loc','order','addprod','set','alert','purchase','dailyreport'];
     const ae=document.activeElement;
@@ -1860,7 +1918,7 @@ function getPurchaseData(){
   const note=document.getElementById('po-note')?.value?.trim()||'';
   if(!vendor){tst('업체를 선택하거나 입력해주세요');return null;}
   if(!purchaseItems.some(it=>it.item)){tst('품목명을 입력해주세요');return null;}
-  return {docNo,vendor,due,manager,note,items:purchaseItems.filter(it=>it.item),ts:Date.now(),status:'pending'};
+  return {id:Date.now(),docNo,vendor,due,manager,note,items:purchaseItems.filter(it=>it.item),ts:Date.now(),status:'pending'};
 }
 
 function submitPurchase(editIdx){
@@ -4682,7 +4740,7 @@ function saveOrder(){
   });
   // 발주서 발행 단계에서는 재고 차감하지 않음 (출력 시점에 차감됨)
   // appliedStock: 출력 시 재고 반영 여부 (false = 아직 미반영)
-  orders.unshift({docNo,vendor,w,due,memo,ts:Date.now(),items,printedAt:null,appliedStock:false});
+  orders.unshift({id:docNo,docNo,vendor,w,due,memo,ts:Date.now(),items,printedAt:null,appliedStock:false});
   sv();
   addLog('order','발주서 발행 — '+vendor, `문서번호: ${docNo} / 품목 ${items.length}건 / 담당: ${w}`);
   orderItems=[];orderSq='';
