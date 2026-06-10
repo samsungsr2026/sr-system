@@ -4495,7 +4495,7 @@ function rOrder(){
           <div class="fg">
             <label class="fl">배송방법</label>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              ${ ['택배','직송','방문','기타'].map(d=>`<label style="display:flex;align-items:center;gap:4px;padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="${d}" ${orderForm.delivery===d?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">${d}</label>`).join('') }
+              ${ ['택배','직송','방문','기타'].map(function(d){return '<label style="display:flex;align-items:center;gap:4px;padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)">'+'<input type="radio" name="ord-delivery" value="'+d+'" '+(orderForm.delivery===d?'checked':'')+' onchange="orderForm.delivery=this.value;render()" '+'style="accent-color:var(--blue)">'+d+'</label>';}).join('') }
             </div>
           </div>
         </div>
