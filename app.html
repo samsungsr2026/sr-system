@@ -4494,12 +4494,14 @@ function rOrder(){
           <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ord-memo" placeholder="긴급, 결제조건 등" value="${orderForm.memo||''}" oninput="orderForm.memo=this.value"></div>
           <div class="fg">
             <label class="fl">배송방법</label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              ${ ['택배','직송','방문','기타'].map(function(d){return '<label style="display:flex;align-items:center;gap:4px;padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)">'+'<input type="radio" name="ord-delivery" value="'+d+'" '+(orderForm.delivery===d?'checked':'')+' onchange="orderForm.delivery=this.value;render()" '+'style="accent-color:var(--blue)">'+d+'</label>';}).join('') }
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+              <label style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="택배" ${orderForm.delivery==='택배'?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">택배</label>
+              <label style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="직송" ${orderForm.delivery==='직송'?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">직송</label>
+              <label style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="방문" ${orderForm.delivery==='방문'?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">방문</label>
+              <label style="display:flex;align-items:center;gap:4px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:600;color:var(--text2)"><input type="radio" name="ord-delivery" value="기타" ${orderForm.delivery==='기타'?'checked':''} onchange="orderForm.delivery=this.value;render()" style="accent-color:var(--blue)">기타</label>
             </div>
           </div>
         </div>
-
         <div style="height:1px;background:var(--border);margin:6px 0 14px"></div>
 
         <div class="card-title">품목 추가</div>
