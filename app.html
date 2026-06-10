@@ -1350,10 +1350,10 @@ async function jbPull() {
     }
     // suppliers: 위 병합 로직에서 처리됨
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
-    const inputTabs=['io','plan','barcode','loc','order','addprod','set','alert','purchase','dailyreport'];
+    // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
     const isTyping=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
-    if(!isTyping&&!inputTabs.includes(tab)){render();dots();}
+    if(!isTyping){render();dots();}
     else{dots();}
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 동기화','#0d9e72');
   } catch(e) {
