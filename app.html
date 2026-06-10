@@ -7330,9 +7330,22 @@ document.addEventListener('click',function(e){
   document.head.appendChild(tm);
 })();
 
-// ── PWA: 서비스워커 등록 (sw.js) ─────────────────────────────
+// ── PWA: 서비스워커 등록 + 자동 캐시 삭제 ───────────────────
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  navigator.serviceWorker.register('./sw.js').then(function(reg){
+    reg.addEventListener('updatefound',function(){
+      var nw=reg.installing;
+      nw.addEventListener('statechange',function(){
+        if(nw.state==='installed'&&navigator.serviceWorker.controller){
+          caches.keys().then(function(keys){
+            return Promise.all(keys.map(function(k){return caches.delete(k);}));
+          }).then(function(){ location.reload(); });
+        }
+      });
+    });
+    reg.update();
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener('controllerchange',function(){ location.reload(); });
 }
 
 // ── PWA: 설치 프롬프트 처리 ───────────────────────────────────
