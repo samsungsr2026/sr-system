@@ -1275,20 +1275,30 @@ async function jbPull() {
       localStorage.setItem('sr-orders',JSON.stringify(orders));
       cfSet('orders',orders).catch(()=>{});
     }
-    // purchases: id 기준 병합
-    if(Array.isArray(rp)){
+    // purchases: id 기준 병합 (Firebase 비어있으면 로컬 유지)
+    {
       const localPur=JSON.parse(localStorage.getItem('sr-purchases')||'[]');
-      purchases=mergeById(localPur,rp);
+      if(Array.isArray(rp)&&rp.length>0){
+        purchases=mergeById(localPur,rp);
+      } else if(localPur.length>0){
+        purchases=localPur;
+        cfSet('purchases',purchases).catch(()=>{});
+      }
       localStorage.setItem('sr-purchases',JSON.stringify(purchases));
-      cfSet('purchases',purchases).catch(()=>{});
+      if(Array.isArray(rp)&&rp.length>0) cfSet('purchases',purchases).catch(()=>{});
     }
-    // purchaseVendors: name 기준 병합
-    if(Array.isArray(rpv)){
+    // purchaseVendors: name 기준 병합 (Firebase 비어있으면 로컬 우선)
+    {
       const localPV=JSON.parse(localStorage.getItem('sr-purchase-vendors')||'[]');
-      const map={}; rpv.forEach(x=>{if(x&&x.name)map[x.name]=x;}); localPV.forEach(x=>{if(x&&x.name)map[x.name]=x;});
-      purchaseVendors=Object.values(map);
+      if(Array.isArray(rpv)&&rpv.length>0){
+        const map={}; rpv.forEach(x=>{if(x&&x.name)map[x.name]=x;}); localPV.forEach(x=>{if(x&&x.name)map[x.name]=x;});
+        purchaseVendors=Object.values(map);
+      } else if(localPV.length>0){
+        purchaseVendors=localPV;
+        cfSet('purchaseVendors',purchaseVendors).catch(()=>{}); // 로컬→Firebase 업로드
+      }
       localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));
-      cfSet('purchaseVendors',purchaseVendors).catch(()=>{});
+      if(Array.isArray(rpv)&&rpv.length>0) cfSet('purchaseVendors',purchaseVendors).catch(()=>{});
     }
     // notices: id 기준 병합
     if(Array.isArray(rn)){
@@ -1297,12 +1307,17 @@ async function jbPull() {
       localStorage.setItem('sr-notices',JSON.stringify(notices));
       cfSet('notices',notices).catch(()=>{});
     }
-    // suppliers: 문자열 배열 병합
-    if(Array.isArray(rs)){
+    // suppliers: 문자열 배열 병합 (Firebase 비어있으면 로컬 우선)
+    {
       const localS=JSON.parse(localStorage.getItem('sr-suppliers')||'[]');
-      SUPPLIERS=mergeStrArr(localS,rs);
+      if(Array.isArray(rs)&&rs.length>0){
+        SUPPLIERS=mergeStrArr(localS,rs);
+      } else if(localS.length>0){
+        SUPPLIERS=localS;
+        cfSet('suppliers',SUPPLIERS).catch(()=>{});
+      }
       localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
-      cfSet('suppliers',SUPPLIERS).catch(()=>{});
+      if(Array.isArray(rs)&&rs.length>0) cfSet('suppliers',SUPPLIERS).catch(()=>{});
     }
     if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
