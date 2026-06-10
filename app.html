@@ -5070,6 +5070,44 @@ let pstatRange='day'; // day | week | month
 
 // ── 통계 / 리포트 ─────────────────────────────────────────────
 let statsRange = '6'; // 최근 N개월
+function rVendorStats(){
+  if(!orders.length) return '<div style="text-align:center;padding:20px;color:var(--text3)">발주 데이터 없음</div>';
+  const vmap={};
+  orders.forEach(function(o){
+    const v=o.vendor||'미지정';
+    if(!vmap[v]) vmap[v]={cnt:0,items:0,lastDate:'',lastTs:0,appliedCnt:0};
+    vmap[v].cnt++;
+    vmap[v].items+=(o.items||[]).length;
+    if(o.ts>vmap[v].lastTs){
+      vmap[v].lastTs=o.ts;
+      vmap[v].lastDate=new Date(o.ts).toLocaleDateString('ko',{year:'numeric',month:'2-digit',day:'2-digit'});
+    }
+    if(o.appliedStock) vmap[v].appliedCnt++;
+  });
+  const vlist=Object.entries(vmap).sort(function(a,b){return b[1].cnt-a[1].cnt;});
+  const maxCnt=vlist.length?vlist[0][1].cnt:1;
+  let rows='';
+  vlist.forEach(function(entry){
+    const v=entry[0], d=entry[1];
+    const pct=Math.round(d.cnt/maxCnt*100);
+    const tot=Math.round(d.cnt/orders.length*100);
+    rows+='<tr>'
+      +'<td style="font-weight:700">'+v+'</td>'
+      +'<td style="font-family:monospace;font-weight:700;color:var(--blue);text-align:center">'+d.cnt+'건</td>'
+      +'<td style="min-width:120px"><div style="display:flex;align-items:center;gap:8px">'
+      +'<div style="flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden">'
+      +'<div style="height:8px;border-radius:4px;background:var(--blue);width:'+pct+'%"></div></div>'
+      +'<span style="font-size:11px;color:var(--text3)">'+tot+'%</span></div></td>'
+      +'<td style="font-family:monospace;text-align:center;color:var(--text2)">'+d.items+'종</td>'
+      +'<td style="text-align:center">'+(d.appliedCnt>0?'<span class="badge bg">'+d.appliedCnt+'건</span>':'<span class="badge bgr">-</span>')+'</td>'
+      +'<td style="color:var(--text3);font-size:12px">'+d.lastDate+'</td>'
+      +'</tr>';
+  });
+  return '<div style="overflow-x:auto"><table class="tbl" style="min-width:600px">'
+    +'<thead><tr><th>업체명</th><th>발주건수</th><th>납품비중</th><th>총품목수</th><th>반영완료</th><th>최근발주일</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
+}
+
 function rStats(){
   const now = new Date();
 
@@ -5206,46 +5244,9 @@ function rStats(){
   <div class="card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div class="card-title" style="margin-bottom:0">🏭 업체별 납품현황</div>
-      <div style="font-size:12px;color:var(--text3)">발주서 기준</div>
+      <div style="font-size:12px;color:var(--text3)">발주서 기준 · 총 ${orders.length}건</div>
     </div>
-    ${(()=>{
-      if(!orders.length) return '<div style="text-align:center;padding:20px;color:var(--text3)">발주 데이터 없음</div>';
-      const vmap={};
-      orders.forEach(o=>{
-        const v=o.vendor||'미지정';
-        if(!vmap[v]) vmap[v]={cnt:0,items:0,lastDate:'',appliedCnt:0};
-        vmap[v].cnt++;
-        vmap[v].items+=(o.items||[]).length;
-        const dt=new Date(o.ts).toLocaleDateString('ko',{year:'numeric',month:'2-digit',day:'2-digit'});
-        if(!vmap[v].lastDate||o.ts>vmap[v]._lastTs){vmap[v].lastDate=dt;vmap[v]._lastTs=o.ts;}
-        if(o.appliedStock) vmap[v].appliedCnt++;
-      });
-      const vlist=Object.entries(vmap).sort((a,b)=>b[1].cnt-a[1].cnt);
-      const maxCnt=vlist[0]?.[1].cnt||1;
-      return \`<div style="overflow-x:auto">
-      <table class="tbl" style="min-width:600px">
-        <thead><tr>
-          <th>업체명</th><th>발주건수</th><th>납품비중</th><th>총품목수</th><th>반영완료</th><th>최근발주일</th>
-        </tr></thead>
-        <tbody>
-          \${vlist.map(([v,d])=>\`<tr>
-            <td style="font-weight:700">\${v}</td>
-            <td style="font-family:monospace;font-weight:700;color:var(--blue);	ext-align:center">\${d.cnt}건</td>
-            <td style="min-width:120px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <div style="flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden">
-                  <div style="height:8px;border-radius:4px;background:var(--blue);width:\${Math.round(d.cnt/maxCnt*100)}%"></div>
-                </div>
-                <span style="font-size:11px;color:var(--text3);white-space:nowrap">\${Math.round(d.cnt/orders.length*100)}%</span>
-              </div>
-            </td>
-            <td style="font-family:monospace;text-align:center;color:var(--text2)">\${d.items}종</td>
-            <td style="text-align:center">\${d.appliedCnt>0?\`<span class="badge bg">\${d.appliedCnt}건</span>\`:'<span class="badge bgr">-</span>'}</td>
-            <td style="color:var(--text3);font-size:12px">\${d.lastDate}</td>
-          </tr>\`).join('')}
-        </tbody>
-      </table></div>\`;
-    })()}
+    ${rVendorStats()}
   </div>
 
   <div class="grid2">
