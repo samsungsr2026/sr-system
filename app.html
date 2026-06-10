@@ -1164,26 +1164,8 @@ function requireEdit(){
 }
 
 // ── GitHub Gist 실시간 공유 DB ──────────────────────────────────
-const GH_TOKEN = ['ghp_6rnCYM0S','lQDaVusLb6Z','V8srvEFwYo84Efnd7'].join('');
-const GH = {
-  inv:            {id:'4162865e1dbda806ed1ec7552e38fd87', file:'sr-inv.json'},
-  tx:             {id:'6995fff57c30682680012326770ab906', file:'sr-tx.json'},
-  orders:         {id:'6995fff57c30682680012326770ab906', file:'sr-orders.json'},
-  purchases:      {id:'6995fff57c30682680012326770ab906', file:'sr-purchases.json'},
-  purchaseVendors:{id:'6995fff57c30682680012326770ab906', file:'sr-purchase-vendors.json'},
-  wk:             {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-wk.json'},
-  accounts:       {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-accounts.json'},
-  notices:        {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-notices.json'},
-  dailyreport:    {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-dailyreport.json'},
-  changelog:      {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-changelog.json'},
-  suppliers:      {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-suppliers.json'},
-  imgs:           {id:'b001fb21395763d6e67b8bc11a77b708', file:'sr-imgs.json'}
-};
-const GH_HDR = {
-  'Content-Type': 'application/json',
-  'Authorization': 'token ' + GH_TOKEN,
-  'Accept': 'application/vnd.github.v3+json'
-};
+// ── Firebase Realtime Database ──────────────────────────────────
+const FB = 'https://samsumgsr-b2757-default-rtdb.firebaseio.com';
 let _lastSave = 0;
 
 function jbStat(msg, color) {
@@ -1191,39 +1173,29 @@ function jbStat(msg, color) {
   if (el) { el.textContent = msg; el.style.color = color || '#888'; }
 }
 
+// Firebase REST API
+const _fbTimers = {};
 async function cfGet(key) {
-  const cfg = GH[key];
-  if (!cfg) return null;
   try {
-    const r = await fetch('https://api.github.com/gists/' + cfg.id, {headers: GH_HDR});
+    const r = await fetch(`${FB}/sr/${key}.json`);
     if (!r.ok) return null;
-    const d = await r.json();
-    const raw = d.files[cfg.file] ? d.files[cfg.file].content : null;
-    return raw ? JSON.parse(raw) : null;
+    return await r.json();
   } catch(e) { return null; }
 }
-
-const _cfSetTimers = {};
 async function cfSet(key, data) {
-  const cfg = GH[key];
-  if (!cfg) return false;
-  // 디바운스: 같은 key 2초 내 중복 호출 취소 후 마지막 것만 실행
+  // 디바운스 2초: 연속 저장 시 마지막 것만 전송
   return new Promise(resolve => {
-    if (_cfSetTimers[key]) clearTimeout(_cfSetTimers[key]);
-    _cfSetTimers[key] = setTimeout(async () => {
+    if (_fbTimers[key]) clearTimeout(_fbTimers[key]);
+    _fbTimers[key] = setTimeout(async () => {
       try {
-        const body = {files: {}};
-        body.files[cfg.file] = {content: JSON.stringify(data, null, 0)};
-        const r = await fetch('https://api.github.com/gists/' + cfg.id, {
-          method: 'PATCH', headers: GH_HDR, body: JSON.stringify(body)
+        const r = await fetch(`${FB}/sr/${key}.json`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
         });
-        if(!r.ok) {
-          const err = await r.json().catch(()=>({}));
-          console.warn('cfSet', key, r.status, err.message||'');
-        }
         resolve(r.ok);
       } catch(e) { resolve(false); }
-    }, 2000);
+    }, 1500);
   });
 }
 
@@ -1244,26 +1216,25 @@ async function sv() {
 async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
-    // Gist 3개만 호출 (API 절약)
-    async function getGist(id) {
-      const r = await fetch('https://api.github.com/gists/'+id, {headers:GH_HDR});
-      if(!r.ok) return {};
-      const d = await r.json();
-      const out = {};
-      for(const [fn, fd] of Object.entries(d.files||{})) {
-        const key = fn.replace('sr-','').replace('.json','');
-        try { out[key] = JSON.parse(fd.content); } catch(e) {}
-      }
-      return out;
+    // Firebase에서 모든 데이터 한번에 읽기
+    const fbAll = await fetch(`${FB}/sr.json`).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
+    // Firebase가 비어있으면 로컬 데이터 업로드 (첫 기기가 마스터)
+    if(!fbAll.inv || (Array.isArray(fbAll.inv) && fbAll.inv.length===0)) {
+      jbStat('📤 초기 데이터 업로드 중...','#c07800');
+      await fetch(`${FB}/sr.json`, {method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          inv, tx:txs, orders, purchases, purchaseVendors,
+          wk:WK, accounts, notices, dailyreport:dailyReports,
+          changelog:changeLogs, suppliers:SUPPLIERS, imgs
+        })
+      });
+      jbStat('✅ 초기 업로드 완료','#0d9e72');
+      return;
     }
-    const [g1,g2,g3] = await Promise.all([
-      getGist('4162865e1dbda806ed1ec7552e38fd87'),
-      getGist('6995fff57c30682680012326770ab906'),
-      getGist('b001fb21395763d6e67b8bc11a77b708')
-    ]);
-    const ri=g1['inv'];
-    const rt=g2['tx'], ro=g2['orders'], rp=g2['purchases'], rpv=g2['purchase-vendors'];
-    const rw=g3['wk'], ra=g3['accounts'], rn=g3['notices'], rdr=g3['dailyreport'], rcl=g3['changelog'], rs=g3['suppliers'], rim=g3['imgs'];
+    const ri=fbAll['inv'];
+    const rt=fbAll['tx'], ro=fbAll['orders'], rp=fbAll['purchases'], rpv=fbAll['purchaseVendors'];
+    const rw=fbAll['wk'], ra=fbAll['accounts'], rn=fbAll['notices'], rdr=fbAll['dailyreport'], rcl=fbAll['changelog'], rs=fbAll['suppliers'], rim=fbAll['imgs'];
     // ── 병합 헬퍼: id 기준 중복제거, ts 최신 우선 ──────────────────
     function mergeById(local, remote) {
       const map = {};
