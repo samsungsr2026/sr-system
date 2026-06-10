@@ -793,6 +793,7 @@ function addLog(type,title,detail,itemId){
   });
   if(changed)localStorage.setItem('sr-inv',JSON.stringify(inv));
 })();
+let vendorStatPeriod='all'; // 업체별 납품현황 기간 필터: all | m0~m11 | q0~q3
 let orderItems=[]; // 발주서 작성 중인 품목 목록
 let orderForm={vendor:'',w:'',due:'',memo:''}; // 발주서 입력값 기억 (render 시 복원)
 let planSel={};
@@ -4974,9 +4975,62 @@ let pstatRange='day'; // day | week | month
 
 // ── 통계 / 리포트 ─────────────────────────────────────────────
 let statsRange = '6'; // 최근 N개월
-function openVendorDetail(vendor){
-  const vOrders=orders.filter(function(o){return (o.vendor||'미지정')===vendor;})
-    .sort(function(a,b){return b.ts-a.ts;});
+function getVendorPeriodRange(period) {
+  const now = new Date();
+  if(period==='all') return {from:0, to:Infinity};
+  if(period.startsWith('m')) {
+    const mIdx = parseInt(period.slice(1));
+    const d = new Date(now.getFullYear(), now.getMonth()-mIdx, 1);
+    const from = d.getTime();
+    const to = new Date(d.getFullYear(), d.getMonth()+1, 1).getTime()-1;
+    return {from, to};
+  }
+  if(period.startsWith('q')) {
+    const qIdx = parseInt(period.slice(1)); // 0=이번분기, 1=지난분기...
+    const curQ = Math.floor(now.getMonth()/3);
+    const tgtQ = ((curQ - qIdx) % 4 + 4) % 4;
+    const tgtY = now.getFullYear() - Math.floor((qIdx + (3-curQ%4)) / 4) - (qIdx > curQ ? 0 : 0);
+    // 간단하게 처리
+    const startMonth = tgtQ * 3;
+    let year = now.getFullYear();
+    if(qIdx > 0) {
+      // N분기 전
+      let totalMonths = now.getMonth() - qIdx*3;
+      year = now.getFullYear() + Math.floor(totalMonths/12);
+      const sm = ((totalMonths % 12) + 12) % 12;
+      const from = new Date(year, Math.floor(sm/3)*3, 1).getTime();
+      const to = new Date(year, Math.floor(sm/3)*3+3, 1).getTime()-1;
+      return {from, to};
+    }
+    const from = new Date(year, startMonth, 1).getTime();
+    const to = new Date(year, startMonth+3, 1).getTime()-1;
+    return {from, to};
+  }
+  return {from:0, to:Infinity};
+}
+
+function openVendorDetail(vendor, period){
+  period = period || vendorStatPeriod || 'all';
+  const range = getVendorPeriodRange(period);
+  const vOrders=orders.filter(function(o){
+    return (o.vendor||'미지정')===vendor && (o.ts||0)>=range.from && (o.ts||0)<=range.to;
+  }).sort(function(a,b){return b.ts-a.ts;});
+
+  // 기간 탭 버튼 생성
+  const periodLabels = [
+    {v:'all',l:'전체'},
+    {v:'m0',l:'이번달'},{v:'m1',l:'지난달'},{v:'m2',l:'2달전'},
+    {v:'q0',l:'이번분기'},{v:'q1',l:'지난분기'},{v:'q2',l:'2분기전'},{v:'q3',l:'3분기전'}
+  ];
+  const vSafe = vendor.replace(/\\/g,'\\\\').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+  const periodTabs = '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">'
+    + periodLabels.map(function(p){
+        const isOn = p.v===period;
+        return '<button onclick="openVendorDetail(\"'+vSafe+'\",\"'+p.v+'\")"'
+          +' style="padding:4px 10px;border-radius:16px;border:1px solid '+(isOn?'var(--blue)':'var(--border)')+';font-size:12px;cursor:pointer;background:'+(isOn?'var(--blue)':'var(--bg3)')+';color:'+(isOn?'#fff':'var(--text2)')+'">'+p.l+'</button>';
+      }).join('')
+    +'</div>';
+
   let rows='';
   vOrders.forEach(function(o){
     const dt=new Date(o.ts).toLocaleDateString('ko',{year:'numeric',month:'2-digit',day:'2-digit'});
@@ -4987,27 +5041,53 @@ function openVendorDetail(vendor){
     rows+='<tr>'
       +'<td style="font-family:monospace;font-weight:700;color:var(--blue);font-size:12px">'+o.docNo+'</td>'
       +'<td>'+dt+'</td>'
-      +'<td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+itemNames+'">'+itemNames+'</td>'
+      +'<td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+itemNames+'">'+itemNames+'</td>'
       +'<td style="text-align:center;font-family:monospace">'+((o.items||[]).length)+'종</td>'
-      +'<td style="color:var(--text2);font-size:12px">'+( o.w||'-')+'</td>'
+      +'<td style="color:var(--text2);font-size:12px">'+(o.w||'-')+'</td>'
       +'<td>'+status+'</td>'
       +'</tr>';
   });
-  document.getElementById('mo-title').textContent='🏭 '+vendor+' 납품내역 ('+vOrders.length+'건)';
+
+  document.getElementById('mo-title').textContent='🏭 '+vendor+' 납품내역';
   document.getElementById('mb').innerHTML=
-    '<div style="overflow-x:auto">'
-    +'<table class="tbl" style="min-width:580px">'
+    periodTabs
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:10px">총 '+vOrders.length+'건</div>'
+    +'<div style="overflow-x:auto">'
+    +'<table class="tbl" style="min-width:560px">'
     +'<thead><tr><th>문서번호</th><th>발주일</th><th>품목</th><th>품목수</th><th>담당자</th><th>상태</th></tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>'
-    +(vOrders.length===0?'<div style="text-align:center;padding:20px;color:var(--text3)">발주 내역 없음</div>':'');
+    +(vOrders.length===0?'<div style="text-align:center;padding:20px;color:var(--text3)">해당 기간 발주 내역 없음</div>':'');
   document.getElementById('ov').classList.add('on');
 }
 
 function rVendorStats(){
   if(!orders.length) return '<div style="text-align:center;padding:20px;color:var(--text3)">발주 데이터 없음</div>';
+
+  // 기간 필터 탭
+  const periodLabels = [
+    {v:'all',l:'전체'},
+    {v:'m0',l:'이번달'},{v:'m1',l:'지난달'},{v:'m2',l:'2달전'},{v:'m3',l:'3달전'},
+    {v:'q0',l:'이번분기'},{v:'q1',l:'지난분기'},{v:'q2',l:'2분기전'},{v:'q3',l:'3분기전'}
+  ];
+  const tabs = '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">'
+    + periodLabels.map(function(p){
+        const isOn = p.v===vendorStatPeriod;
+        return '<button data-vp="'+p.v+'" onclick="vendorStatPeriod=this.dataset.vp;var box=document.getElementById(&quot;vendor-stat-body&quot;);if(box)box.innerHTML=rVendorStatBody();"'
+          +' style="padding:4px 10px;border-radius:16px;border:1px solid '+(isOn?'var(--blue)':'var(--border)')+';font-size:12px;cursor:pointer;background:'+(isOn?'var(--blue)':'var(--bg3)')+';color:'+(isOn?'#fff':'var(--text2)')+'">'+p.l+'</button>';
+      }).join('')
+    +'</div>';
+
+  return tabs + '<div id="vendor-stat-body">' + rVendorStatBody() + '</div>';
+}
+
+function rVendorStatBody(){
+  const range = getVendorPeriodRange(vendorStatPeriod);
+  const filtered = orders.filter(function(o){ return (o.ts||0)>=range.from && (o.ts||0)<=range.to; });
+  if(!filtered.length) return '<div style="text-align:center;padding:20px;color:var(--text3)">해당 기간 발주 내역 없음</div>';
+
   const vmap={};
-  orders.forEach(function(o){
+  filtered.forEach(function(o){
     const v=o.vendor||'미지정';
     if(!vmap[v]) vmap[v]={cnt:0,items:0,lastDate:'',lastTs:0,appliedCnt:0};
     vmap[v].cnt++;
@@ -5024,9 +5104,9 @@ function rVendorStats(){
   vlist.forEach(function(entry){
     const v=entry[0], d=entry[1];
     const pct=Math.round(d.cnt/maxCnt*100);
-    const tot=Math.round(d.cnt/orders.length*100);
-    const venc=v.replace(/'/g,"\'");
-    rows+='<tr style="cursor:pointer" onclick="openVendorDetail(\"'+venc+'\")">'
+    const tot=Math.round(d.cnt/filtered.length*100);
+    const venc=v.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    rows+='<tr style="cursor:pointer" onclick="openVendorDetail(&quot;'+venc+'&quot;,&quot;'+vendorStatPeriod+'&quot;)">'
       +'<td style="font-weight:700;color:var(--blue)">'+v+' <span style="font-size:11px;color:var(--text3)">▶</span></td>'
       +'<td style="font-family:monospace;font-weight:700;color:var(--blue);text-align:center">'+d.cnt+'건</td>'
       +'<td style="min-width:120px"><div style="display:flex;align-items:center;gap:8px">'
