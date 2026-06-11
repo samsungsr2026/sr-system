@@ -2493,6 +2493,7 @@ function submitMaterial(vi){
 }
 
 function openPrOrderModal(vi, oi){
+  if(!requireEdit())return;
   const v=vendors[vi];
   const ordList=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='order');
   const o=ordList[oi];
@@ -2572,6 +2573,7 @@ td{padding:8px 6px;border:1px solid #ccc;font-size:13px;text-align:center}
 }
 
 function prOrder(vi){
+  if(!requireEdit())return;
   const v=vendors[vi];
   const item=document.getElementById('vo-item')?.value?.trim()||'';
   const qty=document.getElementById('vo-qty')?.value||'';
