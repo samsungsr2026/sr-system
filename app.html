@@ -1977,6 +1977,7 @@ ${pages}
 }
 
 function prPurchaseDocPDF(i){
+  if(!requireEdit())return;
   const p=purchases[i];
   if(!p)return;
   const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
@@ -2098,6 +2099,7 @@ function previewPurchaseDoc(i){
 }
 
 function prPurchaseDoc(i){
+  if(!requireEdit())return;
   const p=purchases[i];
   if(!p)return;
   const pv=purchaseVendors.find(v=>v.name===p.vendor)||{};
@@ -3864,6 +3866,7 @@ function taAll(c){[...inv.filter(i=>st(i)==='low'),...inv.filter(i=>st(i)==='med
 function tiItem(id,c){const q=document.getElementById('pq-'+id);planSel[id]=c?(parseInt(q?.value)||0):0;uCnt();}
 
 function prPlan(){
+  if(!requireEdit())return;
   const items=Object.entries(planSel).filter(([,v])=>v>0).map(([id,qty])=>{
     const it=inv.find(i=>i.id===id);
     return {...it,planQty:qty};
@@ -4327,6 +4330,7 @@ function addBcItem(id){
 }
 
 function printBarcodes(){
+  if(!requireEdit())return;
   if(!bcItems.length){tst('출력할 품목을 추가해주세요');return;}
 
   const sheets=parseInt(document.getElementById('print-sheets')?.value)||1;
@@ -5554,6 +5558,7 @@ function dlStatsCSV(){
 }
 
 function printStatsReport(){
+  if(!requireEdit())return;
   const now=new Date();
   const months=[];
   for(let i=5;i>=0;i--){
