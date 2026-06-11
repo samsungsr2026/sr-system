@@ -937,7 +937,7 @@ function rPurchaseStats(){
   </div>`;
 }
 let vendorOrders=JSON.parse(localStorage.getItem('sr-vendor-orders')||'[]');
-function svVendors(){localStorage.setItem('sr-vendors',JSON.stringify(vendors));localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
+function svVendors(){localStorage.setItem('sr-vendors',JSON.stringify(vendors));localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));cfSet('vendors',vendors).catch(()=>{});cfSet('vendorOrders',vendorOrders).catch(()=>{});}
 let planSq=''; // 생산계획서 품목 검색어
 let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null;
 
@@ -1222,6 +1222,7 @@ async function jbPull() {
       await fetch(`${FB}/sr.json`, {method:'PUT', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           inv, tx:txs, orders, purchases, purchaseVendors,
+          vendors, vendorOrders,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, imgs
         })
@@ -1235,7 +1236,8 @@ async function jbPull() {
           rpv=fbAll['purchaseVendors'], rw=fbAll['wk'],
           ra=fbAll['accounts'], rn=fbAll['notices'],
           rdr=fbAll['dailyreport'], rcl=fbAll['changelog'],
-          rs=fbAll['suppliers'], rim=fbAll['imgs'];
+          rs=fbAll['suppliers'], rim=fbAll['imgs'],
+          rv=fbAll['vendors'], rvo=fbAll['vendorOrders'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
     if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
@@ -1249,6 +1251,8 @@ async function jbPull() {
     if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
+    if(Array.isArray(rv)&&rv.length>0){vendors=rv;localStorage.setItem('sr-vendors',JSON.stringify(vendors));}
+    if(Array.isArray(rvo)){vendorOrders=rvo;localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
     const isTyping=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
