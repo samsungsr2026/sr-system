@@ -1102,10 +1102,9 @@ cfGet('accounts').then(ra=>{
     // 서버에 데이터 있으면 서버 것 사용
     accounts=ra;
     localStorage.setItem('sr-accounts',JSON.stringify(accounts));
-  } else {
-    // 서버에 없으면 로컬 데이터를 서버에 업로드
-    cfSet('accounts', accounts);
   }
+  // 서버 응답이 없거나 실패해도 절대 자동으로 덮어쓰지 않음 (계정 삭제 사고 방지)
+  // 서버 업로드는 마스터가 계정 관리에서 저장할 때(saveAccounts)만 수행
 });
 // 마스터 관리자 이름 마이그레이션: 기존에 '마스터 관리자'로 등록돼 있으면 '정창식'으로 자동 변경
 (function migrateMasterName(){
