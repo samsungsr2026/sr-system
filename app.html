@@ -4532,6 +4532,25 @@ window.onload=function(){
 // ── 발주서 ────────────────────────────────────────────────────────
 let orderSq='';
 
+let oFilt={month:'전체',vendor:'전체',status:'전체',q:''};
+function oFiltList(){
+  return orders.map((o,i)=>({o,i})).filter(({o})=>{
+    if(oFilt.month!=='전체'){
+      const m=new Date(o.ts);const key=m.getFullYear()+'-'+('0'+(m.getMonth()+1)).slice(-2);
+      if(key!==oFilt.month)return false;
+    }
+    if(oFilt.vendor!=='전체'&&(o.vendor||'-')!==oFilt.vendor)return false;
+    if(oFilt.status==='출력완료'&&!o.printedAt)return false;
+    if(oFilt.status==='미출력'&&o.printedAt)return false;
+    if(oFilt.q){
+      const q=oFilt.q;
+      const hit=(o.docNo||'').includes(q)||(o.vendor||'').includes(q)||(o.items||[]).some(it=>(it.name||'').includes(q)||(it.id||'').includes(q));
+      if(!hit)return false;
+    }
+    return true;
+  });
+}
+function setOFilt(k,v){oFilt[k]=v;render();}
 function rOrder(){
   // 담당자 옵션 = 관리자(master/admin) 계정만
   const wOpts=adminOptions();
@@ -4621,11 +4640,37 @@ function rOrder(){
 
       <div class="card">
         <div class="card-title">발행된 발주서 <span style="color:var(--text2)">${orders.length}건</span></div>
-        ${!orders.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">발행된 발주서가 없습니다</div>':`
+        ${!orders.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">발행된 발주서가 없습니다</div>':(()=>{
+          const months=[...new Set(orders.map(o=>{const d=new Date(o.ts);return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}))].sort().reverse();
+          const vendors=[...new Set(orders.map(o=>o.vendor||'-'))].sort();
+          const flist=oFiltList();
+          const totItems=flist.reduce((s,{o})=>s+(o.items||[]).length,0);
+          return `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+          <select class="fi" style="width:auto;padding:7px 10px;font-size:12px" onchange="setOFilt('month',this.value)">
+            <option value="전체" ${oFilt.month==='전체'?'selected':''}>📅 전체 기간</option>
+            ${months.map(m=>`<option value="${m}" ${oFilt.month===m?'selected':''}>${m.replace('-','년 ')}월</option>`).join('')}
+          </select>
+          <select class="fi" style="width:auto;padding:7px 10px;font-size:12px" onchange="setOFilt('vendor',this.value)">
+            <option value="전체" ${oFilt.vendor==='전체'?'selected':''}>🏭 전체 업체</option>
+            ${vendors.map(v=>`<option value="${v}" ${oFilt.vendor===v?'selected':''}>${v}</option>`).join('')}
+          </select>
+          <select class="fi" style="width:auto;padding:7px 10px;font-size:12px" onchange="setOFilt('status',this.value)">
+            ${['전체','출력완료','미출력'].map(s=>`<option ${oFilt.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+          <input type="text" class="fi" placeholder="🔍 문서번호·품목명 검색" value="${oFilt.q}"
+            style="flex:1;min-width:160px;padding:7px 10px;font-size:12px"
+            oninput="oFilt.q=this.value" onkeydown="if(event.key==='Enter')render()" onchange="render()">
+          ${(oFilt.month!=='전체'||oFilt.vendor!=='전체'||oFilt.status!=='전체'||oFilt.q)?`<button class="btn" style="padding:7px 12px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="oFilt={month:'전체',vendor:'전체',status:'전체',q:''};render()">초기화</button>`:''}
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;background:var(--bg3);border-radius:6px;padding:7px 12px">
+          조회 결과 <strong style="color:var(--blue)">${flist.length}건</strong> · 총 품목 <strong>${totItems}종</strong>
+        </div>
+        ${!flist.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">조건에 맞는 발주서가 없습니다</div>':`
         <table class="tbl">
           <thead><tr><th>문서번호</th><th>공급업체</th><th>품목</th><th>발행일</th><th>출력</th><th>출력일시</th><th>작업</th></tr></thead>
           <tbody>
-            ${orders.map((o,i)=>`<tr>
+            ${flist.map(({o,i})=>`<tr>
               <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${o.docNo}</td>
               <td>${o.vendor||'-'}</td>
               <td style="color:var(--text2)">${o.items.length}종</td>
@@ -4639,7 +4684,7 @@ function rOrder(){
               </td>
             </tr>`).join('')}
           </tbody>
-        </table>`}
+        </table>`}`;})()}
       </div>
     </div>
   </div>`;
