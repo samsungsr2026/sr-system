@@ -5045,7 +5045,38 @@ function addOrderItemByName(name, unit, moldNo, partNo){
   const fakeId='CUSTOM-'+(moldNo||partNo||name);
   if(orderItems.find(o=>o.id===fakeId)){tst('이미 추가된 품목입니다');return;}
   orderItems.push({id:fakeId, name, unit, moldNo:moldNo||'', partNo:partNo||'', qty:1, isCustom:true});
-  render();
+  // 전체 render 대신 발주 품목 목록 영역만 갱신 (업체 품목 목록 유지)
+  const listBox=document.getElementById('ord-list');
+  const card=listBox?listBox.closest('.card'):null;
+  if(card){
+    // 발주 품목 카드 내용만 갱신
+    const titleDiv=card.querySelector('[style*="justify-content:space-between"]');
+    if(titleDiv){
+      titleDiv.innerHTML=`<div class="card-title" style="margin-bottom:0">발주 품목 <span style="color:var(--blue);font-weight:700">${orderItems.length}건</span></div>
+        <button class="btn" style="padding:6px 12px;font-size:12px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)" onclick="orderItems=[];render()">전체 삭제</button>`;
+    }
+    if(listBox){
+      listBox.innerHTML=orderItems.map((o,i)=>{
+        const it=o.isCustom?null:inv.find(x=>x.id===o.id);
+        const dispName=o.isCustom?o.name:(it?it.name:o.id);
+        const dispUnit=o.isCustom?o.unit:(it?it.unit:'EA');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${dispName}</div>
+            <div style="font-size:12px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+            <label style="font-size:11px;color:var(--text3)">수량</label>
+            <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
+            <span style="font-size:11px;color:var(--text3)">${dispUnit}</span>
+            <button onclick="orderItems.splice(${i},1);render()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  } else {
+    render();
+  }
   tst('✓ '+name+' 추가됐습니다');
 }
 
