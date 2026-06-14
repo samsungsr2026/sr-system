@@ -4778,7 +4778,7 @@ function rOrder(){
             return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:600">${dispName}</div>
-                <div style="font-size:11px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
+                <div style="font-size:12px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
               </div>
               <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
                 <label style="font-size:11px;color:var(--text3)">수량</label>
@@ -5000,7 +5000,7 @@ function ordShowVendorItems(vendorName){
       <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${it.name||'-'}</div>
-          <div style="font-size:11px;color:var(--text3)">
+          <div style="font-size:12px;color:var(--text3)">
             금형번호: <span style="font-family:monospace;color:var(--blue)">${it.moldNo||'-'}</span>
             &nbsp;·&nbsp; 품번: <span style="font-family:monospace">${it.partNo||'-'}</span>
             ${it.unit?'&nbsp;·&nbsp; 단위: '+it.unit:''}
