@@ -1657,6 +1657,9 @@ function selectPurchaseVendor(i){
   const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   document.getElementById('mo-title').textContent='📋 발주서 생성 — '+v.name;
   renderPurchaseModal(dn, i);
+  // 업체 품목 드롭다운 즉시 갱신
+  const box=document.getElementById('po-items');
+  if(box) box.innerHTML=renderPurchaseItems(v.name);
   document.getElementById('ov').classList.add('on');
 }
 
@@ -1814,7 +1817,7 @@ function renderPurchaseModal(dn, preVendorIdx, editIdx){
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">문서번호</label><input type="text" class="fi" id="po-docno" value="${ep?ep.docNo:dn||''}"></div>
     <div class="fg"><label class="fl">거래업체 *</label>
-      <select class="fi" id="po-vendor" onchange="document.getElementById('po-vendor-direct-wrap').style.display=this.value==='__direct__'?'block':'none'">
+      <select class="fi" id="po-vendor" onchange="document.getElementById('po-vendor-direct-wrap').style.display=this.value==='__direct__'?'block':'none';poRefreshItems(this.value)">
         <option value="">-- 업체 선택 --</option>
         ${purchaseVendors.map(v=>`<option value="${v.name}" ${preVendorName===v.name?'selected':''}>${v.name}</option>`).join('')}
         <option value="__direct__" ${isDirectVendor?'selected':''}>✏️ 직접 입력</option>
@@ -1853,10 +1856,35 @@ function renderPurchaseModal(dn, preVendorIdx, editIdx){
     </div>`;
 }
 
-function renderPurchaseItems(){
+function poRefreshItems(vendorName){
+  const box=document.getElementById('po-items');
+  if(box) box.innerHTML=renderPurchaseItems(vendorName);
+}
+
+function renderPurchaseItems(vendorName){
+  const vname=vendorName||document.getElementById('po-vendor')?.value||'';
+  const v=purchaseVendors.find(vv=>vv.name===vname);
+  const vitems=v&&v.vendorItems&&v.vendorItems.length?v.vendorItems:null;
   return purchaseItems.map((it,i)=>`
   <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;margin-bottom:6px;align-items:center">
+    ${vitems?`
+    <select class="fi" style="font-size:13px;padding:8px 10px" onchange="
+      if(this.value==='__direct__'){
+        purchaseItems[${i}].item='';
+        document.getElementById('po-item-txt-${i}').style.display='';
+        document.getElementById('po-item-txt-${i}').focus();
+      } else {
+        purchaseItems[${i}].item=this.value;
+        document.getElementById('po-item-txt-${i}').style.display='none';
+      }">
+      <option value="">-- 품목 선택 --</option>
+      ${vitems.map(vi=>`<option value="${vi.name}" ${it.item===vi.name?'selected':''}>${vi.name}${vi.unit?' ('+vi.unit+')':''}</option>`).join('')}
+      <option value="__direct__">✏️ 직접 입력</option>
+    </select>
+    <input type="text" class="fi" id="po-item-txt-${i}" placeholder="품목명 직접입력" value="${it.item}" oninput="purchaseItems[${i}].item=this.value" style="font-size:13px;padding:8px 10px;display:${vitems.find(vi=>vi.name===it.item)||!it.item?'none':''}">
+    `:`
     <input type="text" class="fi" placeholder="품목명" value="${it.item}" oninput="purchaseItems[${i}].item=this.value" style="font-size:13px;padding:8px 10px">
+    `}
     <input type="number" class="fi" placeholder="수량" value="${it.qty}" min="1" step="0.01" oninput="purchaseItems[${i}].qty=parseFloat(this.value)||1" style="font-size:13px;padding:8px 10px">
     <select class="fi" style="font-size:13px;padding:8px 10px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력');if(v){purchaseItems[${i}].unit=v;this.value=v;var opt=document.createElement('option');opt.value=v;opt.textContent=v;this.insertBefore(opt,this.lastElementChild);this.value=v;}else{this.value=purchaseItems[${i}].unit;}}else{purchaseItems[${i}].unit=this.value;}">
       ${['kg','EA','직접입력'].map(u=>`<option value="${u}" ${it.unit===u?'selected':''}>${u}</option>`).join('')}
