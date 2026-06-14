@@ -711,8 +711,10 @@ let WK=JSON.parse(localStorage.getItem('sr-workers')||'["정창식","이창호",
     else jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   });
 }
-// 공급업체 목록 (발주서 작성 시 선택)
+// 공급업체 목록 (발주서 작성 시 선택) - {name, items:[{name,unit}]} 구조
 let SUPPLIERS=JSON.parse(localStorage.getItem('sr-suppliers')||'["성진테크","대덕","동양고무"]');
+// 문자열 배열이면 객체 배열로 마이그레이션
+if(SUPPLIERS.length&&typeof SUPPLIERS[0]==='string') SUPPLIERS=SUPPLIERS.map(s=>({name:s,items:[]}));
 function saveSUP(){
   localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
   cfSet('suppliers',SUPPLIERS).catch(()=>{});
@@ -1254,7 +1256,11 @@ async function jbPull() {
     if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
     if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
     if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
-    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
+    if(Array.isArray(rs)&&rs.length>0){
+      SUPPLIERS=rs;
+      if(typeof SUPPLIERS[0]==='string') SUPPLIERS=SUPPLIERS.map(s=>({name:s,items:[]}));
+      localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
+    }
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     if(Array.isArray(rv)&&rv.length>0){vendors=rv;localStorage.setItem('sr-vendors',JSON.stringify(vendors));}
     if(Array.isArray(rvo)){vendorOrders=rvo;localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
@@ -4708,7 +4714,7 @@ function rOrder(){
   // 담당자 옵션 = 관리자(master/admin) 계정만
   const wOpts=adminOptions();
   // 공급업체 드롭다운 (기억된 거래처 selected 복원)
-  const vOpts=SUPPLIERS.map(v=>`<option ${orderForm.vendor===v?'selected':''}>${v}</option>`).join('');
+  const vOpts=SUPPLIERS.map(v=>`<option ${orderForm.vendor===v.name?'selected':''}>${v.name}</option>`).join('');
   const dueVal=orderForm.due||new Date(Date.now()+604800000).toISOString().slice(0,10);
   return `
   <div class="page-title">발주서</div>
@@ -4720,7 +4726,7 @@ function rOrder(){
         <div class="fg">
           <label class="fl">공급업체 (수신처)</label>
           <div style="display:flex;gap:8px">
-            <select class="fi" id="ord-vendor" style="flex:1" onchange="orderForm.vendor=this.value">
+            <select class="fi" id="ord-vendor" style="flex:1" onchange="orderForm.vendor=this.value;ordShowVendorItems(this.value)">
               <option value="">-- 공급업체 선택 --</option>
               ${vOpts}
             </select>
@@ -4766,16 +4772,18 @@ function rOrder(){
         ${!orderItems.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">왼쪽에서 발주할 품목을 추가하세요</div>':`
         <div id="ord-list">
           ${orderItems.map((o,i)=>{
-            const it=inv.find(x=>x.id===o.id);
+            const it=o.isCustom?null:inv.find(x=>x.id===o.id);
+            const dispName=o.isCustom?o.name:(it?it.name:o.id);
+            const dispUnit=o.isCustom?o.unit:(it?it.unit:'EA');
             return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
               <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600">${it?it.name:o.id}</div>
-                <div style="font-size:11px;color:var(--text3)">금형 ${o.id} · 부품 ${it?(it.classNo||'-'):'-'}</div>
+                <div style="font-size:13px;font-weight:600">${dispName}</div>
+                <div style="font-size:11px;color:var(--text3)">${o.isCustom?dispUnit:('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
               </div>
               <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
                 <label style="font-size:11px;color:var(--text3)">수량</label>
                 <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
-                <span style="font-size:11px;color:var(--text3)">${it?it.unit:'EA'}</span>
+                <span style="font-size:11px;color:var(--text3)">${dispUnit}</span>
                 <button onclick="orderItems.splice(${i},1);render()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
               </div>
             </div>`;
@@ -4844,15 +4852,32 @@ function rOrder(){
 }
 
 // 공급업체 추가/삭제 관리 다이얼로그
+// 공급업체 관리 모달 내 임시 품목 배열
+let _supItems=[];
+
 function manageVendors(){
   if(!requireEdit())return;
   document.getElementById('mo-title').textContent='🏭 공급업체 관리';
+  _supEditIdx=-1;
+  renderManageVendors();
+  document.getElementById('ov').classList.add('on');
+}
+let _supEditIdx=-1;
+
+function renderManageVendors(){
   document.getElementById('mb').innerHTML=`
-    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">발주서에서 선택할 수 있는 공급업체를 관리합니다.</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px" id="sup-list">
-      ${SUPPLIERS.map((v,i)=>`<div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px">
-        <span style="font-size:14px;font-weight:600">${v}</span>
-        <button onclick="removeVendor(${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px">삭제</button>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">공급업체 및 업체별 품목을 관리합니다.</div>
+    <div style="margin-bottom:14px" id="sup-list">
+      ${SUPPLIERS.map((v,i)=>`
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:14px;font-weight:700">${v.name}</span>
+          <div style="display:flex;gap:6px">
+            <button onclick="supEditVendor(${i})" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer">품목관리</button>
+            <button onclick="removeVendor(${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px">삭제</button>
+          </div>
+        </div>
+        ${v.items&&v.items.length?`<div style="font-size:11px;color:var(--text2);margin-top:5px">📦 ${v.items.map(it=>it.name).join(', ')}</div>`:'<div style="font-size:11px;color:var(--text3);margin-top:4px">등록된 품목 없음</div>'}
       </div>`).join('')||'<div style="color:var(--text3);font-size:13px;padding:10px">등록된 공급업체가 없습니다</div>'}
     </div>
     <div style="display:flex;gap:8px">
@@ -4860,21 +4885,90 @@ function manageVendors(){
         style="flex:1" onkeydown="if(event.key==='Enter')addVendor()">
       <button class="btn bbl" style="padding:0 20px" onclick="addVendor()">+ 추가</button>
     </div>`;
-  document.getElementById('ov').classList.add('on');
 }
+
+function supEditVendor(i){
+  if(!requireEdit())return;
+  _supEditIdx=i;
+  _supItems=(SUPPLIERS[i].items||[]).map(it=>({...it}));
+  document.getElementById('mo-title').textContent='📦 '+SUPPLIERS[i].name+' 품목 관리';
+  document.getElementById('mb').innerHTML=`
+    <button onclick="renderManageVendors();document.getElementById('mo-title').textContent='🏭 공급업체 관리'" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:6px 14px;margin-bottom:14px">← 목록으로</button>
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label class="fl" style="margin-bottom:0">품목 목록</label>
+        <button onclick="addSupItem()" class="btn bbl" style="padding:4px 12px;font-size:12px">+ 품목 추가</button>
+      </div>
+      <div id="sup-items-list"></div>
+    </div>
+    <button class="btn bbl btn-full" onclick="saveSupItems()">✓ 저장</button>`;
+  renderSupItemsList();
+}
+
+function renderSupItemsList(){
+  const box=document.getElementById('sup-items-list');
+  if(!box)return;
+  if(!_supItems.length){box.innerHTML='<div style="color:var(--text3);font-size:12px;padding:6px 0">등록된 품목이 없습니다</div>';return;}
+  box.innerHTML=_supItems.map((it,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <input type="text" class="fi" value="${it.name||''}" oninput="_supItems[${i}].name=this.value" placeholder="품목명" style="font-size:13px;padding:7px 10px;flex:1">
+      <input type="text" class="fi" value="${it.unit||''}" oninput="_supItems[${i}].unit=this.value" placeholder="단위" style="font-size:13px;padding:7px 10px;width:80px">
+      <button onclick="if(!requireEdit())return;_supItems.splice(${i},1);renderSupItemsList()" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>`).join('');
+}
+
+function addSupItem(){
+  if(!requireEdit())return;
+  _supItems.push({name:'',unit:''});
+  renderSupItemsList();
+  setTimeout(()=>{const ins=document.querySelectorAll('#sup-items-list input');if(ins.length)ins[ins.length-2].focus();},50);
+}
+
+function saveSupItems(){
+  if(!requireEdit())return;
+  const valid=_supItems.filter(it=>it.name&&it.name.trim());
+  SUPPLIERS[_supEditIdx].items=valid;
+  saveSUP();
+  tst('✓ 품목 저장 완료');
+  renderManageVendors();
+  document.getElementById('mo-title').textContent='🏭 공급업체 관리';
+}
+
 function addVendor(){
   if(!requireEdit())return;
   const el=document.getElementById('new-vendor');
   const v=el?.value?.trim();
   if(!v){tst('공급업체 이름을 입력해주세요');return;}
-  if(SUPPLIERS.includes(v)){tst('이미 등록된 공급업체입니다');return;}
-  SUPPLIERS.push(v);saveSUP();tst('✓ '+v+' 추가 완료');manageVendors();
+  if(SUPPLIERS.find(s=>s.name===v)){tst('이미 등록된 공급업체입니다');return;}
+  SUPPLIERS.push({name:v,items:[]});saveSUP();tst('✓ '+v+' 추가 완료');renderManageVendors();
 }
 function removeVendor(i){
   if(!requireEdit())return;
-  const v=SUPPLIERS[i];
+  const v=SUPPLIERS[i].name;
   if(!confirm(v+' 을(를) 삭제하시겠습니까?'))return;
-  SUPPLIERS.splice(i,1);saveSUP();tst(v+' 삭제 완료');manageVendors();
+  SUPPLIERS.splice(i,1);saveSUP();tst(v+' 삭제 완료');renderManageVendors();
+}
+
+// 업체 선택 시 해당 업체 품목 표시
+function ordShowVendorItems(vendorName){
+  orderSq='';
+  const box=document.getElementById('ord-result-box');
+  const inp=document.getElementById('ord-search');
+  if(inp)inp.value='';
+  if(!box)return;
+  if(!vendorName){box.innerHTML='<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">🔍 품목을 검색하세요</div>';return;}
+  const sup=SUPPLIERS.find(s=>s.name===vendorName);
+  const sitems=sup&&sup.items&&sup.items.length?sup.items:null;
+  if(sitems){
+    box.innerHTML=`<div style="margin-bottom:8px;font-size:12px;color:var(--blue);font-weight:600">📦 ${vendorName} 등록 품목</div>`
+      +sitems.map(it=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${it.name}</div><div style="font-size:11px;color:var(--text3)">${it.unit||''}</div></div>
+        <button class="btn bbl" style="padding:6px 12px;font-size:12px;flex-shrink:0" onclick="addOrderItemByName('${it.name.replace(/'/g,"\\'")}','${(it.unit||'').replace(/'/g,"\\'")}')">+ 추가</button>
+      </div>`).join('');
+  } else {
+    box.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">등록된 품목이 없습니다<br><span style="font-size:11px">+ 추가/관리에서 품목을 등록하세요</span></div>';
+  }
 }
 
 function ordResultHTML(){
@@ -4902,6 +4996,15 @@ function addOrderItem(id){
   orderItems.push({id,qty:0});
   render();
   tst('✓ 발주 품목에 추가됐습니다 (수량을 입력하세요)');
+}
+
+// 업체 등록 품목 추가 (재고 품목이 아닌 경우)
+function addOrderItemByName(name, unit){
+  const fakeId='CUSTOM-'+name;
+  if(orderItems.find(o=>o.id===fakeId)){tst('이미 추가된 품목입니다');return;}
+  orderItems.push({id:fakeId, name, unit, qty:1, isCustom:true});
+  render();
+  tst('✓ '+name+' 추가됐습니다');
 }
 
 function saveOrder(){
