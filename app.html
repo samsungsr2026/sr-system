@@ -1663,6 +1663,7 @@ function selectPurchaseVendor(i){
 function editPurchaseVendor(i){
   if(!requireEdit())return;
   const v=purchaseVendors[i];
+  _pvItems=(v.vendorItems||[]).map(it=>({...it}));
   document.getElementById('mo-title').textContent='✏️ 거래업체 수정';
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="pv-name" value="${v.name}" placeholder="업체명"></div>
@@ -1678,14 +1679,24 @@ function editPurchaseVendor(i){
     <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="pv-tel" value="${v.tel||''}" placeholder="010-0000-0000"></div>
     <div class="fg"><label class="fl">팩스번호</label><input type="text" class="fi" id="pv-fax" value="${v.fax||''}" placeholder="000-000-0000"></div>
     <div class="fg"><label class="fl">주소</label><input type="text" class="fi" id="pv-addr" value="${v.addr||''}" placeholder="업체 주소"></div>
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label class="fl" style="margin-bottom:0">발주 품목 목록</label>
+        <button onclick="addPvItem()" class="btn bbl" style="padding:4px 12px;font-size:12px">+ 품목 추가</button>
+      </div>
+      <div id="pv-items-list"></div>
+    </div>
     <button class="btn bbl btn-full" onclick="savePurchaseVendor(${i})">✓ 수정 저장</button>`;
+  renderPvItemsList();
   document.getElementById('ov').classList.add('on');
 }
 
 function savePurchaseVendor(i){
   const name=document.getElementById('pv-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
+  const validItems=_pvItems.filter(it=>it.name&&it.name.trim());
   purchaseVendors[i]={
+    ...purchaseVendors[i],
     name,
     bizno:document.getElementById('pv-bizno')?.value?.trim()||'',
     category:document.getElementById('pv-category')?.value||'',
@@ -1693,13 +1704,15 @@ function savePurchaseVendor(i){
     contact:document.getElementById('pv-contact')?.value?.trim()||'',
     tel:document.getElementById('pv-tel')?.value?.trim()||'',
     fax:document.getElementById('pv-fax')?.value?.trim()||'',
-    addr:document.getElementById('pv-addr')?.value?.trim()||''
+    addr:document.getElementById('pv-addr')?.value?.trim()||'',
+    vendorItems:validItems
   };
   svPurchase();cmo();tst('✓ 수정 완료');go('purchase');
 }
 
 function openPurchaseVendorModal(){
   if(!requireEdit())return;
+  _pvItems=[];
   document.getElementById('mo-title').textContent='🏭 거래업체 등록';
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">업체명 *</label><input type="text" class="fi" id="pv-name" placeholder="업체명"></div>
@@ -1721,7 +1734,15 @@ function openPurchaseVendorModal(){
     <div class="fg"><label class="fl">연락처</label><input type="text" class="fi" id="pv-tel" placeholder="010-0000-0000"></div>
     <div class="fg"><label class="fl">팩스번호</label><input type="text" class="fi" id="pv-fax" placeholder="000-000-0000"></div>
     <div class="fg"><label class="fl">주소</label><input type="text" class="fi" id="pv-addr" placeholder="업체 주소"></div>
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label class="fl" style="margin-bottom:0">발주 품목 목록</label>
+        <button onclick="addPvItem()" class="btn bbl" style="padding:4px 12px;font-size:12px">+ 품목 추가</button>
+      </div>
+      <div id="pv-items-list"></div>
+    </div>
     <button class="btn bbl btn-full" onclick="addPurchaseVendor()">✓ 등록</button>`;
+  renderPvItemsList();
   document.getElementById('ov').classList.add('on');
 }
 
@@ -1730,6 +1751,7 @@ function addPurchaseVendor(){
   const name=document.getElementById('pv-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
   if(purchaseVendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
+  const validItems=_pvItems.filter(it=>it.name&&it.name.trim());
   purchaseVendors.push({
     name,
     bizno:document.getElementById('pv-bizno')?.value?.trim()||'',
@@ -1738,7 +1760,8 @@ function addPurchaseVendor(){
     contact:document.getElementById('pv-contact')?.value?.trim()||'',
     tel:document.getElementById('pv-tel')?.value?.trim()||'',
     fax:document.getElementById('pv-fax')?.value?.trim()||'',
-    addr:document.getElementById('pv-addr')?.value?.trim()||''
+    addr:document.getElementById('pv-addr')?.value?.trim()||'',
+    vendorItems:validItems
   });
   svPurchase();cmo();tst('✓ '+name+' 등록 완료');go('purchase');
 }
@@ -1751,6 +1774,26 @@ function removePurchaseVendor(i){
 
 let purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
 let purchaseMonthFilter='all';
+
+// 업체별 품목 관리 (모달 열릴 때만 사용하는 임시 배열)
+let _pvItems=[];
+function renderPvItemsList(){
+  const box=document.getElementById('pv-items-list');
+  if(!box)return;
+  if(!_pvItems.length){box.innerHTML='<div style="color:var(--text3);font-size:12px;padding:6px 0">등록된 품목이 없습니다</div>';return;}
+  box.innerHTML=_pvItems.map((it,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <input type="text" class="fi" value="${it.name||''}" oninput="_pvItems[${i}].name=this.value" style="font-size:13px;padding:6px 10px;flex:1" placeholder="품목명">
+      <input type="text" class="fi" value="${it.unit||''}" oninput="_pvItems[${i}].unit=this.value" placeholder="단위" style="font-size:13px;padding:6px 10px;width:80px">
+      <button onclick="if(!requireEdit())return;_pvItems.splice(${i},1);renderPvItemsList()" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>`).join('');
+}
+function addPvItem(){
+  if(!requireEdit())return;
+  _pvItems.push({name:'',unit:'EA'});
+  renderPvItemsList();
+  setTimeout(()=>{const ins=document.querySelectorAll('#pv-items-list input');if(ins.length)ins[ins.length-2].focus();},50);
+}
 
 function openNewPurchaseModal(){
   if(!requireEdit())return;
