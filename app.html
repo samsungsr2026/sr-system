@@ -4769,34 +4769,9 @@ function rOrder(){
           <div class="card-title" style="margin-bottom:0">발주 품목 <span style="color:var(--blue);font-weight:700">${orderItems.length}건</span></div>
           ${orderItems.length?`<button class="btn" style="padding:6px 12px;font-size:12px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)" onclick="orderItems=[];render()">전체 삭제</button>`:''}
         </div>
-        ${!orderItems.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">왼쪽에서 발주할 품목을 추가하세요</div>':`
-        <div id="ord-list">
-          ${orderItems.map((o,i)=>{
-            const it=o.isCustom?null:inv.find(x=>x.id===o.id);
-            const dispName=o.isCustom?o.name:(it?it.name:o.id);
-            const dispUnit=o.isCustom?o.unit:(it?it.unit:'EA');
-            return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
-              <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600">${dispName}</div>
-                <div style="font-size:12px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
-              </div>
-              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-                <label style="font-size:11px;color:var(--text3)">수량</label>
-                <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
-                <span style="font-size:11px;color:var(--text3)">${dispUnit}</span>
-                <button onclick="orderItems.splice(${i},1);render()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
-              </div>
-            </div>`;
-          }).join('')}
+        <div id="ord-items-wrap">
+        ${renderOrdItemsWrap()}
         </div>
-        <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin:10px 0">
-          <span style="font-size:13px;color:var(--text2)">총 발주 수량</span>
-          <span style="font-size:15px;font-weight:700;font-family:monospace;color:var(--blue)">${orderItems.reduce((s,o)=>s+(o.qty||0),0).toLocaleString()}</span>
-        </div>
-        <div style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">
-          💡 <strong>발주서 발행</strong>을 누르면 <strong>미리보기</strong>가 표시됩니다. 미리보기에서 <strong>출력</strong>해야만 재고에 반영되고 출력완료로 기록됩니다.
-        </div>
-        <button class="btn bbl btn-full" onclick="saveOrder()">📝 발주서 발행 (미리보기)</button>`}
       </div>
 
       <div class="card">
@@ -5036,8 +5011,45 @@ function ordSearch(v){
 function addOrderItem(id){
   if(orderItems.find(o=>o.id===id)){tst('이미 추가된 품목입니다');return;}
   orderItems.push({id,qty:0});
-  render();
+  refreshOrdItemsWrap();
   tst('✓ 발주 품목에 추가됐습니다 (수량을 입력하세요)');
+}
+
+function renderOrdItemsWrap(){
+  if(!orderItems.length) return '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">왼쪽에서 발주할 품목을 추가하세요</div>';
+  return `<div id="ord-list">
+    ${orderItems.map((o,i)=>{
+      const it=o.isCustom?null:inv.find(x=>x.id===o.id);
+      const dispName=o.isCustom?o.name:(it?it.name:o.id);
+      const dispUnit=o.isCustom?o.unit:(it?it.unit:'EA');
+      return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${dispName}</div>
+          <div style="font-size:12px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          <label style="font-size:11px;color:var(--text3)">수량</label>
+          <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
+          <span style="font-size:11px;color:var(--text3)">${dispUnit}</span>
+          <button onclick="orderItems.splice(${i},1);refreshOrdItemsWrap()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin:10px 0">
+    <span style="font-size:13px;color:var(--text2)">총 발주 수량</span>
+    <span style="font-size:15px;font-weight:700;font-family:monospace;color:var(--blue)">${orderItems.reduce((s,o)=>s+(o.qty||0),0).toLocaleString()}</span>
+  </div>
+  <div style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">
+    💡 <strong>발주서 발행</strong>을 누르면 <strong>미리보기</strong>가 표시됩니다. 미리보기에서 <strong>출력</strong>해야만 재고에 반영되고 출력완료로 기록됩니다.
+  </div>
+  <button class="btn bbl btn-full" onclick="saveOrder()">📝 발주서 발행 (미리보기)</button>`;
+}
+
+function refreshOrdItemsWrap(){
+  const wrap=document.getElementById('ord-items-wrap');
+  if(wrap) wrap.innerHTML=renderOrdItemsWrap();
+  else render();
 }
 
 // 업체 등록 품목 추가 (재고 품목이 아닌 경우)
@@ -5045,38 +5057,7 @@ function addOrderItemByName(name, unit, moldNo, partNo){
   const fakeId='CUSTOM-'+(moldNo||partNo||name);
   if(orderItems.find(o=>o.id===fakeId)){tst('이미 추가된 품목입니다');return;}
   orderItems.push({id:fakeId, name, unit, moldNo:moldNo||'', partNo:partNo||'', qty:1, isCustom:true});
-  // 전체 render 대신 발주 품목 목록 영역만 갱신 (업체 품목 목록 유지)
-  const listBox=document.getElementById('ord-list');
-  const card=listBox?listBox.closest('.card'):null;
-  if(card){
-    // 발주 품목 카드 내용만 갱신
-    const titleDiv=card.querySelector('[style*="justify-content:space-between"]');
-    if(titleDiv){
-      titleDiv.innerHTML=`<div class="card-title" style="margin-bottom:0">발주 품목 <span style="color:var(--blue);font-weight:700">${orderItems.length}건</span></div>
-        <button class="btn" style="padding:6px 12px;font-size:12px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)" onclick="orderItems=[];render()">전체 삭제</button>`;
-    }
-    if(listBox){
-      listBox.innerHTML=orderItems.map((o,i)=>{
-        const it=o.isCustom?null:inv.find(x=>x.id===o.id);
-        const dispName=o.isCustom?o.name:(it?it.name:o.id);
-        const dispUnit=o.isCustom?o.unit:(it?it.unit:'EA');
-        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600">${dispName}</div>
-            <div style="font-size:12px;color:var(--text3)">${o.isCustom?('금형: '+(o.moldNo||'-')+' · 품번: '+(o.partNo||'-')):('금형 '+o.id+' · 부품 '+(it?(it.classNo||'-'):'-'))}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-            <label style="font-size:11px;color:var(--text3)">수량</label>
-            <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
-            <span style="font-size:11px;color:var(--text3)">${dispUnit}</span>
-            <button onclick="orderItems.splice(${i},1);render()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
-          </div>
-        </div>`;
-      }).join('');
-    }
-  } else {
-    render();
-  }
+  refreshOrdItemsWrap();
   tst('✓ '+name+' 추가됐습니다');
 }
 
