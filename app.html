@@ -4903,15 +4903,45 @@ function supEditVendor(i){
   document.getElementById('mo-title').textContent='📦 '+SUPPLIERS[i].name+' 품목 관리';
   document.getElementById('mb').innerHTML=`
     <button onclick="renderManageVendors();document.getElementById('mo-title').textContent='🏭 공급업체 관리'" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:6px 14px;margin-bottom:14px">← 목록으로</button>
+    <div style="margin-bottom:12px">
+      <div style="position:relative;margin-bottom:6px">
+        <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" class="fi" id="sup-inv-search" placeholder="금형번호 또는 품번 검색..." style="padding-left:34px;font-size:13px" oninput="supInvSearch(this.value)">
+      </div>
+      <div id="sup-inv-result" style="max-height:200px;overflow-y:auto;margin-bottom:4px"></div>
+    </div>
     <div style="margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <label class="fl" style="margin-bottom:0">품목 목록</label>
-        <button onclick="addSupItem()" class="btn bbl" style="padding:4px 12px;font-size:12px">+ 품목 추가</button>
+        <label class="fl" style="margin-bottom:0">등록된 품목</label>
       </div>
       <div id="sup-items-list"></div>
     </div>
     <button class="btn bbl btn-full" onclick="saveSupItems()">✓ 저장</button>`;
   renderSupItemsList();
+  document.getElementById('ov').classList.add('on');
+}
+
+function supInvSearch(sq){
+  const box=document.getElementById('sup-inv-result');
+  if(!box)return;
+  if(!sq){box.innerHTML='';return;}
+  const f=inv.filter(i=>i.id.includes(sq)||(i.classNo||'').includes(sq)||i.name.includes(sq)).slice(0,15);
+  if(!f.length){box.innerHTML='<div style="color:var(--text3);font-size:12px;padding:6px">검색 결과 없음</div>';return;}
+  box.innerHTML=f.map(it=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:7px;margin-bottom:5px;border:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${it.name||'(품명없음)'}</div>
+        <div style="font-size:11px;color:var(--text3)">금형: <span style="font-family:monospace;color:var(--blue)">${it.id}</span> · 품번: <span style="font-family:monospace">${it.classNo||'-'}</span></div>
+      </div>
+      <button onclick="supAddFromInv('${it.id.replace(/'/g,"\\'")}','${(it.classNo||'').replace(/'/g,"\\'")}','${(it.name||'').replace(/'/g,"\\'")}','${(it.unit||'EA').replace(/'/g,"\\'")}');document.getElementById('sup-inv-search').value='';supInvSearch('')" class="btn bbl" style="padding:5px 12px;font-size:12px;flex-shrink:0">+ 추가</button>
+    </div>`).join('');
+}
+
+function supAddFromInv(moldNo, partNo, name, unit){
+  if(_supItems.find(it=>it.moldNo===moldNo&&it.partNo===partNo)){tst('이미 등록된 품목입니다');return;}
+  _supItems.push({moldNo, partNo, name, unit});
+  renderSupItemsList();
+  tst('✓ '+name+' 추가됨');
 }
 
 function renderSupItemsList(){
