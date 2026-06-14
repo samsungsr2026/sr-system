@@ -4873,6 +4873,7 @@ function renderManageVendors(){
         <div style="display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:14px;font-weight:700">${v.name}</span>
           <div style="display:flex;gap:6px">
+            <button onclick="supImportFromOrders(${i})" style="background:var(--green-bg);border:1px solid rgba(13,158,114,.3);color:var(--green);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer">📋 발주서에서 가져오기</button>
             <button onclick="supEditVendor(${i})" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer">품목관리</button>
             <button onclick="removeVendor(${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px">삭제</button>
           </div>
@@ -4885,6 +4886,36 @@ function renderManageVendors(){
         style="flex:1" onkeydown="if(event.key==='Enter')addVendor()">
       <button class="btn bbl" style="padding:0 20px" onclick="addVendor()">+ 추가</button>
     </div>`;
+}
+
+// 발주서 이력에서 해당 업체 품목 가져오기
+function supImportFromOrders(i){
+  if(!requireEdit())return;
+  const sup=SUPPLIERS[i];
+  // 해당 업체의 발주서 전체에서 품목 수집
+  const fromOrders=[...orders,...(typeof purchases!=='undefined'?purchases:[])].filter(o=>(o.vendor||o.vendor)=== sup.name);
+  if(!fromOrders.length){tst('해당 업체의 발주서 이력이 없습니다');return;}
+
+  // 품목명 중복 제거 수집
+  const collected={};
+  fromOrders.forEach(o=>{
+    (o.items||[]).forEach(it=>{
+      const nm=it.name||it.item;
+      if(nm&&!collected[nm]) collected[nm]={name:nm,unit:it.unit||''};
+    });
+  });
+  const newItems=Object.values(collected);
+  if(!newItems.length){tst('수집된 품목이 없습니다');return;}
+
+  // 기존 품목과 합치기 (중복 제외)
+  const existing=sup.items||[];
+  const toAdd=newItems.filter(ni=>!existing.find(ei=>ei.name===ni.name));
+  if(!toAdd.length){tst('이미 모두 등록된 품목입니다');return;}
+
+  SUPPLIERS[i].items=[...existing,...toAdd];
+  saveSUP();
+  tst('✓ '+toAdd.length+'개 품목 추가됨: '+toAdd.map(it=>it.name).join(', '));
+  renderManageVendors();
 }
 
 function supEditVendor(i){
