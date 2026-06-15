@@ -292,11 +292,23 @@ function switchTab(tab) {
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
+function hideKeyboard() {
+  // 포커스 없는 임시 input으로 키패드 강제 내리기
+  const tmp = document.createElement('input');
+  tmp.setAttribute('type', 'text');
+  tmp.setAttribute('readonly', 'readonly');
+  tmp.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;';
+  document.body.appendChild(tmp);
+  tmp.focus();
+  tmp.blur();
+  document.body.removeChild(tmp);
+  document.activeElement.blur();
+}
+
 function doInSearch() {
   const code = document.getElementById('in-code').value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
-  // 키패드 내리기
-  document.getElementById('in-code').blur();
+  hideKeyboard();
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
