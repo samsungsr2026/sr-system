@@ -1066,9 +1066,10 @@ async function gdDeleteFile(itemId, fileId){
 function svImgs(){
   localStorage.setItem('sr-imgs',JSON.stringify(imgs));
   localStorage.setItem('sr-draws',JSON.stringify(draws));
-  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));
+  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));}catch(e){}
   cfSet('imgs',imgs).catch(()=>{});
-}catch(e){}
+  cfSet('draws',draws).catch(()=>{});
+  cfSet('attaches',attaches).catch(()=>{});
 }
 function getImg(id){return imgs[id]||'';}
 // 도면 데이터를 {type,name,data,isImage} 형태로 정규화하여 반환
@@ -1231,7 +1232,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           vendors, vendorOrders,
           wk:WK, accounts, notices, dailyreport:dailyReports,
-          changelog:changeLogs, suppliers:SUPPLIERS, imgs
+          changelog:changeLogs, suppliers:SUPPLIERS, imgs, draws, attaches
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1244,6 +1245,7 @@ async function jbPull() {
           ra=fbAll['accounts'], rn=fbAll['notices'],
           rdr=fbAll['dailyreport'], rcl=fbAll['changelog'],
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
+          rdraw=fbAll['draws'], ratt=fbAll['attaches'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
@@ -1262,6 +1264,8 @@ async function jbPull() {
       localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
     }
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
+    if(rdraw&&typeof rdraw==='object'){draws=rdraw;try{localStorage.setItem('sr-draws',JSON.stringify(draws));}catch(e){}}
+    if(ratt&&typeof ratt==='object'){attaches=ratt;try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));}catch(e){}}
     if(Array.isArray(rv)&&rv.length>0){vendors=rv;localStorage.setItem('sr-vendors',JSON.stringify(vendors));}
     if(Array.isArray(rvo)){vendorOrders=rvo;localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
