@@ -125,7 +125,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off" readonly
             style="flex:1;cursor:pointer"
-            onclick="this.removeAttribute('readonly');this.focus();"
+            inputmode="numeric" onclick="this.removeAttribute('readonly');this.focus();"
             onkeydown="if(event.key==='Enter'){this.setAttribute('readonly','readonly');doInSearch();}">
           <button onclick="document.getElementById('in-code').setAttribute('readonly','readonly');doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
@@ -167,7 +167,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     <div class="card">
       <div class="card-title">위치 검색</div>
       <div style="display:flex;gap:8px">
-        <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off"
+        <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off" inputmode="numeric"
           onkeyup="doLocSearch(this.value)" style="flex:1" inputmode="search">
         <button onclick="doLocSearch(document.getElementById('loc-code').value)" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
       </div>
