@@ -4198,6 +4198,8 @@ function rSet(){
           <button class="btn btn-full" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);font-size:13px"
             onclick="document.getElementById('backup-restore').click()">📥 백업 파일 복원 (JSON)</button>
           <input type="file" id="backup-restore" accept=".json" style="display:none" onchange="restoreBackup(this.files[0])">
+          <button class="btn btn-full" style="background:var(--blue-bg);color:var(--blue);border:1px solid rgba(26,107,255,.3);font-size:13px"
+            onclick="syncImgsToFirebase()">☁️ 사진/도면/첨부파일 Firebase 동기화 (다른 기기에서 안 보일 때)</button>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:8px 10px;background:var(--amber-bg);border-radius:6px;line-height:1.5">
           💡 <strong style="color:var(--amber)">권장</strong>: 매월 1회 백업 파일을 다운받아 별도 저장하세요. 브라우저 데이터가 삭제되면 모든 정보가 사라집니다.
@@ -7338,6 +7340,21 @@ function addNotice(){
   addLog('other','공지사항 등록 — '+title, `유형: ${type} / 작성: ${author}`);
   tst('✅ 등록 완료');
   render();
+}
+
+async function syncImgsToFirebase(){
+  if(!requireEdit())return;
+  tst('☁️ Firebase에 업로드 중...');
+  try{
+    await Promise.all([
+      cfSet('imgs', imgs),
+      cfSet('draws', draws),
+      cfSet('attaches', attaches)
+    ]);
+    tst('✅ 사진/도면/첨부파일 동기화 완료 — 다른 기기에서 새로고침하면 보입니다', 3000);
+  }catch(e){
+    tst('⚠️ 동기화 실패: '+e.message);
+  }
 }
 
 function dlBackupAll(){
