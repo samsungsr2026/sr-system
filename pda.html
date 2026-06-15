@@ -123,9 +123,11 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <div class="fg">
         <label class="label">바코드 스캔 또는 금형번호 입력</label>
         <div style="display:flex;gap:8px">
-          <input class="inp" type="text" id="in-code" placeholder="예: 75 또는 14500509" autocomplete="off" autocapitalize="off"
-            onkeydown="if(event.key==='Enter')doInSearch()" style="flex:1">
-          <button onclick="doInSearch()" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
+          <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off" readonly
+            style="flex:1;cursor:pointer"
+            onclick="this.removeAttribute('readonly');this.focus();"
+            onkeydown="if(event.key==='Enter'){this.setAttribute('readonly','readonly');doInSearch();}">
+          <button onclick="document.getElementById('in-code').setAttribute('readonly','readonly');doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
       </div>
 
@@ -292,23 +294,9 @@ function switchTab(tab) {
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
-function hideKeyboard() {
-  // 포커스 없는 임시 input으로 키패드 강제 내리기
-  const tmp = document.createElement('input');
-  tmp.setAttribute('type', 'text');
-  tmp.setAttribute('readonly', 'readonly');
-  tmp.style.cssText = 'position:fixed;top:-100px;left:-100px;opacity:0;';
-  document.body.appendChild(tmp);
-  tmp.focus();
-  tmp.blur();
-  document.body.removeChild(tmp);
-  document.activeElement.blur();
-}
-
 function doInSearch() {
   const code = document.getElementById('in-code').value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
-  hideKeyboard();
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
