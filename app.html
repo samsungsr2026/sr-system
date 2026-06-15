@@ -1414,7 +1414,7 @@ function picThumb(it){
   const src=getImg(it.id);
   if(src){
     return `<img src="${src}" onclick="event.stopPropagation();opD('${it.id}')" title="클릭하여 상세 열기"
-      style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;flex-shrink:0;background:#fff">`;
+      style="width:42px;height:42px;border-radius:8px;object-fit:contain;border:1px solid var(--border);cursor:pointer;flex-shrink:0;background:#fff">`;
   }
   return `<div onclick="event.stopPropagation();opD('${it.id}')" title="사진 없음 - 클릭하여 등록"
     style="width:42px;height:42px;border-radius:8px;border:1px dashed var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;flex-shrink:0">${it.e||'📷'}</div>`;
