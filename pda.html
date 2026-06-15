@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>삼성SR PDA</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#f0f2f8;color:#1a1f35;min-height:100vh;font-size:16px}
+
+/* 상단바 */
+.topbar{background:linear-gradient(135deg,#0d1b4b,#1a3a8f);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.topbar-title{font-size:18px;font-weight:800;letter-spacing:.04em}
+.topbar-sub{font-size:11px;opacity:.7;margin-top:2px}
+.topbar-right{font-size:12px;text-align:right;opacity:.85}
+
+/* 탭 */
+.tabs{display:flex;background:#fff;border-bottom:2px solid #e0e4f0;position:sticky;top:64px;z-index:99}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:15px;font-weight:700;color:#8090b8;cursor:pointer;border:none;background:none;transition:all .15s}
+.tab.on{color:#1a6bff;border-bottom:3px solid #1a6bff;margin-bottom:-2px}
+.tab svg{display:block;margin:0 auto 4px;width:22px;height:22px}
+
+/* 메인 영역 */
+.page{display:none;padding:16px}
+.page.on{display:block}
+
+/* 카드 */
+.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+.card-title{font-size:11px;font-weight:700;color:#8090b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+
+/* 입력 */
+.label{font-size:13px;font-weight:600;color:#4a5270;margin-bottom:6px;display:block}
+.inp{width:100%;background:#f0f2f8;border:1.5px solid #cdd3e8;border-radius:10px;padding:14px;font-size:16px;color:#1a1f35;outline:none;font-family:inherit;-webkit-appearance:none}
+.inp:focus{border-color:#1a6bff;background:#fff}
+select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238090b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px}
+.fg{margin-bottom:14px}
+
+/* 버튼 */
+.btn{width:100%;padding:16px;border-radius:12px;font-size:17px;font-weight:700;border:none;cursor:pointer;font-family:inherit;margin-top:4px;transition:opacity .15s}
+.btn:active{opacity:.8}
+.btn-in{background:#0d9e72;color:#fff}
+.btn-cancel{background:#e8ecf5;color:#4a5270;margin-top:8px}
+
+/* 선택된 품목 표시 */
+.found-box{background:#edfaf4;border:1.5px solid #0d9e72;border-radius:10px;padding:14px;margin-bottom:14px;display:none}
+.found-name{font-size:17px;font-weight:800;color:#1a1f35;margin-bottom:4px}
+.found-info{font-size:13px;color:#4a5270}
+.found-info span{font-weight:700;color:#1a1f35}
+
+/* 토스트 */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1f35;color:#fff;padding:12px 24px;border-radius:24px;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+/* 위치 결과 카드 */
+.loc-card{background:#fff;border:1.5px solid #cdd3e8;border-radius:14px;padding:16px;margin-bottom:12px}
+.loc-pos{font-size:28px;font-weight:900;color:#1a6bff;margin-bottom:6px}
+.loc-name{font-size:16px;font-weight:700;color:#1a1f35;margin-bottom:4px}
+.loc-detail{font-size:13px;color:#8090b8;line-height:1.6}
+.loc-detail b{color:#4a5270}
+.loc-stock{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
+.loc-stock.ok{background:#edfaf4;color:#0d9e72}
+.loc-stock.low{background:#fce8ed;color:#d42048}
+
+/* 로그인 화면 */
+.login-wrap{padding:32px 16px;max-width:360px;margin:0 auto}
+.login-title{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px}
+.login-sub{font-size:13px;color:#8090b8;text-align:center;margin-bottom:28px}
+.login-btn{background:linear-gradient(135deg,#1a3a8f,#1a6bff);color:#fff;border:none;width:100%;padding:16px;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;margin-top:4px}
+
+/* 결과 없음 */
+.empty{text-align:center;padding:40px 20px;color:#8090b8}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-text{font-size:15px}
+
+/* 수량 선택 크게 */
+.qty-wrap{display:flex;align-items:center;gap:12px}
+.qty-btn{width:52px;height:52px;border-radius:12px;border:1.5px solid #cdd3e8;background:#f0f2f8;font-size:24px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#1a1f35}
+.qty-inp{flex:1;text-align:center;font-size:28px;font-weight:800;padding:10px;border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">⭐ 삼성SR PDA</div>
+    <div class="topbar-sub">재고관리 단말기</div>
+  </div>
+  <div class="topbar-right" id="user-info">로딩중...</div>
+</div>
+
+<!-- 로그인 화면 -->
+<div id="login-page" style="display:none">
+  <div class="login-wrap">
+    <div class="login-title">관리자 로그인</div>
+    <div class="login-sub">입고 등록을 위해 로그인이 필요합니다</div>
+    <div class="fg"><label class="label">아이디</label><input class="inp" type="text" id="login-id" placeholder="아이디" autocomplete="off" autocapitalize="off"></div>
+    <div class="fg"><label class="label">비밀번호</label><input class="inp" type="password" id="login-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <div style="text-align:center;margin-top:16px">
+      <button style="background:none;border:none;color:#8090b8;font-size:13px;cursor:pointer" onclick="guestMode()">위치 조회만 할게요 (비로그인)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="app" style="display:none">
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('in')" id="tab-in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+      입고 등록
+    </button>
+    <button class="tab" onclick="switchTab('loc')" id="tab-loc">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+      위치 조회
+    </button>
+  </div>
+
+  <!-- 입고 등록 탭 -->
+  <div class="page on" id="page-in">
+    <div class="card">
+      <div class="card-title">품목 스캔 / 검색</div>
+      <div class="fg">
+        <label class="label">바코드 스캔 또는 금형번호 입력</label>
+        <div style="display:flex;gap:8px">
+          <input class="inp" type="text" id="in-code" placeholder="예: 75 또는 14500509" autocomplete="off" autocapitalize="off"
+            onkeydown="if(event.key==='Enter')doInSearch()" style="flex:1">
+          <button onclick="doInSearch()" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
+        </div>
+      </div>
+
+      <div class="found-box" id="in-found">
+        <div class="found-name" id="in-found-name"></div>
+        <div class="found-info" id="in-found-info"></div>
+      </div>
+    </div>
+
+    <div class="card" id="in-form-card" style="display:none">
+      <div class="card-title">입고 정보</div>
+      <div class="fg">
+        <label class="label">수량</label>
+        <div class="qty-wrap">
+          <button class="qty-btn" onclick="adjQty(-1)">−</button>
+          <input class="inp qty-inp" type="number" id="in-qty" value="1" min="1" inputmode="numeric">
+          <button class="qty-btn" onclick="adjQty(1)">+</button>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="label">생산자</label>
+        <select class="inp" id="in-producer">
+          <option value="">-- 선택 안함 --</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="label">메모 (선택)</label>
+        <input class="inp" type="text" id="in-memo" placeholder="예: 구보 납품 등">
+      </div>
+      <button class="btn btn-in" onclick="doRegIn()">⬇ 입고 등록</button>
+      <button class="btn btn-cancel" onclick="resetInForm()">취소</button>
+    </div>
+  </div>
+
+  <!-- 위치 조회 탭 -->
+  <div class="page" id="page-loc">
+    <div class="card">
+      <div class="card-title">위치 검색</div>
+      <div style="display:flex;gap:8px">
+        <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off"
+          onkeyup="doLocSearch(this.value)" style="flex:1" inputmode="search">
+        <button onclick="doLocSearch(document.getElementById('loc-code').value)" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
+      </div>
+    </div>
+    <div id="loc-results">
+      <div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
+let inv = [];
+let txs = [];
+let accounts = [];
+let workers = [];
+let curUser = null;
+let foundItem = null;
+
+// ── 초기화 ──────────────────────────────────────────
+async function init() {
+  // 로컬 데이터 먼저
+  const li = localStorage.getItem('sr-inv');
+  const lt = localStorage.getItem('sr-tx');
+  const lw = localStorage.getItem('sr-workers');
+  if (li) inv = JSON.parse(li);
+  if (lt) txs = JSON.parse(lt);
+  if (lw) workers = JSON.parse(lw);
+
+  // Firebase에서 최신 데이터 로드
+  try {
+    const [ri, rt, ra, rw] = await Promise.all([
+      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk')
+    ]);
+    if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
+    if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
+    if (Array.isArray(ra) && ra.length) accounts = ra;
+    if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
+  } catch(e) {}
+
+  // 생산자 드롭다운 채우기
+  buildWorkerSelect();
+
+  // 세션에서 로그인 유저 복원
+  const cu = sessionStorage.getItem('pda-curuser');
+  if (cu) curUser = JSON.parse(cu);
+
+  showApp();
+}
+
+function buildWorkerSelect() {
+  const sel = document.getElementById('in-producer');
+  // 기존 옵션 유지 (첫 번째 "선택 안함" 제외하고 제거)
+  while (sel.options.length > 1) sel.remove(1);
+  const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
+  list.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = w;
+    sel.appendChild(opt);
+  });
+}
+
+async function fbGet(key) {
+  const r = await fetch(`${FB}/sr/${key}.json`);
+  if (!r.ok) return null;
+  return await r.json();
+}
+
+async function fbSet(key, data) {
+  await fetch(`${FB}/sr/${key}.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+}
+
+function showApp() {
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const ui = document.getElementById('user-info');
+  if (curUser) {
+    ui.innerHTML = `<div>${curUser.name}</div><div style="font-size:10px;opacity:.6">관리자</div>`;
+  } else {
+    ui.innerHTML = `<button onclick="showLogin()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">로그인</button>`;
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-page').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+}
+
+function guestMode() {
+  curUser = null;
+  sessionStorage.removeItem('pda-curuser');
+  showApp();
+  switchTab('loc');
+}
+
+function doLogin() {
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const list = accounts.length ? accounts : [{id:'master',name:'정창식',pw:'6716',role:'master'}];
+  const acc = list.find(a => a.id === id && a.pw === pw);
+  if (!acc) { tst('❌ 아이디 또는 비밀번호가 틀렸습니다'); return; }
+  if (acc.role === 'user') { tst('❌ 조회 전용 계정은 입고 등록이 불가합니다'); return; }
+  curUser = acc;
+  sessionStorage.setItem('pda-curuser', JSON.stringify(acc));
+  tst('✓ ' + acc.name + '님 로그인 완료');
+  showApp();
+}
+
+// ── 탭 전환 ──────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.getElementById('tab-' + tab).classList.add('on');
+  document.getElementById('page-' + tab).classList.add('on');
+  if (tab === 'in') setTimeout(() => document.getElementById('in-code').focus(), 100);
+  if (tab === 'loc') setTimeout(() => document.getElementById('loc-code').focus(), 100);
+}
+
+// ── 입고 등록 ──────────────────────────────────────────
+function doInSearch() {
+  const code = document.getElementById('in-code').value.trim();
+  if (!code) { tst('코드를 입력해주세요'); return; }
+  const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
+  const box = document.getElementById('in-found');
+  const formCard = document.getElementById('in-form-card');
+  if (it) {
+    foundItem = it;
+    box.style.display = 'block';
+    document.getElementById('in-found-name').textContent = it.name;
+    document.getElementById('in-found-info').innerHTML =
+      `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
+    formCard.style.display = 'block';
+    document.getElementById('in-qty').value = 1;
+    // 해당 품목의 기존 생산자 자동 선택
+    const sel = document.getElementById('in-producer');
+    if (it.producer) {
+      const opt = Array.from(sel.options).find(o => o.value === it.producer);
+      if (opt) sel.value = it.producer;
+      else sel.value = '';
+    } else {
+      sel.value = '';
+    }
+    document.getElementById('in-qty').focus();
+    document.getElementById('in-qty').select();
+    tst('✓ ' + it.name);
+  } else {
+    foundItem = null;
+    box.style.display = 'none';
+    formCard.style.display = 'none';
+    tst('❌ 등록되지 않은 코드입니다');
+  }
+}
+
+function adjQty(d) {
+  const el = document.getElementById('in-qty');
+  const v = parseInt(el.value) || 1;
+  el.value = Math.max(1, v + d);
+}
+
+async function doRegIn() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  if (!foundItem) { tst('먼저 품목을 검색하세요'); return; }
+  const qty = parseInt(document.getElementById('in-qty').value);
+  if (!qty || qty < 1) { tst('수량을 확인해주세요'); return; }
+  const producer = document.getElementById('in-producer').value;
+  const memo = document.getElementById('in-memo').value.trim();
+
+  const idx = inv.findIndex(i => i.id === foundItem.id);
+  if (idx < 0) { tst('품목을 찾을 수 없습니다'); return; }
+
+  inv[idx].qty += qty;
+  // 생산자 선택 시 품목 생산자 업데이트
+  if (producer) inv[idx].producer = producer;
+
+  const workerName = producer || curUser.name;
+  const tx = {id: Date.now(), type: 'in', iid: foundItem.id, qty, w: workerName, ts: Date.now(), memo: memo ? '[PDA] ' + memo : '[PDA]'};
+  txs.unshift(tx);
+
+  // 로컬 저장
+  localStorage.setItem('sr-inv', JSON.stringify(inv));
+  localStorage.setItem('sr-tx', JSON.stringify(txs));
+
+  // Firebase 저장
+  try {
+    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    tst(`✅ 입고완료 +${qty}${foundItem.unit} · 현재 ${inv[idx].qty}${foundItem.unit}`);
+  } catch(e) {
+    tst(`✅ 저장됨 (오프라인) +${qty}${foundItem.unit}`);
+  }
+
+  resetInForm();
+}
+
+function resetInForm() {
+  foundItem = null;
+  document.getElementById('in-code').value = '';
+  document.getElementById('in-qty').value = 1;
+  document.getElementById('in-producer').value = '';
+  document.getElementById('in-memo').value = '';
+  document.getElementById('in-found').style.display = 'none';
+  document.getElementById('in-form-card').style.display = 'none';
+  document.getElementById('in-code').focus();
+}
+
+// ── 위치 조회 ──────────────────────────────────────────
+function doLocSearch(val) {
+  const q = (val || '').trim();
+  const box = document.getElementById('loc-results');
+  if (!q) {
+    box.innerHTML = '<div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>';
+    return;
+  }
+  const qu = q.toUpperCase();
+  const list = inv.filter(d =>
+    d.id.toUpperCase().includes(qu) ||
+    d.name.toUpperCase().includes(qu) ||
+    (d.classNo || '').includes(q)
+  ).sort((a, b) => {
+    if (a.id.toUpperCase() === qu) return -1;
+    if (b.id.toUpperCase() === qu) return 1;
+    return a.id.localeCompare(b.id);
+  }).slice(0, 20);
+
+  if (!list.length) {
+    box.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">검색 결과 없음</div></div>';
+    return;
+  }
+
+  box.innerHTML = list.map(d => {
+    const isLow = d.qty <= d.min;
+    return `<div class="loc-card">
+      <div class="loc-pos">${d.location || '📭 위치 미등록'}</div>
+      <div class="loc-name">${d.name}</div>
+      <div class="loc-detail">
+        금형번호: <b>${d.id}</b><br>
+        부품번호: <b>${d.classNo || '-'}</b>${d.producer ? `<br>생산자: <b>${d.producer}</b>` : ''}${d.moldLoc ? `<br>금형창고: <b>${d.moldLoc}</b>` : ''}
+      </div>
+      <div class="loc-stock ${isLow ? 'low' : 'ok'}">재고 ${d.qty.toLocaleString()}${d.unit}${isLow ? ' ⚠️' : ' ✓'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── 토스트 ──────────────────────────────────────────
+let toastTimer;
+function tst(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// 숫자/텍스트 input 클릭 시 전체 선택
+document.addEventListener('click', e => {
+  if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'number' || e.target.type === 'text')) {
+    e.target.select();
+  }
+});
+
+// 바코드 스캐너 자동 검색 (300ms 내 입력 완료 시)
+let scanTimer;
+document.getElementById('in-code').addEventListener('input', function() {
+  clearTimeout(scanTimer);
+  scanTimer = setTimeout(() => {
+    if (this.value.length >= 3) doInSearch();
+  }, 300);
+});
+
+init();
+</script>
+</body>
+</html>
