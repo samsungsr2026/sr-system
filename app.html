@@ -1372,12 +1372,14 @@ function removeImg(itemId,kind){
 function picClick(id){opD(id);}
 // 이미지 크게보기
 function viewBig(src){
+  if(!canEdit()){tst('관리자 로그인 후 열람 가능합니다');return;}
   const ov=document.getElementById('ov-img');
   document.getElementById('ov-img-pic').src=src;
   ov.classList.add('on');
 }
 // 도면 보기 - 이미지는 확대뷰, PDF/문서는 새 창
 function viewDraw(itemId){
+  if(!canEdit()){tst('관리자 로그인 후 열람 가능합니다');return;}
   const d=getDraw(itemId);
   if(!d)return;
   if(d.isImage){
@@ -1400,6 +1402,7 @@ function viewDraw(itemId){
 }
 // 도면 파일 다운로드
 function downloadDraw(itemId){
+  if(!canEdit()){tst('관리자 로그인 후 열람 가능합니다');return;}
   const d=getDraw(itemId);
   if(!d)return;
   const a=document.createElement('a');
@@ -6579,6 +6582,7 @@ function addAttach(itemId, inputEl){
 }
 
 function openAttach(itemId, idx){
+  if(!canEdit()){tst('관리자 로그인 후 열람 가능합니다');return;}
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
   try{
@@ -6595,6 +6599,7 @@ function openAttach(itemId, idx){
   }catch(e){tst('파일을 열 수 없습니다');}
 }
 function dlAttach(itemId, idx){
+  if(!canEdit()){tst('관리자 로그인 후 열람 가능합니다');return;}
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
   const a=document.createElement('a');a.href=f.data;a.download=f.name;a.click();
