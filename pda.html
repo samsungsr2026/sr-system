@@ -124,7 +124,8 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <label class="label">바코드 스캔 또는 금형번호 입력</label>
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
-            style="flex:1" inputmode="numeric"
+            style="flex:1" inputmode="numeric" virtualkeyboardpolicy="manual"
+            onfocus="if('virtualKeyboard' in navigator)navigator.virtualKeyboard.show();"
             onkeydown="if(event.key==='Enter')doInSearch();">
           <button id="btn-in-search" onclick="this.focus();doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
@@ -167,7 +168,8 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <div class="card-title">위치 검색</div>
       <div style="display:flex;gap:8px">
         <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off"
-          style="flex:1" inputmode="numeric"
+          style="flex:1" inputmode="numeric" virtualkeyboardpolicy="manual"
+          onfocus="if('virtualKeyboard' in navigator)navigator.virtualKeyboard.show();"
           onkeydown="if(event.key==='Enter')doLocSearch(this.value);">
         <button id="btn-loc-search" onclick="this.focus();doLocSearch(document.getElementById('loc-code').value);" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
       </div>
@@ -298,7 +300,11 @@ function doInSearch() {
   const el = document.getElementById('in-code');
   const code = el.value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
-  document.getElementById('btn-in-search').focus();
+  if ('virtualKeyboard' in navigator) {
+    navigator.virtualKeyboard.hide();
+  } else {
+    document.getElementById('in-code').blur();
+  }
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
@@ -383,7 +389,11 @@ function resetInForm() {
 // ── 위치 조회 ──────────────────────────────────────────
 function doLocSearch(val) {
   const loc = document.getElementById('loc-code');
-  document.getElementById('btn-loc-search').focus();
+  if ('virtualKeyboard' in navigator) {
+    navigator.virtualKeyboard.hide();
+  } else {
+    document.getElementById('loc-code').blur();
+  }
   const q = (val || '').trim();
   const box = document.getElementById('loc-results');
   if (!q) {
