@@ -523,7 +523,7 @@ select.fi option{background:#fff;color:#111}
     <div id="master-menu" style="display:none">
       <button class="nav-item" onclick="goMaster(&#39;dailyreport&#39;)" id="nb-dailyreport">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        일일 업무 보고서
+        일일 업무일지
       </button>
     </div>
     <div class="nav-section">외주</div>
@@ -711,12 +711,9 @@ let WK=JSON.parse(localStorage.getItem('sr-workers')||'["정창식","이창호",
 }
 // 공급업체 목록 (발주서 작성 시 선택)
 let SUPPLIERS=JSON.parse(localStorage.getItem('sr-suppliers')||'["성진테크","대덕","동양고무"]');
-let SUPPLIER_ITEMS=JSON.parse(localStorage.getItem('sr-supplier-items')||'{}'); // {업체명:[{partNo,moldNo,name},...]}
 function saveSUP(){
   localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));
-  localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));
   cfSet('suppliers',SUPPLIERS).catch(()=>{});
-  cfSet('supplierItems',SUPPLIER_ITEMS).catch(()=>{});
 }
 // 데이터 버전 체크 - 실제 데이터로 업데이트
 const DATA_VER='v2025-final';
@@ -1255,8 +1252,6 @@ async function jbPull() {
     if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
     if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
-    const rsi=fbAll['supplierItems'];
-    if(rsi&&typeof rsi==='object'){SUPPLIER_ITEMS=rsi;localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
@@ -1518,7 +1513,7 @@ function render(){
   else if(tab==='vendor')m.innerHTML=rVendor();
   else if(tab==='purchase')m.innerHTML=rPurchase();
   else if(tab==='barcode')m.innerHTML=rBarcode();
-  else if(tab==='order'){m.innerHTML=rOrder();if(orderForm.vendor)setTimeout(()=>showSupplierItemsBar(orderForm.vendor),0);}
+  else if(tab==='order')m.innerHTML=rOrder();
   else if(tab==='pstat')m.innerHTML=rPstat();
   else if(tab==='stats')m.innerHTML=rStats();
   else if(tab==='notice')m.innerHTML=rNotice();
@@ -1543,25 +1538,29 @@ function rPurchase(){
     <button class="btn bbp" onclick="openPurchaseVendorModal()">🏭 거래업체 등록</button>
   </div>
 
-  <!-- 거래업체 목록 -->
+  <!-- 거래업체 목록 (접이식) -->
   <div class="card" style="margin-bottom:12px;padding:12px 16px">
-    <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:12px">🏭 거래업체 ${purchaseVendors.length}개 등록됨</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px">
-      ${purchaseVendors.length===0?`<div style="color:var(--text3);font-size:13px;padding:8px 0">등록된 거래업체가 없습니다</div>`:purchaseVendors.map((v,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="togglePVList()">
+      <div style="font-size:13px;font-weight:700;color:var(--blue)">🏭 거래업체 ${purchaseVendors.length}개 등록됨 <span style="font-size:11px;color:var(--text3)">(클릭하여 펼치기)</span></div>
+      <svg id="pv-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div id="pv-list" style="display:none;margin-top:12px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${purchaseVendors.map((v,i)=>`
       <div style="background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;min-width:200px"
         onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border)'"
         onclick="selectPurchaseVendor(${i})">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div style="font-size:14px;font-weight:700;color:var(--blue)">${v.name}</div>
           <div style="display:flex;gap:4px">
-            <button onclick="event.stopPropagation();openVendorItemsModal(${i})" style="background:var(--green-bg);border:1px solid rgba(13,158,114,.3);color:var(--green);font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;cursor:pointer">품목 관리</button>
             <button onclick="event.stopPropagation();editPurchaseVendor(${i})" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;cursor:pointer">수정</button>
             <button onclick="event.stopPropagation();removePurchaseVendor(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;cursor:pointer">삭제</button>
           </div>
         </div>
         <div style="font-size:11px;color:var(--text2)">담당: ${v.contact||'-'} · ${v.tel||'-'}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px">📦 품목 ${(v.vendorItems||[]).length}개 등록 · <span style="color:var(--blue);font-weight:600">📋 클릭 → 발주서 생성</span></div>
+        <div style="font-size:10px;color:var(--blue);margin-top:4px;font-weight:600">📋 클릭 → 발주서 생성</div>
       </div>`).join('')}
+      </div>
     </div>
   </div>
 
@@ -1630,9 +1629,7 @@ function rPurchase(){
 
 function selectPurchaseVendor(i){
   const v=purchaseVendors[i];
-  // 업체에 등록된 품목이 있으면 빈 1개로 시작 (품목 버튼에서 선택), 없으면 3개
-  const hasVItems = v.vendorItems && v.vendorItems.length>0;
-  purchaseItems=hasVItems ? [{item:'',qty:1,unit:'EA',spec:''}] : [{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
+  purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
   const now=new Date();
   const dn='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   document.getElementById('mo-title').textContent='📋 발주서 생성 — '+v.name;
@@ -1728,99 +1725,6 @@ function removePurchaseVendor(i){
   purchaseVendors.splice(i,1);svPurchase();go('purchase');
 }
 
-// ── 업체별 품목 관리 ──────────────────────────────────────────────
-let currentVendorItemIdx = -1; // 품목 관리 중인 업체 인덱스
-
-function openVendorItemsModal(i) {
-  if(!requireEdit())return;
-  currentVendorItemIdx = i;
-  const v = purchaseVendors[i];
-  if(!v.vendorItems) v.vendorItems = [];
-  renderVendorItemsModal(i);
-  document.getElementById('ov').classList.add('on');
-}
-
-function renderVendorItemsModal(i) {
-  const v = purchaseVendors[i];
-  const items = v.vendorItems || [];
-  document.getElementById('mo-title').textContent = '📦 품목 관리 — ' + v.name;
-  document.getElementById('mb').innerHTML = `
-    <div style="margin-bottom:14px">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">업체에 등록된 품목 목록입니다. 발주서 작성 시 이 목록에서 선택할 수 있습니다.</div>
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr style="background:var(--bg4)">
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">품명</th>
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">규격</th>
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:center;border-bottom:1px solid var(--border);width:60px">수량</th>
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:center;border-bottom:1px solid var(--border);width:60px">단위</th>
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">비고</th>
-              <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:center;border-bottom:1px solid var(--border);width:50px">삭제</th>
-            </tr>
-          </thead>
-          <tbody id="vi-tbody">
-            ${items.length === 0
-              ? `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3);font-size:13px">등록된 품목이 없습니다</td></tr>`
-              : items.map((it,j) => `
-              <tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px 10px;font-size:13px;font-weight:600">${it.name}</td>
-                <td style="padding:8px 10px;font-size:13px;color:var(--text2)">${it.spec||'-'}</td>
-                <td style="padding:8px 10px;font-size:13px;text-align:center;font-family:monospace">${it.qty||'-'}</td>
-                <td style="padding:8px 10px;font-size:13px;text-align:center;color:var(--text2)">${it.unit||'-'}</td>
-                <td style="padding:8px 10px;font-size:13px;color:var(--text3)">${it.note||'-'}</td>
-                <td style="padding:8px 10px;text-align:center">
-                  <button onclick="removeVendorItem(${j})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;cursor:pointer">삭제</button>
-                </td>
-              </tr>`).join('')
-            }
-          </tbody>
-        </table>
-      </div>
-      <div style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.2);border-radius:8px;padding:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:8px">➕ 품목 추가</div>
-        <div style="display:grid;grid-template-columns:2fr 1fr 60px 60px 1fr auto;gap:6px;align-items:center">
-          <input type="text" class="fi" id="vi-name" placeholder="품명 *" style="font-size:13px;padding:8px 10px">
-          <input type="text" class="fi" id="vi-spec" placeholder="규격" style="font-size:13px;padding:8px 10px">
-          <input type="number" class="fi" id="vi-qty" placeholder="수량" min="0" style="font-size:13px;padding:8px 10px">
-          <select class="fi" id="vi-unit" style="font-size:13px;padding:8px 10px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력');if(v){this.value=v;var opt=document.createElement('option');opt.value=v;opt.textContent=v;this.insertBefore(opt,this.lastElementChild);this.value=v;}else{this.value='EA';}}">
-            <option value="EA">EA</option>
-            <option value="kg">kg</option>
-            <option value="직접입력">직접입력</option>
-          </select>
-          <input type="text" class="fi" id="vi-note" placeholder="비고" style="font-size:13px;padding:8px 10px">
-          <button onclick="addVendorItem()" class="btn bbl" style="padding:8px 14px;font-size:13px;white-space:nowrap">추가</button>
-        </div>
-      </div>
-    </div>
-    <button class="btn bbg btn-full" onclick="cmo();go('purchase')">✓ 완료</button>`;
-}
-
-function addVendorItem() {
-  const name = document.getElementById('vi-name')?.value?.trim();
-  const spec = document.getElementById('vi-spec')?.value?.trim();
-  const qty  = document.getElementById('vi-qty')?.value?.trim();
-  const unit = document.getElementById('vi-unit')?.value?.trim();
-  const note = document.getElementById('vi-note')?.value?.trim();
-  if(!name){tst('품명을 입력해주세요');return;}
-  const i = currentVendorItemIdx;
-  if(!purchaseVendors[i].vendorItems) purchaseVendors[i].vendorItems = [];
-  purchaseVendors[i].vendorItems.push({name, spec, qty, unit, note});
-  svPurchase();
-  tst('✓ 품목 추가 완료');
-  renderVendorItemsModal(i);
-}
-
-function removeVendorItem(j) {
-  const i = currentVendorItemIdx;
-  if(!confirm(purchaseVendors[i].vendorItems[j].name + ' 을(를) 삭제하시겠습니까?'))return;
-  purchaseVendors[i].vendorItems.splice(j,1);
-  svPurchase();
-  tst('삭제 완료');
-  renderVendorItemsModal(i);
-}
-// ── 업체별 품목 관리 끝 ──────────────────────────────────────────
-
 let purchaseItems=[{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''},{item:'',qty:1,unit:'kg',spec:''}];
 let purchaseMonthFilter='all';
 
@@ -1843,7 +1747,7 @@ function renderPurchaseModal(dn, preVendorIdx, editIdx){
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">문서번호</label><input type="text" class="fi" id="po-docno" value="${ep?ep.docNo:dn||''}"></div>
     <div class="fg"><label class="fl">거래업체 *</label>
-      <select class="fi" id="po-vendor" onchange="onPoVendorChange(this.value)">
+      <select class="fi" id="po-vendor" onchange="document.getElementById('po-vendor-direct-wrap').style.display=this.value==='__direct__'?'block':'none'">
         <option value="">-- 업체 선택 --</option>
         ${purchaseVendors.map(v=>`<option value="${v.name}" ${preVendorName===v.name?'selected':''}>${v.name}</option>`).join('')}
         <option value="__direct__" ${isDirectVendor?'selected':''}>✏️ 직접 입력</option>
@@ -1852,10 +1756,6 @@ function renderPurchaseModal(dn, preVendorIdx, editIdx){
     <div class="fg" id="po-vendor-direct-wrap" style="display:${isDirectVendor?'block':'none'}">
       <label class="fl">업체명 직접 입력</label>
       <input type="text" class="fi" id="po-vendor-direct" placeholder="업체명" value="${isDirectVendor?preVendorName:''}">
-    </div>
-    <div id="po-vendor-items-wrap" style="display:none;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">📦 업체 등록 품목 <span style="font-size:11px;font-weight:400;color:var(--text3)">(클릭하면 발주 목록에 추가)</span></div>
-      <div id="po-vendor-items-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
     <div class="fg"><label class="fl">납기일</label><input type="date" class="fi" id="po-due" value="${ep?ep.due:new Date(Date.now()+604800000).toISOString().slice(0,10)}"></div>
     <div class="fg"><label class="fl">담당자</label>
@@ -1884,49 +1784,6 @@ function renderPurchaseModal(dn, preVendorIdx, editIdx){
            <button class="btn bbp" style="flex:1;justify-content:center" onclick="submitAndPrintPurchase()">🖨️ 등록 + 출력</button>`
       }
     </div>`;
-  // 초기 업체 선택 시 품목 표시
-  if(preVendorName && !isDirectVendor) onPoVendorChange(preVendorName);
-}
-
-function onPoVendorChange(val) {
-  // 직접입력 토글
-  const directWrap = document.getElementById('po-vendor-direct-wrap');
-  if(directWrap) directWrap.style.display = val==='__direct__'?'block':'none';
-  // 업체 품목 목록 표시
-  const wrap = document.getElementById('po-vendor-items-wrap');
-  const listEl = document.getElementById('po-vendor-items-list');
-  if(!wrap||!listEl) return;
-  const pv = purchaseVendors.find(v=>v.name===val);
-  const vitems = pv?.vendorItems||[];
-  if(val && val!=='__direct__' && vitems.length>0) {
-    wrap.style.display = 'block';
-    listEl.innerHTML = vitems.map((it,j)=>`
-      <div onclick="addVendorItemToPurchase('${it.name.replace(/'/g,"\\'")}','${(it.partNo||'').replace(/'/g,"\\'")}','${(it.moldNo||'').replace(/'/g,"\\'")}',this)"
-        style="background:var(--bg2);border:1.5px solid var(--border);border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12px;transition:all .15s"
-        onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-bg)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg2)'">
-        <div style="font-weight:600;color:var(--text)">${it.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px">${it.partNo?'품번: '+it.partNo:''}${it.partNo&&it.moldNo?' · ':''}${it.moldNo?'금형: '+it.moldNo:''}</div>
-      </div>`).join('');
-  } else {
-    wrap.style.display = 'none';
-    listEl.innerHTML = '';
-  }
-}
-
-function addVendorItemToPurchase(name, partNo, moldNo, el) {
-  // 이미 비어있는 행이 있으면 채우고, 없으면 추가
-  const spec = [partNo?'품번:'+partNo:'', moldNo?'금형:'+moldNo:''].filter(Boolean).join(' ');
-  const empty = purchaseItems.findIndex(it=>!it.item);
-  if(empty>=0) {
-    purchaseItems[empty] = {item:name, qty:1, unit:'EA', spec};
-  } else {
-    purchaseItems.push({item:name, qty:1, unit:'EA', spec});
-  }
-  const box = document.getElementById('po-items');
-  if(box) box.innerHTML = renderPurchaseItems();
-  // 선택 표시
-  if(el) { el.style.borderColor='var(--green)'; el.style.background='var(--green-bg)'; setTimeout(()=>{ el.style.borderColor='var(--border)'; el.style.background='var(--bg2)'; },800); }
 }
 
 function renderPurchaseItems(){
@@ -2135,16 +1992,16 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 </style></head><body>
 <div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
   <h1>발 주 서</h1>
-  <table style="border-collapse:collapse;border:1.5px solid #333;width:230px;margin:0">
+  <table style="border-collapse:collapse;border:1.5px solid #333;width:300px;margin:0;table-layout:fixed">
     <tr>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">기&nbsp;&nbsp;&nbsp;안</td>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">검&nbsp;&nbsp;&nbsp;토</td>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">결&nbsp;&nbsp;&nbsp;재</td>
+      <td colspan="2" style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5">검&nbsp;&nbsp;&nbsp;토</td>
+      <td colspan="2" style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5">승&nbsp;&nbsp;&nbsp;인</td>
     </tr>
     <tr>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
+      <td style="border:1px solid #333;width:55px;height:62px;padding:4px 3px;font-size:11px;color:#555;vertical-align:middle;text-align:center">이&nbsp;름</td>
+      <td style="border:1px solid #333;width:95px;height:62px;padding:2px;vertical-align:middle;text-align:center"></td>
+      <td style="border:1px solid #333;width:55px;height:62px;padding:4px 3px;font-size:11px;color:#555;vertical-align:middle;text-align:center">이&nbsp;름</td>
+      <td style="border:1px solid #333;width:95px;height:62px;padding:2px;vertical-align:middle;text-align:center"></td>
     </tr>
   </table>
 </div>
@@ -2258,16 +2115,16 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 
 <div style="display:grid;grid-template-columns:1fr auto;align-items:center;margin-bottom:14px">
   <h1>발 주 서</h1>
-  <table style="border-collapse:collapse;border:1.5px solid #333;width:230px;margin:0">
+  <table style="border-collapse:collapse;border:1.5px solid #333;width:300px;margin:0;table-layout:fixed">
     <tr>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">기&nbsp;&nbsp;&nbsp;안</td>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">검&nbsp;&nbsp;&nbsp;토</td>
-      <td style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5;width:77px">결&nbsp;&nbsp;&nbsp;재</td>
+      <td colspan="2" style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5">검&nbsp;&nbsp;&nbsp;토</td>
+      <td colspan="2" style="border:1px solid #333;text-align:center;font-size:11px;font-weight:700;padding:3px 4px;background:#f5f5f5">승&nbsp;&nbsp;&nbsp;인</td>
     </tr>
     <tr>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
-      <td style="border:1px solid #333;height:62px;padding:2px"></td>
+      <td style="border:1px solid #333;width:55px;height:62px;padding:4px 3px;font-size:11px;color:#555;vertical-align:middle;text-align:center">이&nbsp;름</td>
+      <td style="border:1px solid #333;width:95px;height:62px;padding:2px;vertical-align:middle;text-align:center"></td>
+      <td style="border:1px solid #333;width:55px;height:62px;padding:4px 3px;font-size:11px;color:#555;vertical-align:middle;text-align:center">이&nbsp;름</td>
+      <td style="border:1px solid #333;width:95px;height:62px;padding:2px;vertical-align:middle;text-align:center"></td>
     </tr>
   </table>
 </div>
@@ -4615,14 +4472,14 @@ function rOrder(){
   return `
   <div class="page-title">발주서</div>
   <div class="page-sub">발주서를 작성하거나 발행된 발주서를 출력합니다</div>
-  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
+  <div class="grid2">
     <div>
       <div class="card" style="border-color:rgba(26,107,255,.3)">
         <div class="card-title" style="color:var(--blue)">📝 새 발주서 작성</div>
         <div class="fg">
           <label class="fl">공급업체 (수신처)</label>
           <div style="display:flex;gap:8px">
-            <select class="fi" id="ord-vendor" style="flex:1" onchange="orderForm.vendor=this.value;showSupplierItemsBar(this.value)">
+            <select class="fi" id="ord-vendor" style="flex:1" onchange="orderForm.vendor=this.value">
               <option value="">-- 공급업체 선택 --</option>
               ${vOpts}
             </select>
@@ -4648,10 +4505,6 @@ function rOrder(){
         <div style="height:1px;background:var(--border);margin:6px 0 14px"></div>
 
         <div class="card-title">품목 추가</div>
-        <div id="sup-items-bar" style="display:none;margin-bottom:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
-          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📦 업체 등록 품목 <span style="font-size:11px;font-weight:400;color:var(--text3)">(클릭하면 발주 목록에 추가)</span></div>
-          <div id="sup-items-list" style="display:flex;flex-direction:column;gap:4px"></div>
-        </div>
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="position:relative;flex:1">
             <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -4723,62 +4576,6 @@ function rOrder(){
   </div>`;
 }
 
-function addOrderItemsToSupplier(i){
-  if(!requireEdit())return;
-  const o=orders[i];
-  const vname=o.vendor||'';
-  const items=o.items||[];
-  if(!items.length){tst('품목이 없습니다');return;}
-
-  // 업체가 SUPPLIERS에 없으면 자동 추가
-  if(vname && !SUPPLIERS.includes(vname)){SUPPLIERS.push(vname);}
-  if(!SUPPLIER_ITEMS[vname]) SUPPLIER_ITEMS[vname]=[];
-
-  // 이미 등록된 품명 목록
-  const existing=SUPPLIER_ITEMS[vname].map(it=>it.name);
-  let added=0, skipped=0;
-  items.forEach(it=>{
-    if(!it.name) return;
-    if(existing.includes(it.name)){skipped++;return;}
-    SUPPLIER_ITEMS[vname].push({partNo:it.classNo||'', moldNo:it.id||'', name:it.name});
-    existing.push(it.name);
-    added++;
-  });
-  saveSUP();
-
-  // 결과 모달 표시
-  _curSupplierName=vname;
-  document.getElementById('mo-title').textContent='📦 품목 등록 결과 — '+vname;
-  document.getElementById('mb').innerHTML=`
-    <div style="background:var(--green-bg);border:1px solid rgba(13,158,114,.3);border-radius:8px;padding:14px;margin-bottom:14px">
-      <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:4px">✓ 등록 완료</div>
-      <div style="font-size:13px;color:var(--text)">신규 등록: <strong>${added}개</strong>&nbsp;&nbsp;이미 등록됨(스킵): <strong>${skipped}개</strong></div>
-    </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">등록된 품목 목록 (${SUPPLIER_ITEMS[vname].length}개)</div>
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="background:var(--bg4)">
-          <th style="padding:7px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);width:22%">품번</th>
-          <th style="padding:7px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);width:22%">금형번호</th>
-          <th style="padding:7px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">품명</th>
-        </tr></thead>
-        <tbody>
-          ${SUPPLIER_ITEMS[vname].map(it=>`
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:7px 10px;font-size:12px;font-family:monospace;color:var(--blue)">${it.partNo||'-'}</td>
-            <td style="padding:7px 10px;font-size:12px;font-family:monospace;color:var(--purple)">${it.moldNo||'-'}</td>
-            <td style="padding:7px 10px;font-size:13px;font-weight:500">${it.name}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bbg" style="flex:1;justify-content:center" onclick="cmo()">✓ 닫기</button>
-      <button class="btn bbl" style="flex:1;justify-content:center" onclick="renderSupplierItemsMgr()">📦 품목 상세 관리</button>
-    </div>`;
-  document.getElementById('ov').classList.add('on');
-}
-
 // 공급업체 추가/삭제 관리 다이얼로그
 function manageVendors(){
   if(!requireEdit())return;
@@ -4786,10 +4583,8 @@ function manageVendors(){
   document.getElementById('mb').innerHTML=`
     <div style="font-size:13px;color:var(--text3);margin-bottom:12px">발주서에서 선택할 수 있는 공급업체를 관리합니다.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px" id="sup-list">
-      ${SUPPLIERS.map((v,i)=>`<div style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+      ${SUPPLIERS.map((v,i)=>`<div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px">
         <span style="font-size:14px;font-weight:600">${v}</span>
-        <span style="font-size:10px;color:var(--text3)">${(SUPPLIER_ITEMS[v]||[]).length}개 품목</span>
-        <button onclick="openSupplierItemsMgr('${v.replace(/'/g,"\\'")}')" style="background:var(--green-bg);border:1px solid rgba(13,158,114,.3);color:var(--green);cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px">품목 관리</button>
         <button onclick="removeVendor(${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px">삭제</button>
       </div>`).join('')||'<div style="color:var(--text3);font-size:13px;padding:10px">등록된 공급업체가 없습니다</div>'}
     </div>
@@ -4800,78 +4595,6 @@ function manageVendors(){
     </div>`;
   document.getElementById('ov').classList.add('on');
 }
-
-let _curSupplierName='';
-
-function openSupplierItemsMgr(vname){
-  _curSupplierName=vname;
-  renderSupplierItemsMgr();
-}
-
-function renderSupplierItemsMgr(){
-  const vname=_curSupplierName;
-  if(!SUPPLIER_ITEMS[vname]) SUPPLIER_ITEMS[vname]=[];
-  const items=SUPPLIER_ITEMS[vname];
-  document.getElementById('mo-title').textContent='📦 품목 관리 — '+vname;
-  document.getElementById('mb').innerHTML=`
-    <div style="margin-bottom:8px">
-      <button onclick="manageVendors()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px">← 업체 목록으로</button>
-    </div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:10px">업체에 등록된 품목은 발주서 작성 시 바로 선택할 수 있습니다.</div>
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="background:var(--bg4)">
-            <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);width:22%">품번</th>
-            <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);width:22%">금형번호</th>
-            <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:left;border-bottom:1px solid var(--border)">품명</th>
-            <th style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-align:center;border-bottom:1px solid var(--border);width:50px">삭제</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.length===0
-            ? `<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3);font-size:13px">등록된 품목이 없습니다</td></tr>`
-            : items.map((it,j)=>`
-            <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:8px 10px;font-size:13px;font-family:monospace;color:var(--blue)">${it.partNo||'-'}</td>
-              <td style="padding:8px 10px;font-size:13px;font-family:monospace;color:var(--purple)">${it.moldNo||'-'}</td>
-              <td style="padding:8px 10px;font-size:13px;font-weight:500">${it.name}</td>
-              <td style="padding:8px 10px;text-align:center">
-                <button onclick="removeSupplierItem('${vname.replace(/'/g,"\\'")}',${j})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;cursor:pointer">삭제</button>
-              </td>
-            </tr>`).join('')
-          }
-        </tbody>
-      </table>
-    </div>
-    <div style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.2);border-radius:8px;padding:12px">
-      <div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:8px">➕ 품목 추가</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:6px;align-items:center">
-        <input type="text" class="fi" id="si-partno" placeholder="품번" style="font-size:13px;padding:8px 10px">
-        <input type="text" class="fi" id="si-moldno" placeholder="금형번호" style="font-size:13px;padding:8px 10px">
-        <input type="text" class="fi" id="si-name" placeholder="품명 *" style="font-size:13px;padding:8px 10px" onkeydown="if(event.key==='Enter')addSupplierItem()">
-        <button onclick="addSupplierItem()" class="btn bbl" style="padding:8px 14px;font-size:13px;white-space:nowrap">추가</button>
-      </div>
-    </div>`;
-}
-
-function addSupplierItem(){
-  const partNo=document.getElementById('si-partno')?.value?.trim()||'';
-  const moldNo=document.getElementById('si-moldno')?.value?.trim()||'';
-  const name=document.getElementById('si-name')?.value?.trim();
-  if(!name){tst('품명을 입력해주세요');return;}
-  const vname=_curSupplierName;
-  if(!SUPPLIER_ITEMS[vname]) SUPPLIER_ITEMS[vname]=[];
-  SUPPLIER_ITEMS[vname].push({partNo,moldNo,name});
-  saveSUP();tst('✓ 품목 추가 완료');renderSupplierItemsMgr();
-}
-
-function removeSupplierItem(vname,j){
-  if(!confirm(SUPPLIER_ITEMS[vname][j].name+' 을(를) 삭제하시겠습니까?'))return;
-  SUPPLIER_ITEMS[vname].splice(j,1);
-  saveSUP();tst('삭제 완료');renderSupplierItemsMgr();
-}
-
 function addVendor(){
   const el=document.getElementById('new-vendor');
   const v=el?.value?.trim();
@@ -4883,46 +4606,6 @@ function removeVendor(i){
   const v=SUPPLIERS[i];
   if(!confirm(v+' 을(를) 삭제하시겠습니까?'))return;
   SUPPLIERS.splice(i,1);saveSUP();tst(v+' 삭제 완료');manageVendors();
-}
-
-function showSupplierItemsBar(vname){
-  const bar=document.getElementById('sup-items-bar');
-  const list=document.getElementById('sup-items-list');
-  if(!bar||!list) return;
-  const items=SUPPLIER_ITEMS[vname]||[];
-  if(vname && items.length>0){
-    bar.style.display='block';
-    list.innerHTML=items.map((it,j)=>`
-      <div onclick="addSupplierItemToOrder('${it.name.replace(/'/g,"\\'")}','${(it.partNo||'').replace(/'/g,"\\'")}','${(it.moldNo||'').replace(/'/g,"\\'")}',this)"
-        style="display:flex;align-items:center;gap:16px;background:var(--bg2);border:1.5px solid var(--border);border-radius:7px;padding:8px 14px;cursor:pointer;transition:all .15s;width:100%"
-        onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-bg)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg2)'">
-        <span style="font-size:13px;font-weight:700;color:var(--text);flex:2;min-width:0">${it.name}</span>
-        <span style="font-size:13px;font-family:monospace;color:var(--blue);flex:1;min-width:0">${it.partNo||'-'}</span>
-        <span style="font-size:13px;font-family:monospace;color:var(--purple);flex:1;min-width:0">${it.moldNo||'-'}</span>
-      </div>`).join('');
-  } else {
-    bar.style.display='none';
-    list.innerHTML='';
-  }
-}
-
-function addSupplierItemToOrder(name, partNo, moldNo, el){
-  // 재고에서 매칭 시도 (금형번호 또는 품번으로)
-  let matched = inv.find(i=>moldNo && i.id===moldNo) || inv.find(i=>partNo && i.classNo===partNo);
-  if(matched){
-    if(orderItems.find(o=>o.id===matched.id)){tst('이미 추가된 품목입니다');return;}
-    orderItems.push({id:matched.id,qty:1});
-  } else {
-    // 재고 미매칭 시 직접입력 방식으로 추가 (검색창에 품명 입력)
-    const searchEl=document.getElementById('ord-search');
-    if(searchEl){searchEl.value=name;ordSearch(name);}
-    tst('검색창에서 품목을 선택해주세요');
-    if(el){el.style.borderColor='var(--amber)';el.style.background='var(--amber-bg)';setTimeout(()=>{el.style.borderColor='var(--border)';el.style.background='var(--bg2)';},1000);}
-    return;
-  }
-  render();
-  if(el){el.style.borderColor='var(--green)';el.style.background='var(--green-bg)';setTimeout(()=>{el.style.borderColor='var(--border)';el.style.background='var(--bg2)';},800);}
 }
 
 function ordResultHTML(){
@@ -6830,7 +6513,7 @@ function rChangeLog(){
 
 // ── 공지사항 / 메모 ───────────────────────────────────────────
 let noticeFilter='전체';
-// ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
+// ── 일일 업무일지 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
     return `<div style="text-align:center;padding:80px;color:var(--text3)">
@@ -6844,8 +6527,8 @@ function rDailyReport(){
   const todayReport = dailyReports.find(r=>r.date===today);
 
   return `
-  <div class="page-title">일일 업무 보고서</div>
-  <div class="page-sub">마스터 관리자 전용 · 일일 업무 현황 보고 및 기록 관리</div>
+  <div class="page-title">일일 업무일지</div>
+  <div class="page-sub">마스터 관리자 전용 · 일일 업무 기록 및 조회</div>
 
   <!-- 오늘 업무일지 작성 -->
   <div class="card" style="margin-bottom:16px;border-color:rgba(109,79,207,.3)">
@@ -7044,7 +6727,7 @@ h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#666;font-size:12px;margin-bottom:20px}
 @media print{@page{size:A4;margin:12mm}body{padding:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
-<h1>일일 업무 보고서</h1>
+<h1>일일 업무일지</h1>
 <div class="sub">삼성SR 통합관리 시스템 · 출력: ${now.toLocaleString('ko')}</div>
 ${rows}
 <script>window.onload=function(){window.print();}<\/script>
