@@ -79,7 +79,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .qty-inp{flex:1;text-align:center;font-size:28px;font-weight:800;padding:10px;border-radius:10px}
 </style>
 </head>
-<body>
+<body tabindex="-1">
 
 <div class="topbar">
   <div>
@@ -299,6 +299,8 @@ function doInSearch() {
   const code = el.value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
   el.blur();
+  window.scrollTo(0, 0);
+  document.body.focus();
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
@@ -382,7 +384,10 @@ function resetInForm() {
 
 // ── 위치 조회 ──────────────────────────────────────────
 function doLocSearch(val) {
-  document.getElementById('loc-code').blur();
+  const loc = document.getElementById('loc-code');
+  loc.blur();
+  window.scrollTo(0, 0);
+  document.body.focus();
   const q = (val || '').trim();
   const box = document.getElementById('loc-results');
   if (!q) {
