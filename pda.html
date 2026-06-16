@@ -126,7 +126,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
           <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
             style="flex:1" inputmode="numeric"
             onkeydown="if(event.key==='Enter')doInSearch();">
-          <button onclick="doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
+          <button id="btn-in-search" onclick="this.focus();doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
       </div>
 
@@ -169,7 +169,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off"
           style="flex:1" inputmode="numeric"
           onkeydown="if(event.key==='Enter')doLocSearch(this.value);">
-        <button onclick="doLocSearch(document.getElementById('loc-code').value);" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
+        <button id="btn-loc-search" onclick="this.focus();doLocSearch(document.getElementById('loc-code').value);" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
       </div>
     </div>
     <div id="loc-results">
@@ -298,9 +298,7 @@ function doInSearch() {
   const el = document.getElementById('in-code');
   const code = el.value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
-  el.blur();
-  window.scrollTo(0, 0);
-  document.body.focus();
+  document.getElementById('btn-in-search').focus();
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
@@ -385,9 +383,7 @@ function resetInForm() {
 // ── 위치 조회 ──────────────────────────────────────────
 function doLocSearch(val) {
   const loc = document.getElementById('loc-code');
-  loc.blur();
-  window.scrollTo(0, 0);
-  document.body.focus();
+  document.getElementById('btn-loc-search').focus();
   const q = (val || '').trim();
   const box = document.getElementById('loc-results');
   if (!q) {
