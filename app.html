@@ -1251,7 +1251,7 @@ async function jbPull() {
     if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
     if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
     if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
-    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
+    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs.map(v=>typeof v==='string'?v:(v&&v.name?v.name:null)).filter(Boolean);localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));cfSet('suppliers',SUPPLIERS).catch(()=>{});}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
