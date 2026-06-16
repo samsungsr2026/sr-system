@@ -4706,7 +4706,6 @@ function rOrder(){
               <td style="white-space:nowrap">
                 <button class="btn" style="padding:5px 11px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="event.stopPropagation();previewOrder(${i})">👁️ 미리보기</button>
                 <button class="btn bbl" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();printOrder(${i})">🖨️ 출력</button>
-                <button style="background:var(--green-bg);border:1px solid rgba(13,158,114,.3);color:var(--green);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();addOrderItemsToSupplier(${i})">📦 품목 등록</button>
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
               </td>
             </tr>`).join('')}
