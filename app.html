@@ -523,7 +523,7 @@ select.fi option{background:#fff;color:#111}
     <div id="master-menu" style="display:none">
       <button class="nav-item" onclick="goMaster(&#39;dailyreport&#39;)" id="nb-dailyreport">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        일일 업무일지
+        일일 업무 보고서
       </button>
     </div>
     <div class="nav-section">외주</div>
@@ -6830,7 +6830,7 @@ function rChangeLog(){
 
 // ── 공지사항 / 메모 ───────────────────────────────────────────
 let noticeFilter='전체';
-// ── 일일 업무일지 (마스터 전용) ────────────────────────────────
+// ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
     return `<div style="text-align:center;padding:80px;color:var(--text3)">
@@ -6844,8 +6844,8 @@ function rDailyReport(){
   const todayReport = dailyReports.find(r=>r.date===today);
 
   return `
-  <div class="page-title">일일 업무일지</div>
-  <div class="page-sub">마스터 관리자 전용 · 일일 업무 기록 및 조회</div>
+  <div class="page-title">일일 업무 보고서</div>
+  <div class="page-sub">마스터 관리자 전용 · 일일 업무 현황 보고 및 기록 관리</div>
 
   <!-- 오늘 업무일지 작성 -->
   <div class="card" style="margin-bottom:16px;border-color:rgba(109,79,207,.3)">
@@ -7044,7 +7044,7 @@ h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#666;font-size:12px;margin-bottom:20px}
 @media print{@page{size:A4;margin:12mm}body{padding:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
-<h1>일일 업무일지</h1>
+<h1>일일 업무 보고서</h1>
 <div class="sub">삼성SR 통합관리 시스템 · 출력: ${now.toLocaleString('ko')}</div>
 ${rows}
 <script>window.onload=function(){window.print();}<\/script>
