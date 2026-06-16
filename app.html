@@ -1788,7 +1788,11 @@ function renderVendorItemsModal(i) {
           <input type="text" class="fi" id="vi-name" placeholder="품명 *" style="font-size:13px;padding:8px 10px">
           <input type="text" class="fi" id="vi-spec" placeholder="규격" style="font-size:13px;padding:8px 10px">
           <input type="number" class="fi" id="vi-qty" placeholder="수량" min="0" style="font-size:13px;padding:8px 10px">
-          <input type="text" class="fi" id="vi-unit" placeholder="단위" style="font-size:13px;padding:8px 10px">
+          <select class="fi" id="vi-unit" style="font-size:13px;padding:8px 10px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력');if(v){this.value=v;var opt=document.createElement('option');opt.value=v;opt.textContent=v;this.insertBefore(opt,this.lastElementChild);this.value=v;}else{this.value='EA';}}">
+            <option value="EA">EA</option>
+            <option value="kg">kg</option>
+            <option value="직접입력">직접입력</option>
+          </select>
           <input type="text" class="fi" id="vi-note" placeholder="비고" style="font-size:13px;padding:8px 10px">
           <button onclick="addVendorItem()" class="btn bbl" style="padding:8px 14px;font-size:13px;white-space:nowrap">추가</button>
         </div>
