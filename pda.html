@@ -298,8 +298,7 @@ function doInSearch() {
   const el = document.getElementById('in-code');
   const code = el.value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
-  el.disabled = true;
-  setTimeout(() => { el.disabled = false; }, 500);
+  el.blur();
   const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
@@ -383,9 +382,7 @@ function resetInForm() {
 
 // ── 위치 조회 ──────────────────────────────────────────
 function doLocSearch(val) {
-  const el = document.getElementById('loc-code');
-  el.disabled = true;
-  setTimeout(() => { el.disabled = false; }, 500);
+  document.getElementById('loc-code').blur();
   const q = (val || '').trim();
   const box = document.getElementById('loc-results');
   if (!q) {
