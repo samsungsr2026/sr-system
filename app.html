@@ -4622,10 +4622,6 @@ function rOrder(){
             <button class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:0 12px;font-size:12px;white-space:nowrap" onclick="manageVendors()">+ 추가/관리</button>
           </div>
         </div>
-        <div id="sup-items-bar" style="display:none;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">📦 업체 등록 품목 <span style="font-size:11px;font-weight:400;color:var(--text3)">(클릭하면 발주 목록에 추가)</span></div>
-          <div id="sup-items-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-        </div>
         <div class="grid2" style="margin-bottom:0;gap:10px">
           <div class="fg"><label class="fl">담당자</label><select class="fi" id="ord-w" onchange="orderForm.w=this.value">${wOpts}</select></div>
           <div class="fg"><label class="fl">납기 희망일</label><input type="date" class="fi" id="ord-due" value="${dueVal}" oninput="orderForm.due=this.value"></div>
@@ -4645,6 +4641,10 @@ function rOrder(){
         <div style="height:1px;background:var(--border);margin:6px 0 14px"></div>
 
         <div class="card-title">품목 추가</div>
+        <div id="sup-items-bar" style="display:none;margin-bottom:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📦 업체 등록 품목 <span style="font-size:11px;font-weight:400;color:var(--text3)">(클릭하면 발주 목록에 추가)</span></div>
+          <div id="sup-items-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="position:relative;flex:1">
             <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -4888,11 +4888,12 @@ function showSupplierItemsBar(vname){
     bar.style.display='block';
     list.innerHTML=items.map((it,j)=>`
       <div onclick="addSupplierItemToOrder('${it.name.replace(/'/g,"\\'")}','${(it.partNo||'').replace(/'/g,"\\'")}','${(it.moldNo||'').replace(/'/g,"\\'")}',this)"
-        style="background:var(--bg2);border:1.5px solid var(--border);border-radius:7px;padding:5px 11px;cursor:pointer;font-size:12px;transition:all .15s"
+        style="display:flex;align-items:center;gap:16px;background:var(--bg2);border:1.5px solid var(--border);border-radius:7px;padding:8px 14px;cursor:pointer;transition:all .15s;width:100%"
         onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-bg)'"
         onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg2)'">
-        <div style="font-weight:600;color:var(--text)">${it.name}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px">${it.partNo?'품번: '+it.partNo:''}${it.partNo&&it.moldNo?' · ':''}${it.moldNo?'금형: '+it.moldNo:''}</div>
+        <span style="font-size:13px;font-weight:700;color:var(--text);flex:2;min-width:0">${it.name}</span>
+        <span style="font-size:13px;font-family:monospace;color:var(--blue);flex:1;min-width:0">${it.partNo||'-'}</span>
+        <span style="font-size:13px;font-family:monospace;color:var(--purple);flex:1;min-width:0">${it.moldNo||'-'}</span>
       </div>`).join('');
   } else {
     bar.style.display='none';
