@@ -523,7 +523,7 @@ select.fi option{background:#fff;color:#111}
     <div id="master-menu" style="display:none">
       <button class="nav-item" onclick="goMaster(&#39;dailyreport&#39;)" id="nb-dailyreport">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        일일 업무일지
+        일일 업무 보고서
       </button>
     </div>
     <div class="nav-section">외주</div>
@@ -6525,7 +6525,7 @@ function rChangeLog(){
 
 // ── 공지사항 / 메모 ───────────────────────────────────────────
 let noticeFilter='전체';
-// ── 일일 업무일지 (마스터 전용) ────────────────────────────────
+// ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
     return `<div style="text-align:center;padding:80px;color:var(--text3)">
@@ -6539,13 +6539,13 @@ function rDailyReport(){
   const todayReport = dailyReports.find(r=>r.date===today);
 
   return `
-  <div class="page-title">일일 업무일지</div>
+  <div class="page-title">일일 업무 보고서</div>
   <div class="page-sub">마스터 관리자 전용 · 일일 업무 기록 및 조회</div>
 
-  <!-- 오늘 업무일지 작성 -->
+  <!-- 오늘 업무 보고서 작성 -->
   <div class="card" style="margin-bottom:16px;border-color:rgba(109,79,207,.3)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div class="card-title" style="margin-bottom:0;color:var(--purple)">📝 오늘 업무일지 — ${new Date().toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}</div>
+      <div class="card-title" style="margin-bottom:0;color:var(--purple)">📝 오늘 업무 보고서 — ${new Date().toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}</div>
       ${todayReport?'<span style="background:var(--green-bg);color:var(--green);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✓ 작성완료</span>':'<span style="background:var(--amber-bg);color:var(--amber);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">미작성</span>'}
     </div>
 
@@ -6584,18 +6584,18 @@ function rDailyReport(){
     </div>
 
     <div class="btn-row">
-      <button class="btn bbp btn-full" onclick="saveDailyReport()">💾 업무일지 저장</button>
+      <button class="btn bbp btn-full" onclick="saveDailyReport()">💾 업무 보고서 저장</button>
       <button class="btn bbl" style="padding:10px 20px" onclick="printDailyReport()">🖨️ 출력</button>
     </div>
   </div>
 
-  <!-- 업무일지 목록 -->
+  <!-- 업무 보고서 목록 -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div class="card-title" style="margin-bottom:0">📁 업무일지 목록 (총 ${dailyReports.length}건)</div>
+      <div class="card-title" style="margin-bottom:0">📁 업무 보고서 목록 (총 ${dailyReports.length}건)</div>
       ${dailyReports.length?`<button class="btn bbg" style="padding:7px 14px;font-size:12px" onclick="printAllDailyReports()">🖨️ 전체 출력</button>`:''}
     </div>
-    ${!dailyReports.length?`<div style="text-align:center;padding:30px;color:var(--text3)">작성된 업무일지가 없습니다</div>`:`
+    ${!dailyReports.length?`<div style="text-align:center;padding:30px;color:var(--text3)">작성된 업무 보고서가 없습니다</div>`:`
     <table class="tbl">
       <thead><tr>
         <th style="width:110px">날짜</th>
@@ -6649,7 +6649,7 @@ function loadDailyReport(date){
     if(is) is.value = r.issue||'';
     if(pl) pl.value = r.plan||'';
     if(io) io.value = r.io||'';
-    tst('📋 '+date+' 업무일지 불러오기 완료');
+    tst('📋 '+date+' 업무 보고서 불러오기 완료');
   }, 300);
 }
 
@@ -6662,7 +6662,7 @@ function approveDailyReport(date){
   dailyReports[idx].approvedAt = approvedAt;
   dailyReports[idx].approvedBy = curUser?.name||'마스터';
   saveDR();
-  tst('✅ '+date+' 업무일지 승인 완료');
+  tst('✅ '+date+' 업무 보고서 승인 완료');
   render();
 }
 
@@ -6679,15 +6679,15 @@ function saveDailyReport(){
   if(existing>=0) dailyReports[existing]=report;
   else dailyReports.push(report);
   saveDR();
-  addLog('other','업무일지 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
-  tst('✅ 업무일지 저장 완료');
+  addLog('other','업무 보고서 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
+  tst('✅ 업무 보고서 저장 완료');
   render();
 }
 
 function viewDailyReport(date){
   const r = dailyReports.find(x=>x.date===date);
   if(!r) return;
-  document.getElementById('mo-title').textContent='📋 업무일지 — '+r.date;
+  document.getElementById('mo-title').textContent='📋 업무 보고서 — '+r.date;
   document.getElementById('mb').innerHTML=`
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <span style="background:var(--blue-bg);color:var(--blue);padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700">${r.weather||''}</span>
@@ -6731,7 +6731,7 @@ function buildDRhtml(reports){
         </div>
       </div>
     </div>`).join('');
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>일일업무일지</title>
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>일일 업무 보고서</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12px}
@@ -6739,7 +6739,7 @@ h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#666;font-size:12px;margin-bottom:20px}
 @media print{@page{size:A4;margin:12mm}body{padding:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
-<h1>일일 업무일지</h1>
+<h1>일일 업무 보고서</h1>
 <div class="sub">삼성SR 통합관리 시스템 · 출력: ${now.toLocaleString('ko')}</div>
 ${rows}
 <script>window.onload=function(){window.print();}<\/script>
@@ -6762,11 +6762,11 @@ function printOneDailyReport(date){
 }
 
 function printAllDailyReports(){
-  if(!dailyReports.length){tst('출력할 업무일지가 없습니다');return;}
+  if(!dailyReports.length){tst('출력할 업무 보고서가 없습니다');return;}
   const sorted = dailyReports.slice().sort((a,b)=>b.date.localeCompare(a.date));
   const pw=window.open('','_blank','width=900,height=700');
   if(pw){pw.document.write(buildDRhtml(sorted));pw.document.close();}
-  tst('🖨️ 전체 업무일지 출력 준비 완료');
+  tst('🖨️ 전체 업무 보고서 출력 준비 완료');
 }
 
 function rNotice(){
