@@ -463,7 +463,7 @@ select.fi option{background:#fff;color:#111}
     </button>
     <button class="nav-item" onclick="go(&#39;inv&#39;)" id="nb-inv">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5M12 22V12"></path></svg>
-      재고 조회
+      제품 조회
     </button>
     <button class="nav-item" onclick="go(&#39;io&#39;)" id="nb-io">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8"></path></svg>
@@ -2704,7 +2704,7 @@ function rDash(){
 function rInv(){
   const list=fil();
   return `
-  <div class="page-title">재고 조회</div>
+  <div class="page-title">제품 조회</div>
   <div class="page-sub">전체 ${inv.length}종 품목 · 조회 ${list.length}종</div>
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
@@ -7300,7 +7300,7 @@ document.addEventListener('click',function(e){
   </button>
   <button class="mobile-tab" id="mt-inv" onclick="go(&#39;inv&#39;)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5M12 22V12"></path></svg>
-    재고조회
+    제품조회
   </button>
   <button class="mobile-tab" id="mt-io" onclick="go(&#39;io&#39;)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8"></path></svg>
