@@ -432,10 +432,6 @@ select.fi option{background:#fff;color:#111}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
       📍 위치 검색
     </button>
-    <button onclick="go(&#39;barcode&#39;)" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><line x1="14" y1="14" x2="14" y2="14"></line><line x1="14" y1="17.5" x2="14" y2="17.5"></line><line x1="17.5" y1="14" x2="17.5" y2="14"></line><line x1="21" y1="14" x2="21" y2="14"></line><line x1="17.5" y1="17.5" x2="17.5" y2="17.5"></line><line x1="21" y1="21" x2="21" y2="21"></line><line x1="14" y1="21" x2="14" y2="21"></line><line x1="17.5" y1="21" x2="17.5" y2="21"></line><line x1="21" y1="17.5" x2="21" y2="17.5"></line></svg>
-      🏷️ 제품 태그
-    </button>
     <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
@@ -467,7 +463,7 @@ select.fi option{background:#fff;color:#111}
     </button>
     <button class="nav-item" onclick="go(&#39;inv&#39;)" id="nb-inv">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5M12 22V12"></path></svg>
-      제품 조회
+      재고 조회
     </button>
     <button class="nav-item" onclick="go(&#39;io&#39;)" id="nb-io">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8"></path></svg>
@@ -504,6 +500,10 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
       제품 삭제
     </button>
+    <button class="nav-item" onclick="go(&#39;barcode&#39;)" id="nb-barcode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><line x1="14" y1="14" x2="14" y2="14"></line><line x1="14" y1="17.5" x2="14" y2="17.5"></line><line x1="17.5" y1="14" x2="17.5" y2="14"></line><line x1="21" y1="14" x2="21" y2="14"></line><line x1="17.5" y1="17.5" x2="17.5" y2="17.5"></line><line x1="21" y1="21" x2="21" y2="21"></line><line x1="14" y1="21" x2="14" y2="21"></line><line x1="17.5" y1="21" x2="17.5" y2="21"></line><line x1="21" y1="17.5" x2="21" y2="17.5"></line></svg>
+      제품 태그 출력
+    </button>
     <button class="nav-item" onclick="go(&#39;changelog&#39;)" id="nb-changelog">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
       변경이력
@@ -523,7 +523,7 @@ select.fi option{background:#fff;color:#111}
     <div id="master-menu" style="display:none">
       <button class="nav-item" onclick="goMaster(&#39;dailyreport&#39;)" id="nb-dailyreport">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        일일 업무 보고서
+        일일 업무일지
       </button>
     </div>
     <div class="nav-section">외주</div>
@@ -1093,8 +1093,9 @@ function fileIcon(type,name){
 // 계정 목록: {id, name, pw, role}  role: 'master'(마스터관리자) | 'admin'(관리자) | 'user'(일반)
 // 기본 마스터 계정 1개 - 최초 실행 시 생성
 const DEFAULT_ACCOUNTS=[{id:'master',name:'정창식',pw:'6716',role:'master'}];
-// 로컬스토리지에 저장된 계정 우선 사용 (없으면 DEFAULT)
-let accounts=(()=>{try{const la=JSON.parse(localStorage.getItem('sr-accounts'));if(Array.isArray(la)&&la.length>0)return la;}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));})();
+// 항상 서버에서 최신 accounts 불러오기 (로컬 캐시 무시)
+localStorage.removeItem('sr-accounts');
+let accounts=JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
 // 앱 시작 시 서버 accounts 동기화
 cfGet('accounts').then(ra=>{
   if(Array.isArray(ra)&&ra.length>0){
@@ -1102,18 +1103,8 @@ cfGet('accounts').then(ra=>{
     accounts=ra;
     localStorage.setItem('sr-accounts',JSON.stringify(accounts));
   } else {
-    // 서버에 없으면 현재 accounts(로컬 또는 DEFAULT)를 서버에 업로드
+    // 서버에 없으면 로컬 데이터를 서버에 업로드
     cfSet('accounts', accounts);
-  }
-  // 설정 페이지가 열려있으면 관리자 계정 현황 테이블 갱신
-  const tbl=document.getElementById('acct-tbl');
-  if(tbl){
-    tbl.innerHTML=(accounts||[]).map(a=>'<tr>'
-      +'<td style="font-weight:600">'+a.name+'</td>'
-      +'<td><span class="badge '+(a.role==='master'?'bb':'bgr')+'">'+(a.role==='master'?'마스터':'관리자')+'</span></td>'
-      +'<td style="color:var(--text3);font-size:12px">아이디: '+a.id+'</td>'
-      +'</tr>').join('')
-      ||'<tr><td colspan="3" style="text-align:center;color:var(--text3)">등록된 관리자 없음</td></tr>';
   }
 });
 // 마스터 관리자 이름 마이그레이션: 기존에 '마스터 관리자'로 등록돼 있으면 '정창식'으로 자동 변경
@@ -1387,10 +1378,10 @@ function picThumb(it){
   const src=getImg(it.id);
   if(src){
     return `<img src="${src}" onclick="event.stopPropagation();opD('${it.id}')" title="클릭하여 상세 열기"
-      style="width:42px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;flex-shrink:0;background:#fff">`;
+      style="width:64px;height:64px;border-radius:8px;object-fit:contain;border:1px solid var(--border);cursor:pointer;flex-shrink:0;background:#fff">`;
   }
   return `<div onclick="event.stopPropagation();opD('${it.id}')" title="사진 없음 - 클릭하여 등록"
-    style="width:42px;height:42px;border-radius:8px;border:1px dashed var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;flex-shrink:0">${it.e||'📷'}</div>`;
+    style="width:64px;height:64px;border-radius:8px;border:1px dashed var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0">${it.e||'📷'}</div>`;
 }
 function st(i){return i.qty<=i.min*.3?'low':i.qty<=i.min?'med':'ok';}
 function sb(i){const s=st(i);return s==='low'?'<span class="badge br">부족</span>':s==='med'?'<span class="badge ba">주의</span>':'<span class="badge bg">정상</span>';}
@@ -2559,15 +2550,15 @@ function rDash(){
       <div class="stat-val" style="color:var(--red)">${low+med}</div><div class="stat-label">발주 필요 품목</div>
       <div style="font-size:10px;color:var(--red);opacity:.7;margin-top:6px;font-weight:600">재고 알림 →</div>
     </div>
-    <div class="stat-card" style="border-color:rgba(45,212,160,.3);cursor:pointer;transition:transform .15s,box-shadow .15s" onclick="dashTodayIO('in')" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(13,158,114,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div class="stat-card" style="border-color:rgba(45,212,160,.3);cursor:pointer;transition:transform .15s,box-shadow .15s" onclick="goIO('in')" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(13,158,114,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div class="stat-icon" style="background:var(--green-bg)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
       <div class="stat-val" style="color:var(--green)">+${tIn}</div><div class="stat-label">오늘 입고</div>
-      <div style="font-size:10px;color:var(--green);opacity:.7;margin-top:6px;font-weight:600">내역 보기 →</div>
+      <div style="font-size:10px;color:var(--green);opacity:.7;margin-top:6px;font-weight:600">입출고 등록 →</div>
     </div>
-    <div class="stat-card" style="border-color:rgba(245,158,11,.3);cursor:pointer;transition:transform .15s,box-shadow .15s" onclick="dashTodayIO('out')" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(192,120,0,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div class="stat-card" style="border-color:rgba(245,158,11,.3);cursor:pointer;transition:transform .15s,box-shadow .15s" onclick="goIO('out')" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(192,120,0,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div class="stat-icon" style="background:var(--amber-bg)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg></div>
       <div class="stat-val" style="color:var(--amber)">-${tOut}</div><div class="stat-label">오늘 출고</div>
-      <div style="font-size:10px;color:var(--amber);opacity:.7;margin-top:6px;font-weight:600">내역 보기 →</div>
+      <div style="font-size:10px;color:var(--amber);opacity:.7;margin-top:6px;font-weight:600">입출고 등록 →</div>
     </div>
   </div>
 
@@ -2704,7 +2695,7 @@ function rDash(){
 function rInv(){
   const list=fil();
   return `
-  <div class="page-title">제품 조회</div>
+  <div class="page-title">재고 조회</div>
   <div class="page-sub">전체 ${inv.length}종 품목 · 조회 ${list.length}종</div>
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
@@ -3888,13 +3879,6 @@ function rSet(){
         </div>
         <div style="font-size:12px;color:var(--green);font-weight:700">✓ 데이터 수정 가능</div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-        ${(accounts||[]).map(a=>`<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px">
-          <span style="font-size:15px">${a.role==='master'?'👑':'🔧'}</span>
-          <span style="font-size:13px;font-weight:700">${a.name}</span>
-          <span class="badge ${a.role==='master'?'bb':'bgr'}" style="font-size:11px">${a.role==='master'?'마스터':'관리자'}</span>
-        </div>`).join('')}
-      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn bbl" onclick="changeMyPw()">🔑 내 비밀번호 변경</button>
         ${isMaster()?`<button class="btn bbp" onclick="openAccountMgr()">👑 관리자 계정 관리</button>`:''}
@@ -3952,15 +3936,12 @@ function rSet(){
       <div class="card" style="margin-bottom:14px">
         <div class="card-title">👥 관리자 계정 현황</div>
         <table class="tbl">
-          <tbody id="acct-tbl">
-          ${(accounts||[]).length
-            ? (accounts||[]).map(function(a){return '<tr>'
-                +'<td style="font-weight:600">'+a.name+'</td>'
-                +'<td><span class="badge '+(a.role==='master'?'bb':'bgr')+'">'+(a.role==='master'?'마스터':'관리자')+'</span></td>'
-                +'<td style="color:var(--text3);font-size:12px">아이디: '+a.id+'</td>'
-                +'</tr>';}).join('')
-            : '<tr><td colspan="3" style="text-align:center;color:var(--text3)">등록된 관리자 없음</td></tr>'}
-          </tbody>
+          ${(accounts||[]).map(function(a){return '<tr>'
+            +'<td style="font-weight:600">'+a.name+'</td>'
+            +'<td><span class="badge '+(a.role==='master'?'bb':'bgr')+'">'+(a.role==='master'?'마스터':'관리자')+'</span></td>'
+            +'<td style="color:var(--text3);font-size:12px">아이디: '+a.id+'</td>'
+            +'</tr>';}).join('')}
+          ${!(accounts||[]).length?'<tr><td colspan="3" style="text-align:center;color:var(--text3)">등록된 관리자 없음</td></tr>':''}
         </table>
       </div>
       <div class="card">
@@ -4491,7 +4472,7 @@ function rOrder(){
   return `
   <div class="page-title">발주서</div>
   <div class="page-sub">발주서를 작성하거나 발행된 발주서를 출력합니다</div>
-  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
+  <div class="grid2">
     <div>
       <div class="card" style="border-color:rgba(26,107,255,.3)">
         <div class="card-title" style="color:var(--blue)">📝 새 발주서 작성</div>
@@ -5580,27 +5561,6 @@ function rPstat(){
   </div>`}`;
 }
 
-// 대시보드 오늘 입고/출고 카드 클릭 시 오늘 내역 모달
-function dashTodayIO(type){
-  const d0=new Date().setHours(0,0,0,0);
-  const list=txs.filter(t=>t.type===type&&t.ts>=d0).sort((a,b)=>b.ts-a.ts);
-  const totQty=list.reduce((s,t)=>s+t.qty,0);
-  const col=type==='in'?'var(--green)':'var(--amber)';
-  const bg=type==='in'?'var(--green-bg)':'var(--amber-bg)';
-  const sign=type==='in'?'+':'-';
-  document.getElementById('mo-title').textContent=(type==='in'?'📥 오늘 입고 내역':'📤 오늘 출고 내역');
-  document.getElementById('mb').innerHTML=`
-    <div style="display:flex;gap:10px;margin-bottom:14px">
-      <div style="flex:1;background:var(--bg3);border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">${type==='in'?'입고':'출고'} 건수</div><div style="font-size:20px;font-weight:700;font-family:monospace">${list.length}건</div></div>
-      <div style="flex:1;background:${bg};border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:${col};margin-bottom:4px">${type==='in'?'입고':'출고'} 수량</div><div style="font-size:20px;font-weight:700;font-family:monospace;color:${col}">${sign}${totQty.toLocaleString()}</div></div>
-    </div>
-    ${list.length?`<table class="tbl" style="font-size:12px">
-      <thead><tr><th>품명</th><th>금형번호</th><th>수량</th><th>담당자</th><th>일시</th></tr></thead>
-      <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2)">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td></tr>`;}).join('')}</tbody>
-    </table>`:'<div style="text-align:center;padding:20px;color:var(--text3)">오늘 '+(type==='in'?'입고':'출고')+' 내역 없음</div>'}`;
-  document.getElementById('ov').classList.add('on');
-}
-
 // 생산자 클릭 시 해당 생산자의 입고 상세 모달
 function pstatDetail(w){
   const now=new Date();
@@ -6553,7 +6513,7 @@ function rChangeLog(){
 
 // ── 공지사항 / 메모 ───────────────────────────────────────────
 let noticeFilter='전체';
-// ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
+// ── 일일 업무일지 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
     return `<div style="text-align:center;padding:80px;color:var(--text3)">
@@ -6567,13 +6527,13 @@ function rDailyReport(){
   const todayReport = dailyReports.find(r=>r.date===today);
 
   return `
-  <div class="page-title">일일 업무 보고서</div>
+  <div class="page-title">일일 업무일지</div>
   <div class="page-sub">마스터 관리자 전용 · 일일 업무 기록 및 조회</div>
 
-  <!-- 오늘 업무 보고서 작성 -->
+  <!-- 오늘 업무일지 작성 -->
   <div class="card" style="margin-bottom:16px;border-color:rgba(109,79,207,.3)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div class="card-title" style="margin-bottom:0;color:var(--purple)">📝 오늘 업무 보고서 — ${new Date().toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}</div>
+      <div class="card-title" style="margin-bottom:0;color:var(--purple)">📝 오늘 업무일지 — ${new Date().toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}</div>
       ${todayReport?'<span style="background:var(--green-bg);color:var(--green);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✓ 작성완료</span>':'<span style="background:var(--amber-bg);color:var(--amber);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">미작성</span>'}
     </div>
 
@@ -6612,18 +6572,18 @@ function rDailyReport(){
     </div>
 
     <div class="btn-row">
-      <button class="btn bbp btn-full" onclick="saveDailyReport()">💾 업무 보고서 저장</button>
+      <button class="btn bbp btn-full" onclick="saveDailyReport()">💾 업무일지 저장</button>
       <button class="btn bbl" style="padding:10px 20px" onclick="printDailyReport()">🖨️ 출력</button>
     </div>
   </div>
 
-  <!-- 업무 보고서 목록 -->
+  <!-- 업무일지 목록 -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div class="card-title" style="margin-bottom:0">📁 업무 보고서 목록 (총 ${dailyReports.length}건)</div>
+      <div class="card-title" style="margin-bottom:0">📁 업무일지 목록 (총 ${dailyReports.length}건)</div>
       ${dailyReports.length?`<button class="btn bbg" style="padding:7px 14px;font-size:12px" onclick="printAllDailyReports()">🖨️ 전체 출력</button>`:''}
     </div>
-    ${!dailyReports.length?`<div style="text-align:center;padding:30px;color:var(--text3)">작성된 업무 보고서가 없습니다</div>`:`
+    ${!dailyReports.length?`<div style="text-align:center;padding:30px;color:var(--text3)">작성된 업무일지가 없습니다</div>`:`
     <table class="tbl">
       <thead><tr>
         <th style="width:110px">날짜</th>
@@ -6677,7 +6637,7 @@ function loadDailyReport(date){
     if(is) is.value = r.issue||'';
     if(pl) pl.value = r.plan||'';
     if(io) io.value = r.io||'';
-    tst('📋 '+date+' 업무 보고서 불러오기 완료');
+    tst('📋 '+date+' 업무일지 불러오기 완료');
   }, 300);
 }
 
@@ -6690,7 +6650,7 @@ function approveDailyReport(date){
   dailyReports[idx].approvedAt = approvedAt;
   dailyReports[idx].approvedBy = curUser?.name||'마스터';
   saveDR();
-  tst('✅ '+date+' 업무 보고서 승인 완료');
+  tst('✅ '+date+' 업무일지 승인 완료');
   render();
 }
 
@@ -6707,15 +6667,15 @@ function saveDailyReport(){
   if(existing>=0) dailyReports[existing]=report;
   else dailyReports.push(report);
   saveDR();
-  addLog('other','업무 보고서 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
-  tst('✅ 업무 보고서 저장 완료');
+  addLog('other','업무일지 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
+  tst('✅ 업무일지 저장 완료');
   render();
 }
 
 function viewDailyReport(date){
   const r = dailyReports.find(x=>x.date===date);
   if(!r) return;
-  document.getElementById('mo-title').textContent='📋 업무 보고서 — '+r.date;
+  document.getElementById('mo-title').textContent='📋 업무일지 — '+r.date;
   document.getElementById('mb').innerHTML=`
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <span style="background:var(--blue-bg);color:var(--blue);padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700">${r.weather||''}</span>
@@ -6759,7 +6719,7 @@ function buildDRhtml(reports){
         </div>
       </div>
     </div>`).join('');
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>일일 업무 보고서</title>
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>일일업무일지</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12px}
@@ -6767,7 +6727,7 @@ h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
 .sub{text-align:center;color:#666;font-size:12px;margin-bottom:20px}
 @media print{@page{size:A4;margin:12mm}body{padding:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
 </style></head><body>
-<h1>일일 업무 보고서</h1>
+<h1>일일 업무일지</h1>
 <div class="sub">삼성SR 통합관리 시스템 · 출력: ${now.toLocaleString('ko')}</div>
 ${rows}
 <script>window.onload=function(){window.print();}<\/script>
@@ -6790,11 +6750,11 @@ function printOneDailyReport(date){
 }
 
 function printAllDailyReports(){
-  if(!dailyReports.length){tst('출력할 업무 보고서가 없습니다');return;}
+  if(!dailyReports.length){tst('출력할 업무일지가 없습니다');return;}
   const sorted = dailyReports.slice().sort((a,b)=>b.date.localeCompare(a.date));
   const pw=window.open('','_blank','width=900,height=700');
   if(pw){pw.document.write(buildDRhtml(sorted));pw.document.close();}
-  tst('🖨️ 전체 업무 보고서 출력 준비 완료');
+  tst('🖨️ 전체 업무일지 출력 준비 완료');
 }
 
 function rNotice(){
@@ -7321,7 +7281,7 @@ document.addEventListener('click',function(e){
   </button>
   <button class="mobile-tab" id="mt-inv" onclick="go(&#39;inv&#39;)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5M12 22V12"></path></svg>
-    제품조회
+    재고조회
   </button>
   <button class="mobile-tab" id="mt-io" onclick="go(&#39;io&#39;)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8"></path></svg>
