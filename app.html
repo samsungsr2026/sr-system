@@ -1105,6 +1105,16 @@ cfGet('accounts').then(ra=>{
     // 서버에 없으면 현재 accounts(로컬 또는 DEFAULT)를 서버에 업로드
     cfSet('accounts', accounts);
   }
+  // 설정 페이지가 열려있으면 관리자 계정 현황 테이블 갱신
+  const tbl=document.getElementById('acct-tbl');
+  if(tbl){
+    tbl.innerHTML=(accounts||[]).map(a=>'<tr>'
+      +'<td style="font-weight:600">'+a.name+'</td>'
+      +'<td><span class="badge '+(a.role==='master'?'bb':'bgr')+'">'+(a.role==='master'?'마스터':'관리자')+'</span></td>'
+      +'<td style="color:var(--text3);font-size:12px">아이디: '+a.id+'</td>'
+      +'</tr>').join('')
+      ||'<tr><td colspan="3" style="text-align:center;color:var(--text3)">등록된 관리자 없음</td></tr>';
+  }
 });
 // 마스터 관리자 이름 마이그레이션: 기존에 '마스터 관리자'로 등록돼 있으면 '정창식'으로 자동 변경
 (function migrateMasterName(){
@@ -3934,7 +3944,7 @@ function rSet(){
       </div>
       <div class="card" style="margin-bottom:14px">
         <div class="card-title">👥 관리자 계정 현황</div>
-        <table class="tbl">
+        <table class="tbl"><tbody id="acct-tbl">
           ${(accounts||[]).map(function(a){return '<tr>'
             +'<td style="font-weight:600">'+a.name+'</td>'
             +'<td><span class="badge '+(a.role==='master'?'bb':'bgr')+'">'+(a.role==='master'?'마스터':'관리자')+'</span></td>'
