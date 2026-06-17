@@ -1093,7 +1093,8 @@ function fileIcon(type,name){
 // 계정 목록: {id, name, pw, role}  role: 'master'(마스터관리자) | 'admin'(관리자) | 'user'(일반)
 // 기본 마스터 계정 1개 - 최초 실행 시 생성
 const DEFAULT_ACCOUNTS=[{id:'master',name:'정창식',pw:'6716',role:'master'}];
-let accounts=JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+// 로컬스토리지에 저장된 계정 우선 사용 (없으면 DEFAULT)
+let accounts=(()=>{try{const la=JSON.parse(localStorage.getItem('sr-accounts'));if(Array.isArray(la)&&la.length>0)return la;}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));})();
 // 앱 시작 시 서버 accounts 동기화
 cfGet('accounts').then(ra=>{
   if(Array.isArray(ra)&&ra.length>0){
@@ -1101,7 +1102,7 @@ cfGet('accounts').then(ra=>{
     accounts=ra;
     localStorage.setItem('sr-accounts',JSON.stringify(accounts));
   } else {
-    // 서버에 없으면 로컬 데이터를 서버에 업로드
+    // 서버에 없으면 현재 accounts(로컬 또는 DEFAULT)를 서버에 업로드
     cfSet('accounts', accounts);
   }
 });
