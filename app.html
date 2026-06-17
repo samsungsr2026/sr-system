@@ -2277,9 +2277,11 @@ function rVendorDetail(i){
               <td style="font-family:monospace;font-weight:700">${o.qty}${o.unit||'개'}</td>
               <td style="font-size:12px;color:var(--text3)">${o.due||'-'}</td>
               <td><span class="badge ${o.status==='done'?'bg':'ba'}">${o.status==='done'?'완료':'진행중'}</span></td>
-              <td style="display:flex;gap:4px">
+              <td style="display:flex;gap:4px;flex-wrap:wrap">
                 ${o.status!=='done'?`<button onclick="vendorOrderDone('${v.name}',${oi})" class="btn bbg" style="padding:3px 8px;font-size:11px">완료</button>`:''}
                 <button onclick="openPrOrderModal(${i},${oi})" class="btn bbl" style="padding:3px 8px;font-size:11px">출력</button>
+                <button onclick="openEditVendorOrderModal(${i},${oi})" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:3px 8px;font-size:11px">수정</button>
+                <button onclick="delVendorOrder('${v.name}','order',${oi})" class="btn bbr" style="padding:3px 8px;font-size:11px">삭제</button>
               </td>
             </tr>`).join('')}
           </tbody>
@@ -2295,8 +2297,8 @@ function rVendorDetail(i){
         </div>
         ${(()=>{const mats=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='material');
           return !mats.length?'<div style="text-align:center;padding:16px;color:var(--text3)">지급 재료 내역 없음</div>':
-          '<table class="tbl"><thead><tr><th>재료명</th><th>수량</th><th>지급일</th><th>비고</th></tr></thead><tbody>'+
-          mats.map(o=>`<tr><td style="font-weight:600">${o.item}</td><td style="font-family:monospace;font-weight:700;color:var(--purple)">${o.qty}${o.unit||'개'}</td><td style="font-size:12px;color:var(--text3)">${new Date(o.ts).toLocaleDateString('ko')}</td><td style="font-size:12px;color:var(--text3)">${o.note||'-'}</td></tr>`).join('')+
+          '<table class="tbl"><thead><tr><th>재료명</th><th>수량</th><th>지급일</th><th>비고</th><th></th></tr></thead><tbody>'+
+          mats.map((o,oi)=>`<tr><td style="font-weight:600">${o.item}</td><td style="font-family:monospace;font-weight:700;color:var(--purple)">${o.qty}${o.unit||'개'}</td><td style="font-size:12px;color:var(--text3)">${new Date(o.ts).toLocaleDateString('ko')}</td><td style="font-size:12px;color:var(--text3)">${o.note||'-'}</td><td style="display:flex;gap:4px;flex-wrap:wrap"><button onclick="openEditVendorOrderModal(${i},${oi},'material')" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:3px 8px;font-size:11px">수정</button><button onclick="delVendorOrder('${v.name}','material',${oi})" class="btn bbr" style="padding:3px 8px;font-size:11px">삭제</button></td></tr>`).join('')+
           '</tbody></table>';})()}
       </div>
     <!-- 입고 현황 -->
@@ -2307,13 +2309,17 @@ function rVendorDetail(i){
         </div>
         ${!incomings.length?'<div style="text-align:center;padding:16px;color:var(--text3)">입고 내역 없음</div>':`
         <table class="tbl">
-          <thead><tr><th>품목</th><th>수량</th><th>입고일</th><th>메모</th></tr></thead>
+          <thead><tr><th>품목</th><th>수량</th><th>입고일</th><th>메모</th><th></th></tr></thead>
           <tbody>
-            ${incomings.map(o=>`<tr>
+            ${incomings.map((o,oi)=>`<tr>
               <td style="font-weight:600">${o.item}</td>
               <td style="font-family:monospace;font-weight:700;color:var(--green)">${o.qty}${o.unit||'개'}</td>
               <td style="font-size:12px;color:var(--text3)">${new Date(o.ts).toLocaleDateString('ko')}</td>
               <td style="font-size:12px;color:var(--text3)">${o.note||'-'}</td>
+              <td style="display:flex;gap:4px;flex-wrap:wrap">
+                <button onclick="openEditVendorOrderModal(${i},${oi},'incoming')" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:3px 8px;font-size:11px">수정</button>
+                <button onclick="delVendorOrder('${v.name}','incoming',${oi})" class="btn bbr" style="padding:3px 8px;font-size:11px">삭제</button>
+              </td>
             </tr>`).join('')}
           </tbody>
         </table>`}
@@ -2394,6 +2400,69 @@ function vendorOrderDone(vname, oi){
   if(!confirm('발주 완료 처리하시겠습니까?'))return;
   vendorOrders[idx].status='done';
   svVendors();go('vendor');
+}
+
+function delVendorOrder(vname, type, oi){
+  if(!requireEdit())return;
+  const filtered=vendorOrders.filter(o=>o.vendorName===vname&&o.type===type);
+  const o=filtered[oi];
+  if(!o)return;
+  const idx=vendorOrders.indexOf(o);
+  if(idx<0)return;
+  const label=type==='order'?'발주':type==='incoming'?'입고':'지급 재료';
+  if(!confirm(label+' 내역 "'+o.item+'"을(를) 삭제하시겠습니까?'))return;
+  vendorOrders.splice(idx,1);
+  svVendors();tst('✓ 삭제 완료');go('vendor');
+}
+
+function openEditVendorOrderModal(vi, oi, type){
+  if(!requireEdit())return;
+  const v=vendors[vi];
+  type=type||'order';
+  const filtered=vendorOrders.filter(o=>o.vendorName===v.name&&o.type===type);
+  const o=filtered[oi];
+  if(!o)return;
+  const idx=vendorOrders.indexOf(o);
+  if(idx<0)return;
+  const titleMap={order:'📋 발주 수정 — ',incoming:'📦 입고 수정 — ',material:'🔧 지급 재료 수정 — '};
+  document.getElementById('mo-title').textContent=titleMap[type]+v.name;
+  let extraFields='';
+  if(type==='order'){
+    extraFields=`<div class="fg"><label class="fl">납기일</label><input type="date" class="fi" id="ve-due" value="${o.due||''}"></div>`;
+  }else if(type==='incoming'){
+    extraFields=`<div class="fg"><label class="fl">입고일</label><input type="date" class="fi" id="ve-date" value="${new Date(o.ts).toISOString().slice(0,10)}"></div>`;
+  }else{
+    extraFields=`<div class="fg"><label class="fl">지급일</label><input type="date" class="fi" id="ve-date" value="${new Date(o.ts).toISOString().slice(0,10)}"></div>`;
+  }
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">${type==='material'?'재료명':'품목명'} *</label><input type="text" class="fi" id="ve-item" value="${o.item||''}"></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="ve-qty" min="0.01" step="0.01" value="${o.qty||''}"></div>
+      <div class="fg"><label class="fl">단위</label><input type="text" class="fi" id="ve-unit" value="${o.unit||'개'}"></div>
+    </div>
+    ${extraFields}
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ve-note" value="${o.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitEditVendorOrder(${idx},'${type}')">✓ 수정 완료</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitEditVendorOrder(idx, type){
+  const o=vendorOrders[idx];
+  if(!o)return;
+  const item=document.getElementById('ve-item')?.value?.trim();
+  const qty=parseFloat(document.getElementById('ve-qty')?.value);
+  const unit=document.getElementById('ve-unit')?.value?.trim()||'개';
+  const note=document.getElementById('ve-note')?.value?.trim()||'';
+  if(!item){tst((type==='material'?'재료명':'품목명')+'을 입력해주세요');return;}
+  if(!qty||qty<=0){tst('수량을 입력해주세요');return;}
+  o.item=item;o.qty=qty;o.unit=unit;o.note=note;
+  if(type==='order'){
+    o.due=document.getElementById('ve-due')?.value||'';
+  }else{
+    const d=document.getElementById('ve-date')?.value;
+    if(d) o.ts=new Date(d).getTime();
+  }
+  svVendors();cmo();tst('✓ 수정 완료');go('vendor');
 }
 
 function openIncomingModal(vi){
