@@ -4700,10 +4700,14 @@ function mvBodyHTML(){
           </div>
           ${open?`<div style="padding:0 14px 14px;border-top:1px solid var(--border)">
             <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">
-              ${items.length?items.map((it,ii)=>`<span style="display:flex;align-items:center;gap:6px;background:var(--bg2,var(--bg));border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px">
-                ${it.name}${it.id?` <span style="color:var(--text3);font-size:10px">(${it.id})</span>`:''}
+              ${items.length?items.map((it,ii)=>{
+                const invIt=it.id?inv.find(x=>x.id===it.id):null;
+                const cls=it.classNo||invIt?.classNo||'';
+                return `<span style="display:flex;align-items:center;gap:6px;background:var(--bg2,var(--bg));border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px">
+                ${it.name}${it.id?` <span style="color:var(--text3);font-size:10px">(금형:${it.id})</span>`:''}${cls?` <span style="color:var(--text3);font-size:10px">(부품:${cls})</span>`:''}
                 <button onclick="mvRemoveItem(${i},${ii})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
-              </span>`).join(''):'<div style="color:var(--text3);font-size:12px">등록된 취급 품목이 없습니다</div>'}
+              </span>`;
+              }).join(''):'<div style="color:var(--text3);font-size:12px">등록된 취급 품목이 없습니다</div>'}
             </div>
             <div style="display:flex;gap:8px;margin-bottom:8px">
               <div style="position:relative;flex:1">
@@ -4757,7 +4761,7 @@ function mvAddInvItem(i,id){
   if(!it)return;
   if(!SUPPLIER_ITEMS[v])SUPPLIER_ITEMS[v]=[];
   if(SUPPLIER_ITEMS[v].some(x=>x.id===id)){tst('이미 등록된 품목입니다');return;}
-  SUPPLIER_ITEMS[v].push({name:it.name,id:it.id});
+  SUPPLIER_ITEMS[v].push({name:it.name,id:it.id,classNo:it.classNo||''});
   saveSUPITEMS();mvItemSq='';tst('✓ '+it.name+' 취급 품목 등록');mvRefresh();
 }
 function mvAddDirectItem(i){
