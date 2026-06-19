@@ -5023,7 +5023,7 @@ function ordResultHTML(){
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${si.name}</div>
-          <div style="font-size:11px;color:var(--text3)">${it?`금형 <span style="font-family:monospace;color:var(--blue);font-weight:600">${it.id}</span> · 재고 <span style="color:${it.qty<=it.min?'var(--red)':'var(--green)'};font-weight:600">${it.qty}${it.unit}</span>`:'재고 미등록 품목'}</div>
+          <div style="font-size:11px;color:var(--text3)">${it?`금형 <span style="font-family:monospace;color:var(--blue);font-weight:600">${it.id}</span> · 부품 ${it.classNo||'-'} · 재고 <span style="color:${it.qty<=it.min?'var(--red)':'var(--green)'};font-weight:600">${it.qty}${it.unit}</span>`:'재고 미등록 품목'}</div>
         </div>
         <button class="btn bbl" style="padding:6px 12px;font-size:12px;flex-shrink:0" onclick="${it?`addOrderItem('${it.id}')`:`addOrderItemFree('${si.name.replace(/'/g,"\\'")}')`}">+ 추가</button>
       </div>`;
