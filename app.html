@@ -4645,6 +4645,24 @@ window.onload=function(){
 
 // ── 발주서 ────────────────────────────────────────────────────────
 let orderSq='';
+let ordFilterType='all'; // all | week | month
+let ordFilterKey='';
+let ordPage=1;
+const ORD_PAGE_SIZE=10;
+function ordWeekKey(ts){
+  const d=new Date(ts);const day=(d.getDay()+6)%7;const mon=new Date(d);
+  mon.setDate(d.getDate()-day);mon.setHours(0,0,0,0);
+  return mon.getFullYear()+'-'+String(mon.getMonth()+1).padStart(2,'0')+'-'+String(mon.getDate()).padStart(2,'0');
+}
+function ordWeekLabel(key){
+  const [y,m,d]=key.split('-').map(Number);const mon=new Date(y,m-1,d);const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+  return `${y}년 ${mon.getMonth()+1}/${mon.getDate()} ~ ${sun.getMonth()+1}/${sun.getDate()}`;
+}
+function ordMonthKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function ordMonthLabel(key){const [y,m]=key.split('-');return `${y}년 ${parseInt(m)}월`;}
+function setOrdFilterType(t){ordFilterType=t;ordFilterKey='';ordPage=1;render();}
+function setOrdFilterKey(k){ordFilterKey=k;ordPage=1;render();}
+function setOrdPage(p){ordPage=p;render();}
 
 function rOrder(){
   // 담당자 옵션 = 관리자(master/admin) 계정만
@@ -4734,12 +4752,39 @@ function rOrder(){
       </div>
 
       <div class="card">
-        <div class="card-title">발행된 발주서 <span style="color:var(--text2)">${orders.length}건</span></div>
-        ${!orders.length?'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">발행된 발주서가 없습니다</div>':`
-        <table class="tbl">
-          <thead><tr><th>문서번호</th><th>공급업체</th><th>품목</th><th>발행일</th><th>출력</th><th>출력일시</th><th>작업</th></tr></thead>
-          <tbody>
-            ${orders.map((o,i)=>`<tr>
+        ${(()=>{
+          const withIdx=orders.map((o,i)=>({o,i}));
+          let weekKeys=[],monthKeys=[],filtered=withIdx;
+          if(ordFilterType==='week'){
+            weekKeys=[...new Set(orders.map(o=>ordWeekKey(o.ts)))].sort().reverse();
+            const curKey=ordFilterKey||weekKeys[0]||'';
+            filtered=withIdx.filter(x=>ordWeekKey(x.o.ts)===curKey);
+          }else if(ordFilterType==='month'){
+            monthKeys=[...new Set(orders.map(o=>ordMonthKey(o.ts)))].sort().reverse();
+            const curKey=ordFilterKey||monthKeys[0]||'';
+            filtered=withIdx.filter(x=>ordMonthKey(x.o.ts)===curKey);
+          }
+          const keyOptsHTML=ordFilterType==='week'
+            ?weekKeys.map(k=>`<option value="${k}" ${ (ordFilterKey||weekKeys[0])===k?'selected':''}>${ordWeekLabel(k)}</option>`).join('')
+            :ordFilterType==='month'
+            ?monthKeys.map(k=>`<option value="${k}" ${ (ordFilterKey||monthKeys[0])===k?'selected':''}>${ordMonthLabel(k)}</option>`).join('')
+            :'';
+          const header=`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div class="card-title" style="margin-bottom:0">발행된 발주서 <span style="color:var(--text2)">${filtered.length}건${ordFilterType!=='all'?` / 전체 ${orders.length}건`:''}</span></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select onchange="setOrdFilterType(this.value)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px">
+                <option value="all" ${ordFilterType==='all'?'selected':''}>전체보기</option>
+                <option value="week" ${ordFilterType==='week'?'selected':''}>주별</option>
+                <option value="month" ${ordFilterType==='month'?'selected':''}>월별</option>
+              </select>
+              ${ordFilterType!=='all'?`<select onchange="setOrdFilterKey(this.value)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px">${keyOptsHTML}</select>`:''}
+            </div>
+          </div>`;
+          if(!filtered.length)return header+'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">해당 기간에 발행된 발주서가 없습니다</div>';
+          const totalPages=Math.max(1,Math.ceil(filtered.length/ORD_PAGE_SIZE));
+          const curPage=Math.min(Math.max(1,ordPage),totalPages);
+          const pageItems=filtered.slice((curPage-1)*ORD_PAGE_SIZE,curPage*ORD_PAGE_SIZE);
+          const rows=pageItems.map(({o,i})=>`<tr>
               <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${o.docNo}</td>
               <td>${o.vendor||'-'}</td>
               <td style="color:var(--text2)">${o.items.length}종</td>
@@ -4752,9 +4797,20 @@ function rOrder(){
                 <button style="background:${o.delivered?'rgba(34,197,94,.12)':'var(--bg3)'};border:1px solid ${o.delivered?'rgba(34,197,94,.35)':'var(--border)'};color:${o.delivered?'#16a34a':'var(--text2)'};cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();toggleOrderDelivered(${i})">${o.delivered?'☑':'☐'} 납품완료</button>
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
               </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`}
+            </tr>`).join('');
+          const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setOrdPage(${p})" style="min-width:30px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
+          let pageBtns='';
+          for(let p=1;p<=totalPages;p++)pageBtns+=pgBtn(p,p,false,p===curPage);
+          const pager=totalPages>1?`<div style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap">
+            ${pgBtn(curPage-1,'‹ 이전',curPage<=1,false)}
+            ${pageBtns}
+            ${pgBtn(curPage+1,'다음 ›',curPage>=totalPages,false)}
+          </div>`:'';
+          return header+`<table class="tbl">
+          <thead><tr><th>문서번호</th><th>공급업체</th><th>품목</th><th>발행일</th><th>출력</th><th>출력일시</th><th>작업</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>${pager}`;
+        })()}
       </div>
     </div>
   </div>`;
