@@ -952,7 +952,23 @@ function rPurchaseStats(){
   </div>`;
 }
 let vendorOrders=JSON.parse(localStorage.getItem('sr-vendor-orders')||'[]');
-async function svVendors(){
+// 배열을 key 기준으로 병합 (덮어쓰지 않고 합침 - 동시 편집/오래된 탭으로 인한 데이터 손실 방지)
+function mergeByKey(localArr, remoteArr, keyFn){
+  const map=new Map();
+  (Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); });
+  (Array.isArray(localArr)?localArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); }); // 로컬 값을 우선(최신 편집) 적용
+  return Array.from(map.values());
+}
+async function svVendors(force){
+  // 저장 전 Firebase의 최신 상태와 병합 → 오래된 탭/기기에서 저장해도 다른 곳에서 추가된 데이터가 사라지지 않음
+  // force=true (삭제 작업 등) 인 경우는 병합 없이 현재 로컬 상태를 그대로 반영
+  if(!force){
+    try{
+      const [remoteV, remoteVO]=await Promise.all([cfGet('vendors'), cfGet('vendorOrders')]);
+      vendors=mergeByKey(vendors, remoteV, v=>v.name);
+      vendorOrders=mergeByKey(vendorOrders, remoteVO, o=>[o.vendorName,o.type,o.item,o.ts].join('|'));
+    }catch(e){}
+  }
   localStorage.setItem('sr-vendors',JSON.stringify(vendors));
   localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));
   jbStat('💾 저장 중...');
@@ -1286,11 +1302,18 @@ async function jbPull() {
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
-    // 외주업체/발주내역: Firebase에 아직 없으면 현재 로컬 데이터를 그대로 백필 업로드 (최초 1회)
-    if(Array.isArray(rv)&&rv.length>0){vendors=rv;localStorage.setItem('sr-vendors',JSON.stringify(vendors));}
-    else if(Array.isArray(vendors)&&vendors.length>0){cfSet('vendors',vendors).catch(()=>{});}
-    if(Array.isArray(rvo)&&rvo.length>0){vendorOrders=rvo;localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));}
-    else if(Array.isArray(vendorOrders)&&vendorOrders.length>0){cfSet('vendorOrders',vendorOrders).catch(()=>{});}
+    // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
+    {
+      const mergedV=mergeByKey(vendors, rv, v=>v.name);
+      const mergedVO=mergeByKey(vendorOrders, rvo, o=>[o.vendorName,o.type,o.item,o.ts].join('|'));
+      const vChanged=JSON.stringify(mergedV)!==JSON.stringify(vendors)||JSON.stringify(mergedV)!==JSON.stringify(rv||[]);
+      const voChanged=JSON.stringify(mergedVO)!==JSON.stringify(vendorOrders)||JSON.stringify(mergedVO)!==JSON.stringify(rvo||[]);
+      vendors=mergedV;vendorOrders=mergedVO;
+      localStorage.setItem('sr-vendors',JSON.stringify(vendors));
+      localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));
+      if(vChanged)cfSet('vendors',vendors).catch(()=>{});
+      if(voChanged)cfSet('vendorOrders',vendorOrders).catch(()=>{});
+    }
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
     const isTyping=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
@@ -2420,7 +2443,7 @@ function addVendorCo(){
 function removeVendorCo(i){
   if(!requireEdit())return;
   if(!confirm(vendors[i].name+' 을(를) 삭제하시겠습니까?'))return;
-  vendors.splice(i,1);svVendors();go('vendor');
+  vendors.splice(i,1);svVendors(true);go('vendor');
 }
 
 function openOrderModal(vi){
@@ -2477,7 +2500,7 @@ function delVendorOrder(vname, type, oi){
   const label=type==='order'?'발주':type==='incoming'?'입고':type==='shipout'?'출고':'지급 재료';
   if(!confirm(label+' 내역 "'+o.item+'"을(를) 삭제하시겠습니까?'))return;
   vendorOrders.splice(idx,1);
-  svVendors();tst('✓ 삭제 완료');go('vendor');
+  svVendors(true);tst('✓ 삭제 완료');go('vendor');
 }
 
 function openEditVendorOrderModal(vi, oi, type){
