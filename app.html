@@ -518,6 +518,10 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
       변경이력
     </button>
+    <button class="nav-item" onclick="go(&#39;repair&#39;)" id="nb-repair">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+      장비 수리 이력
+    </button>
     <button class="nav-item" onclick="go(&#39;set&#39;)" id="nb-set">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
       설정 / 업로드
@@ -977,6 +981,22 @@ async function svVendors(force){
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
+// ── 장비 수리 이력 ─────────────────────────────────────────────────
+let repairs=JSON.parse(localStorage.getItem('sr-repairs')||'[]');
+async function saveRepairs(force){
+  if(!force){
+    try{
+      const remoteR=await cfGet('repairs');
+      repairs=mergeByKey(repairs, remoteR, x=>x.id);
+    }catch(e){}
+  }
+  localStorage.setItem('sr-repairs',JSON.stringify(repairs));
+  jbStat('💾 저장 중...');
+  try{
+    await cfSet('repairs',repairs);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+}
 let planSq=''; // 생산계획서 품목 검색어
 let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null;
 
@@ -1273,7 +1293,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
-          vendors, vendorOrders
+          vendors, vendorOrders, repairs
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1287,7 +1307,8 @@ async function jbPull() {
           rdr=fbAll['dailyreport'], rcl=fbAll['changelog'],
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
           rsi=fbAll['supplierItems'],
-          rv=fbAll['vendors'], rvo=fbAll['vendorOrders'];
+          rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
+          rrep=fbAll['repairs'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
     if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
@@ -1313,6 +1334,14 @@ async function jbPull() {
       localStorage.setItem('sr-vendor-orders',JSON.stringify(vendorOrders));
       if(vChanged)cfSet('vendors',vendors).catch(()=>{});
       if(voChanged)cfSet('vendorOrders',vendorOrders).catch(()=>{});
+    }
+    // 장비 수리 이력: 병합
+    {
+      const mergedR=mergeByKey(repairs, rrep, x=>x.id);
+      const rChanged=JSON.stringify(mergedR)!==JSON.stringify(repairs)||JSON.stringify(mergedR)!==JSON.stringify(rrep||[]);
+      repairs=mergedR;
+      localStorage.setItem('sr-repairs',JSON.stringify(repairs));
+      if(rChanged)cfSet('repairs',repairs).catch(()=>{});
     }
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
@@ -1582,6 +1611,7 @@ function render(){
   else if(tab==='addprod')m.innerHTML=rAddProd();
   else if(tab==='delprod')m.innerHTML=rDelProd();
   else if(tab==='changelog')m.innerHTML=rChangeLog();
+  else if(tab==='repair')m.innerHTML=rRepair();
   dots();
 }
 
@@ -6981,7 +7011,120 @@ function rChangeLog(){
   </div>`}`;
 }
 
-// ── 공지사항 / 메모 ───────────────────────────────────────────
+// ── 장비 수리 이력 ─────────────────────────────────────────────────
+let repFilter='전체';
+let repSq='';
+function rRepair(){
+  const statusMap={'완료':'완료','진행중':'진행중'};
+  let list=repairs.filter(r=>{
+    const stOk=repFilter==='전체'||r.status===repFilter;
+    const sqOk=!repSq||(r.equipment||'').includes(repSq)||(r.issue||'').includes(repSq)||(r.vendor||'').includes(repSq);
+    return stOk&&sqOk;
+  }).sort((a,b)=>b.ts-a.ts);
+
+  return `
+  <div class="page-title">🔧 장비 수리 이력</div>
+  <div class="page-sub">설비/장비 고장 및 수리 내역을 관리합니다 · 총 ${repairs.length}건 · 조회 ${list.length}건</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+      <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="장비명, 고장내용, 수리업체 검색..." value="${repSq}"
+        oninput="repSq=this.value;render()"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openRepairModal()">+ 수리 이력 등록</button>
+  </div>
+
+  <div class="ftabs" style="margin-bottom:14px">
+    ${['전체','진행중','완료'].map(k=>`<div class="ftab${repFilter===k?' on':''}" onclick="repFilter='${k}';render()">${k}</div>`).join('')}
+  </div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">🔧</div><div>등록된 수리 이력이 없습니다</div></div>`:`
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl" style="min-width:760px">
+      <thead><tr>
+        <th>장비명</th><th>고장내용</th><th>수리내용</th><th>수리업체/담당</th>
+        <th style="width:90px">비용</th><th style="width:100px">수리일</th>
+        <th style="width:70px">상태</th><th style="width:110px">작업</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(r=>{
+          const idx=repairs.indexOf(r);
+          return `<tr>
+          <td style="font-weight:700">${r.equipment||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${r.issue||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${r.action||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${r.vendor||'-'}</td>
+          <td style="font-family:monospace;font-size:12px">${r.cost?Number(r.cost).toLocaleString()+'원':'-'}</td>
+          <td style="font-size:12px;color:var(--text3);white-space:nowrap">${r.date||'-'}</td>
+          <td><span class="badge ${r.status==='완료'?'bg':'ba'}" style="font-size:11px">${r.status||'진행중'}</span></td>
+          <td style="white-space:nowrap">
+            <button onclick="openRepairModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
+            <button onclick="delRepair(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+          </td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>
+  </div>`}`;
+}
+
+function openRepairModal(idx){
+  if(!requireEdit())return;
+  const r=idx!==undefined?repairs[idx]:null;
+  document.getElementById('mo-title').textContent=r?'🔧 수리 이력 수정':'🔧 수리 이력 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">장비명 *</label><input type="text" class="fi" id="rp-equipment" placeholder="예: 사출기 3호기" value="${r?.equipment||''}"></div>
+    <div class="fg"><label class="fl">고장내용 *</label><textarea class="fi" id="rp-issue" rows="2" placeholder="예: 유압 모터 과열로 정지">${r?.issue||''}</textarea></div>
+    <div class="fg"><label class="fl">수리내용</label><textarea class="fi" id="rp-action" rows="2" placeholder="예: 유압 모터 교체 및 오일 교환">${r?.action||''}</textarea></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">수리업체/담당</label><input type="text" class="fi" id="rp-vendor" placeholder="예: 대성설비" value="${r?.vendor||''}"></div>
+      <div class="fg"><label class="fl">비용(원)</label><input type="number" class="fi" id="rp-cost" min="0" placeholder="0" value="${r?.cost||''}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">수리일</label><input type="date" class="fi" id="rp-date" value="${r?.date||new Date().toISOString().slice(0,10)}"></div>
+      <div class="fg"><label class="fl">상태</label>
+        <select class="fi" id="rp-status">
+          <option value="진행중" ${(!r||r.status==='진행중')?'selected':''}>진행중</option>
+          <option value="완료" ${r?.status==='완료'?'selected':''}>완료</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="rp-note" placeholder="메모" value="${r?.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitRepair(${idx!==undefined?idx:'undefined'})">✓ ${r?'수정 완료':'등록'}</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitRepair(idx){
+  if(!requireEdit())return;
+  const equipment=document.getElementById('rp-equipment')?.value?.trim();
+  const issue=document.getElementById('rp-issue')?.value?.trim();
+  const action=document.getElementById('rp-action')?.value?.trim();
+  const vendor=document.getElementById('rp-vendor')?.value?.trim();
+  const cost=parseFloat(document.getElementById('rp-cost')?.value)||0;
+  const date=document.getElementById('rp-date')?.value||new Date().toISOString().slice(0,10);
+  const status=document.getElementById('rp-status')?.value||'진행중';
+  const note=document.getElementById('rp-note')?.value?.trim()||'';
+  if(!equipment){tst('장비명을 입력해주세요');return;}
+  if(!issue){tst('고장내용을 입력해주세요');return;}
+  if(idx!==undefined&&repairs[idx]){
+    Object.assign(repairs[idx],{equipment,issue,action,vendor,cost,date,status,note});
+  }else{
+    repairs.unshift({id:Date.now()+Math.random(),equipment,issue,action,vendor,cost,date,status,note,ts:Date.now()});
+  }
+  saveRepairs();cmo();tst('✓ 저장 완료');render();
+}
+
+function delRepair(idx){
+  if(!requireEdit())return;
+  const r=repairs[idx];
+  if(!r)return;
+  if(!confirm('"'+r.equipment+'" 수리 이력을 삭제하시겠습니까?'))return;
+  repairs.splice(idx,1);
+  saveRepairs(true);tst('✓ 삭제 완료');render();
+}
+
+
 let noticeFilter='전체';
 // ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
