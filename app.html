@@ -4724,7 +4724,7 @@ function rOrder(){
               <td style="white-space:nowrap">
                 <button class="btn" style="padding:5px 11px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="event.stopPropagation();previewOrder(${i})">👁️ 미리보기</button>
                 <button class="btn bbl" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();printOrder(${i})">🖨️ 출력</button>
-                <button style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:#16a34a;cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();addOrderItemsToVendor(${i})">📋 취급품목 반영</button>
+                <button style="background:${o.delivered?'rgba(34,197,94,.12)':'var(--bg3)'};border:1px solid ${o.delivered?'rgba(34,197,94,.35)':'var(--border)'};color:${o.delivered?'#16a34a':'var(--text2)'};cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();toggleOrderDelivered(${i})">${o.delivered?'☑':'☐'} 납품완료</button>
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
               </td>
             </tr>`).join('')}
@@ -4977,25 +4977,16 @@ function delOrder(i){
   orders.splice(i,1);sv();tst('발주서 삭제 완료');render();
 }
 
-// 발주서의 품목들을 해당 공급업체 취급 품목 목록에 반영 (중복은 1개만 유지)
-function addOrderItemsToVendor(i){
+// 발주서 납품완료 체크 토글
+function toggleOrderDelivered(i){
   if(!requireEdit())return;
   const o=orders[i];
   if(!o)return;
-  const v=o.vendor;
-  if(!v){tst('공급업체 정보가 없는 발주서입니다');return;}
-  if(!SUPPLIERS.includes(v)){tst('등록된 공급업체가 아닙니다: '+v);return;}
-  if(!SUPPLIER_ITEMS[v])SUPPLIER_ITEMS[v]=[];
-  let added=0,skipped=0;
-  o.items.forEach(it=>{
-    const exists=SUPPLIER_ITEMS[v].some(x=>(it.id&&x.id===it.id)||(!it.id&&x.name===it.name));
-    if(exists){skipped++;return;}
-    SUPPLIER_ITEMS[v].push({name:it.name,id:it.id||'',classNo:it.classNo||''});
-    added++;
-  });
-  saveSUPITEMS();
-  tst(`✓ ${v} 취급 품목에 ${added}개 추가${skipped?` · 중복 ${skipped}개 제외`:''}`,3000);
+  o.delivered=!o.delivered;
+  o.deliveredAt=o.delivered?Date.now():null;
+  sv();tst(o.delivered?'✓ 납품완료 처리':'납품완료 해제');render();
 }
+
 
 // ── 제품 추가 ──────────────────────────────────────────────────────
 function npPicPreview(input){
