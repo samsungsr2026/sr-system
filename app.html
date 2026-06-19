@@ -7014,6 +7014,9 @@ function rChangeLog(){
 // ── 장비 수리 이력 ─────────────────────────────────────────────────
 let repFilter='전체';
 let repSq='';
+let repPage=1;
+const REP_PAGE_SIZE=10;
+function setRepPage(p){repPage=p;render();}
 function rRepair(){
   const statusMap={'완료':'완료','진행중':'진행중'};
   let list=repairs.filter(r=>{
@@ -7030,17 +7033,29 @@ function rRepair(){
     <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input type="text" placeholder="장비명, 고장내용, 수리업체 검색..." value="${repSq}"
-        oninput="repSq=this.value;render()"
+        oninput="repSq=this.value;repPage=1;render()"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
     </div>
     <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openRepairModal()">+ 수리 이력 등록</button>
   </div>
 
   <div class="ftabs" style="margin-bottom:14px">
-    ${['전체','진행중','완료'].map(k=>`<div class="ftab${repFilter===k?' on':''}" onclick="repFilter='${k}';render()">${k}</div>`).join('')}
+    ${['전체','진행중','완료'].map(k=>`<div class="ftab${repFilter===k?' on':''}" onclick="repFilter='${k}';repPage=1;render()">${k}</div>`).join('')}
   </div>
 
-  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">🔧</div><div>등록된 수리 이력이 없습니다</div></div>`:`
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">🔧</div><div>등록된 수리 이력이 없습니다</div></div>`:(()=>{
+    const totalPages=Math.max(1,Math.ceil(list.length/REP_PAGE_SIZE));
+    const curPage=Math.min(Math.max(1,repPage),totalPages);
+    const pageItems=list.slice((curPage-1)*REP_PAGE_SIZE,curPage*REP_PAGE_SIZE);
+    const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setRepPage(${p})" style="min-width:30px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
+    let pageBtns='';
+    for(let p=1;p<=totalPages;p++)pageBtns+=pgBtn(p,p,false,p===curPage);
+    const pager=totalPages>1?`<div style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap">
+      ${pgBtn(curPage-1,'‹ 이전',curPage<=1,false)}
+      ${pageBtns}
+      ${pgBtn(curPage+1,'다음 ›',curPage>=totalPages,false)}
+    </div>`:'';
+    return `
   <div class="card" style="padding:0;overflow:hidden">
     <table class="tbl" style="min-width:760px">
       <thead><tr>
@@ -7049,7 +7064,7 @@ function rRepair(){
         <th style="width:70px">상태</th><th style="width:110px">작업</th>
       </tr></thead>
       <tbody>
-        ${list.map(r=>{
+        ${pageItems.map(r=>{
           const idx=repairs.indexOf(r);
           return `<tr>
           <td style="font-weight:700">${r.equipment||'-'}</td>
@@ -7066,7 +7081,8 @@ function rRepair(){
         </tr>`;}).join('')}
       </tbody>
     </table>
-  </div>`}`;
+  </div>${pager}`;
+  })()}`;
 }
 
 function openRepairModal(idx){
