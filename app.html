@@ -6871,6 +6871,9 @@ function dl(d,fn){const a=document.createElement('a');a.href=URL.createObjectURL
 // ── 전체 백업 / 복원 (JSON) ───────────────────────────────────────
 // ── 변경이력 ──────────────────────────────────────────────────────
 let clFilter='전체', clSq='';
+let clPage=1;
+const CL_PAGE_SIZE=10;
+function setClPage(p){clPage=p;render();}
 function printChangeLog(){
   if(!changeLogs.length){tst('출력할 변경이력이 없습니다');return;}
   const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
@@ -6968,7 +6971,7 @@ function rChangeLog(){
     <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input type="text" placeholder="품목명, 변경내용, 담당자 검색..." value="${clSq}"
-        oninput="clSq=this.value;render()"
+        oninput="clSq=this.value;clPage=1;render()"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
     </div>
     <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlChangeLog()">📄 CSV 저장</button>
@@ -6977,10 +6980,22 @@ function rChangeLog(){
   </div>
 
   <div class="ftabs" style="margin-bottom:14px">
-    ${Object.entries(typeMap).map(([k,v])=>`<div class="ftab${clFilter===k?' on':''}" onclick="clFilter='${k}';render()">${v}</div>`).join('')}
+    ${Object.entries(typeMap).map(([k,v])=>`<div class="ftab${clFilter===k?' on':''}" onclick="clFilter='${k}';clPage=1;render()">${v}</div>`).join('')}
   </div>
 
-  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>변경이력이 없습니다</div></div>`:`
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>변경이력이 없습니다</div></div>`:(()=>{
+    const totalPages=Math.max(1,Math.ceil(list.length/CL_PAGE_SIZE));
+    const curPage=Math.min(Math.max(1,clPage),totalPages);
+    const pageItems=list.slice((curPage-1)*CL_PAGE_SIZE,curPage*CL_PAGE_SIZE);
+    const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setClPage(${p})" style="min-width:30px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
+    let pageBtns='';
+    for(let p=1;p<=totalPages;p++)pageBtns+=pgBtn(p,p,false,p===curPage);
+    const pager=totalPages>1?`<div style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap">
+      ${pgBtn(curPage-1,'‹ 이전',curPage<=1,false)}
+      ${pageBtns}
+      ${pgBtn(curPage+1,'다음 ›',curPage>=totalPages,false)}
+    </div>`:'';
+    return `
   <div class="card" style="padding:0;overflow:hidden">
     <table class="tbl" style="min-width:600px">
       <thead><tr>
@@ -6992,7 +7007,7 @@ function rChangeLog(){
         <th style="width:60px">삭제</th>
       </tr></thead>
       <tbody>
-        ${list.map(l=>`<tr>
+        ${pageItems.map(l=>`<tr>
           <td style="font-family:monospace;font-size:12px;color:var(--text3);white-space:nowrap">
             ${new Date(l.ts).toLocaleDateString('ko',{month:'2-digit',day:'2-digit'})}
             ${new Date(l.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}
@@ -7008,7 +7023,8 @@ function rChangeLog(){
         </tr>`).join('')}
       </tbody>
     </table>
-  </div>`}`;
+  </div>${pager}`;
+  })()}`;
 }
 
 // ── 장비 수리 이력 ─────────────────────────────────────────────────
