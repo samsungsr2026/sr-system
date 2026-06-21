@@ -7232,6 +7232,7 @@ const GAU_PAGE_SIZE=10;
 function setGauPage(p){gauPage=p;render();}
 function rGauge(){
   const today=new Date().toISOString().slice(0,10);
+  const certList=(gaugeCerts['_repo']||[]).slice().sort((a,b)=>b.ts-a.ts);
   let list=gauges.filter(g=>{
     const stOk=gauFilter==='전체'||g.status===gauFilter;
     const sqOk=!gauSq||(g.name||'').includes(gauSq)||(g.serialNo||'').includes(gauSq)||(g.location||'').includes(gauSq)||(g.vendor||'').includes(gauSq);
@@ -7241,6 +7242,35 @@ function rGauge(){
   return `
   <div class="page-title">📐 측정기 관리</div>
   <div class="page-sub">측정기/계측기 검교정 현황을 관리합니다 · 총 ${gauges.length}건 · 조회 ${list.length}건</div>
+
+  <div class="card" style="margin-bottom:16px;padding:16px;border:1.5px dashed var(--border)">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:15px;font-weight:700">📁 교정성적서 보관함</div>
+      <span style="font-size:12px;color:var(--text3)">측정기 목록과는 별도로, 성적서 파일을 한 곳에 모아 보관합니다 · ${certList.length}건</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <input type="text" id="gc-label" class="fi" placeholder="측정기명/관리번호 (선택, 메모용)" style="flex:1;min-width:160px;margin-bottom:0">
+      <label class="btn bbl" style="padding:10px 16px;font-size:13px;cursor:pointer;margin-bottom:0;display:inline-flex;align-items:center">
+        📎 성적서 파일 추가
+        <input type="file" multiple style="display:none" onchange="handleGaugeCertUpload(this)">
+      </label>
+    </div>
+    ${!certList.length?`<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">보관함이 비어 있습니다. 파일을 추가해보세요 (이미지·PDF·문서 등 모든 형식 가능)</div>`:
+    `<div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">
+      ${certList.map((f,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+        <div style="overflow:hidden;flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name||'파일'}</div>
+          <div style="font-size:11px;color:var(--text3)">${f.label?f.label+' · ':''}${f.ts?new Date(f.ts).toLocaleString('ko',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="viewGaugeCert('${f.id}')" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">보기</button>
+          <button onclick="downloadGaugeCert('${f.id}')" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">다운로드</button>
+          <button onclick="removeGaugeCert('${f.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">삭제</button>
+        </div>
+      </div>`).join('')}
+    </div>`}
+  </div>
 
   <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
     <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
@@ -7270,11 +7300,11 @@ function rGauge(){
     </div>`:'';
     return `
   <div class="card" style="padding:0;overflow:hidden">
-    <table class="tbl" style="min-width:900px">
+    <table class="tbl" style="min-width:820px">
       <thead><tr>
         <th>측정기명</th><th>모델/규격</th><th>관리번호</th><th>사용부서</th>
         <th>검교정업체</th><th style="width:100px">차기검교정일</th>
-        <th style="width:75px">상태</th><th style="width:180px">작업</th>
+        <th style="width:75px">상태</th><th style="width:110px">작업</th>
       </tr></thead>
       <tbody>
         ${pageItems.map(g=>{
@@ -7290,7 +7320,6 @@ function rGauge(){
           <td><span class="badge ${g.status==='정상'?'bg':g.status==='폐기'?'bgr':'ba'}" style="font-size:11px">${g.status||'정상'}</span></td>
           <td style="white-space:nowrap">
             <button onclick="openGaugeModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
-            <button onclick="openGaugeCertModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">📄 성적서${(gaugeCerts[String(g.id)]||[]).length?'('+gaugeCerts[String(g.id)].length+')':''}</button>
             <button onclick="delGauge(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
           </td>
         </tr>`;}).join('')}
@@ -7354,53 +7383,27 @@ function delGauge(idx){
   if(!requireEdit())return;
   const g=gauges[idx];
   if(!g)return;
-  if(!confirm('"'+g.name+'" 측정기를 삭제하시겠습니까?\n(첨부된 교정성적서도 함께 삭제됩니다)'))return;
-  delete gaugeCerts[String(g.id)];svGaugeCerts();
+  if(!confirm('"'+g.name+'" 측정기를 삭제하시겠습니까?'))return;
   gauges.splice(idx,1);
   saveGauges(true);tst('✓ 삭제 완료');render();
 }
 
-// ── 측정기 교정성적서 첨부 ────────────────────────────────────────
-function openGaugeCertModal(idx){
-  const g=gauges[idx];
-  if(!g)return;
-  const gid=String(g.id);
-  const list=gaugeCerts[gid]||[];
-  document.getElementById('mo-title').textContent='📄 교정성적서 - '+(g.name||'');
-  document.getElementById('mb').innerHTML=`
-    <div class="fg">
-      <label class="fl">성적서 파일 첨부 (이미지·PDF·문서 등 모든 파일, 여러 개 선택 가능)</label>
-      <input type="file" multiple class="fi" onchange="handleGaugeCertUpload('${gid}',this)">
-    </div>
-    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
-      ${!list.length?`<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">첨부된 성적서가 없습니다</div>`:
-      list.map((f,i)=>`
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
-          <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${f.name||'파일'}</div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            <button onclick="viewGaugeCert('${gid}',${i})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">보기</button>
-            <button onclick="downloadGaugeCert('${gid}',${i})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">다운로드</button>
-            <button onclick="removeGaugeCert('${gid}',${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">삭제</button>
-          </div>
-        </div>`).join('')}
-    </div>`;
-  document.getElementById('ov').classList.add('on');
-}
-
-function handleGaugeCertUpload(gaugeId,inputEl){
+// ── 측정기 교정성적서 보관함 (화면에 별도 영역, 모든 성적서를 한꺼번에 보관) ──
+function handleGaugeCertUpload(inputEl){
   if(!requireEdit()){inputEl.value='';return;}
-  gaugeId=String(gaugeId);
   const files=inputEl.files;
   if(!files||!files.length)return;
-  if(!gaugeCerts[gaugeId])gaugeCerts[gaugeId]=[];
+  const label=document.getElementById('gc-label')?.value?.trim()||'';
+  if(!gaugeCerts['_repo'])gaugeCerts['_repo']=[];
   let remaining=files.length;
   const finishOne=()=>{
     remaining--;
     if(remaining===0){
       svGaugeCerts();
       tst('✓ 성적서 첨부 완료');
-      const idx=gauges.findIndex(g=>String(g.id)===gaugeId);
-      if(idx>=0)openGaugeCertModal(idx);
+      const lb=document.getElementById('gc-label');
+      if(lb)lb.value=label; // 같은 라벨로 연속 첨부 가능하도록 유지
+      render();
     }
   };
   Array.from(files).forEach(file=>{
@@ -7415,16 +7418,16 @@ function handleGaugeCertUpload(gaugeId,inputEl){
           if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
           const cv=document.createElement('canvas');cv.width=w;cv.height=h;
           cv.getContext('2d').drawImage(img,0,0,w,h);
-          gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
+          gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
           finishOne();
         };
         img.onerror=function(){
-          gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+          gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
           finishOne();
         };
         img.src=e.target.result;
       }else{
-        gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+        gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
         finishOne();
       }
     };
@@ -7434,9 +7437,12 @@ function handleGaugeCertUpload(gaugeId,inputEl){
   inputEl.value='';
 }
 
-function viewGaugeCert(gaugeId,i){
-  gaugeId=String(gaugeId);
-  const f=(gaugeCerts[gaugeId]||[])[i];
+function findGaugeCert(id){
+  id=String(id);
+  return (gaugeCerts['_repo']||[]).find(f=>String(f.id)===id);
+}
+function viewGaugeCert(id){
+  const f=findGaugeCert(id);
   if(!f)return;
   if(f.isImage){viewBig(f.data);return;}
   try{
@@ -7452,26 +7458,22 @@ function viewGaugeCert(gaugeId,i){
   }catch(e){tst('파일을 열 수 없습니다');}
 }
 
-function downloadGaugeCert(gaugeId,i){
-  gaugeId=String(gaugeId);
-  const f=(gaugeCerts[gaugeId]||[])[i];
+function downloadGaugeCert(id){
+  const f=findGaugeCert(id);
   if(!f)return;
   const a=document.createElement('a');
   a.href=f.data;a.download=f.name||'성적서';a.click();
   tst('📥 성적서 다운로드');
 }
 
-function removeGaugeCert(gaugeId,i){
+function removeGaugeCert(id){
   if(!requireEdit())return;
-  gaugeId=String(gaugeId);
-  if(!confirm('이 첨부파일을 삭제하시겠습니까?'))return;
-  if(gaugeCerts[gaugeId]){
-    gaugeCerts[gaugeId].splice(i,1);
-    if(!gaugeCerts[gaugeId].length)delete gaugeCerts[gaugeId];
-  }
-  svGaugeCerts();tst('✓ 삭제 완료');
-  const idx=gauges.findIndex(g=>String(g.id)===gaugeId);
-  if(idx>=0)openGaugeCertModal(idx);
+  const list=gaugeCerts['_repo']||[];
+  const idx=list.findIndex(f=>String(f.id)===String(id));
+  if(idx<0)return;
+  if(!confirm('"'+(list[idx].name||'파일')+'"을 보관함에서 삭제하시겠습니까?'))return;
+  list.splice(idx,1);
+  svGaugeCerts();tst('✓ 삭제 완료');render();
 }
 
 
