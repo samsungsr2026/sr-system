@@ -518,10 +518,20 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
       변경이력
     </button>
-    <button class="nav-item" onclick="go(&#39;repair&#39;)" id="nb-repair">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-      장비 수리 이력
-    </button>
+    <div class="nav-section" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding-right:8px" onclick="toggleEquipMenu()">
+      <span>🔧 장비/측정기 관리</span>
+      <svg id="equip-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </div>
+    <div id="equip-menu" style="display:none">
+      <button class="nav-item" onclick="go(&#39;repair&#39;)" id="nb-repair">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        장비 수리 이력
+      </button>
+      <button class="nav-item" onclick="go(&#39;gauge&#39;)" id="nb-gauge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l3 2"></path><path d="M5 3 3 5M19 3l2 2"></path></svg>
+        측정기 관리
+      </button>
+    </div>
     <button class="nav-item" onclick="go(&#39;set&#39;)" id="nb-set">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
       설정 / 업로드
@@ -762,6 +772,14 @@ function goMaster(t){
   go(t);
 }
 
+function toggleEquipMenu(){
+  const menu = document.getElementById('equip-menu');
+  const arrow = document.getElementById('equip-arrow');
+  if(!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
 function toggleMasterMenu(){
   if(!curUser||curUser.role!=='master'){
     tst('🔒 마스터 관리자 로그인 후 이용 가능합니다');
@@ -1002,6 +1020,22 @@ async function saveRepairs(force){
   jbStat('💾 저장 중...');
   try{
     await cfSet('repairs',repairs);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+}
+// ── 측정기 관리 ────────────────────────────────────────────────────
+let gauges=JSON.parse(localStorage.getItem('sr-gauges')||'[]');
+async function saveGauges(force){
+  if(!force){
+    try{
+      const remoteG=await cfGet('gauges');
+      gauges=mergeByKey(gauges, remoteG, x=>x.id);
+    }catch(e){}
+  }
+  localStorage.setItem('sr-gauges',JSON.stringify(gauges));
+  jbStat('💾 저장 중...');
+  try{
+    await cfSet('gauges',gauges);
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
@@ -1301,7 +1335,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
-          vendors, vendorOrders, repairs
+          vendors, vendorOrders, repairs, gauges
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1316,7 +1350,7 @@ async function jbPull() {
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
-          rrep=fbAll['repairs'];
+          rrep=fbAll['repairs'], rgau=fbAll['gauges'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
     if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
@@ -1350,6 +1384,14 @@ async function jbPull() {
       repairs=mergedR;
       localStorage.setItem('sr-repairs',JSON.stringify(repairs));
       if(rChanged)cfSet('repairs',repairs).catch(()=>{});
+    }
+    // 측정기 관리: 병합 (다른 기기의 최신 수정을 반영하기 위해 원격 우선)
+    {
+      const mergedG=mergeByKeyRemoteWins(gauges, rgau, x=>x.id);
+      const gChanged=JSON.stringify(mergedG)!==JSON.stringify(gauges)||JSON.stringify(mergedG)!==JSON.stringify(rgau||[]);
+      gauges=mergedG;
+      localStorage.setItem('sr-gauges',JSON.stringify(gauges));
+      if(gChanged)cfSet('gauges',gauges).catch(()=>{});
     }
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
@@ -1563,6 +1605,11 @@ function go(t){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+t);
   if(nb)nb.classList.add('on');
+  if(t==='repair'||t==='gauge'){
+    const em=document.getElementById('equip-menu'), ea=document.getElementById('equip-arrow');
+    if(em)em.style.display='block';
+    if(ea)ea.style.transform='rotate(180deg)';
+  }
   document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('on'));
   const mb=document.getElementById('mt-'+t);
   if(mb)mb.classList.add('on');
@@ -1583,6 +1630,11 @@ window.addEventListener('popstate', function(e){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+t);
   if(nb)nb.classList.add('on');
+  if(t==='repair'||t==='gauge'){
+    const em=document.getElementById('equip-menu'), ea=document.getElementById('equip-arrow');
+    if(em)em.style.display='block';
+    if(ea)ea.style.transform='rotate(180deg)';
+  }
   document.querySelectorAll('.mobile-tab').forEach(b=>b.classList.remove('on'));
   const mb=document.getElementById('mt-'+t);
   if(mb)mb.classList.add('on');
@@ -1620,6 +1672,7 @@ function render(){
   else if(tab==='delprod')m.innerHTML=rDelProd();
   else if(tab==='changelog')m.innerHTML=rChangeLog();
   else if(tab==='repair')m.innerHTML=rRepair();
+  else if(tab==='gauge')m.innerHTML=rGauge();
   dots();
 }
 
@@ -7162,6 +7215,140 @@ function delRepair(idx){
   if(!confirm('"'+r.equipment+'" 수리 이력을 삭제하시겠습니까?'))return;
   repairs.splice(idx,1);
   saveRepairs(true);tst('✓ 삭제 완료');render();
+}
+
+// ── 측정기 관리 ────────────────────────────────────────────────────
+let gauFilter='전체';
+let gauSq='';
+let gauPage=1;
+const GAU_PAGE_SIZE=10;
+function setGauPage(p){gauPage=p;render();}
+function rGauge(){
+  const today=new Date().toISOString().slice(0,10);
+  let list=gauges.filter(g=>{
+    const stOk=gauFilter==='전체'||g.status===gauFilter;
+    const sqOk=!gauSq||(g.name||'').includes(gauSq)||(g.serialNo||'').includes(gauSq)||(g.location||'').includes(gauSq)||(g.vendor||'').includes(gauSq);
+    return stOk&&sqOk;
+  }).sort((a,b)=>b.ts-a.ts);
+
+  return `
+  <div class="page-title">📐 측정기 관리</div>
+  <div class="page-sub">측정기/계측기 검교정 현황을 관리합니다 · 총 ${gauges.length}건 · 조회 ${list.length}건</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+      <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="측정기명, 관리번호, 사용부서, 검교정업체 검색..." value="${gauSq}"
+        oninput="gauSq=this.value;gauPage=1;render()"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openGaugeModal()">+ 측정기 등록</button>
+  </div>
+
+  <div class="ftabs" style="margin-bottom:14px">
+    ${['전체','정상','교정필요','폐기'].map(k=>`<div class="ftab${gauFilter===k?' on':''}" onclick="gauFilter='${k}';gauPage=1;render()">${k}</div>`).join('')}
+  </div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📐</div><div>등록된 측정기가 없습니다</div></div>`:(()=>{
+    const totalPages=Math.max(1,Math.ceil(list.length/GAU_PAGE_SIZE));
+    const curPage=Math.min(Math.max(1,gauPage),totalPages);
+    const pageItems=list.slice((curPage-1)*GAU_PAGE_SIZE,curPage*GAU_PAGE_SIZE);
+    const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setGauPage(${p})" style="min-width:30px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
+    let pageBtns='';
+    for(let p=1;p<=totalPages;p++)pageBtns+=pgBtn(p,p,false,p===curPage);
+    const pager=totalPages>1?`<div style="display:flex;justify-content:center;gap:6px;margin-top:14px;flex-wrap:wrap">
+      ${pgBtn(curPage-1,'‹ 이전',curPage<=1,false)}
+      ${pageBtns}
+      ${pgBtn(curPage+1,'다음 ›',curPage>=totalPages,false)}
+    </div>`:'';
+    return `
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl" style="min-width:820px">
+      <thead><tr>
+        <th>측정기명</th><th>모델/규격</th><th>관리번호</th><th>사용부서</th>
+        <th>검교정업체</th><th style="width:100px">차기검교정일</th>
+        <th style="width:75px">상태</th><th style="width:110px">작업</th>
+      </tr></thead>
+      <tbody>
+        ${pageItems.map(g=>{
+          const idx=gauges.indexOf(g);
+          const overdue=g.nextCalibDate&&g.nextCalibDate<today&&g.status!=='폐기';
+          return `<tr>
+          <td style="font-weight:700">${g.name||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${g.model||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${g.serialNo||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${g.location||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${g.vendor||'-'}</td>
+          <td style="font-size:12px;${overdue?'color:var(--red);font-weight:700':'color:var(--text3)'};white-space:nowrap">${g.nextCalibDate||'-'}${overdue?' ⚠':''}</td>
+          <td><span class="badge ${g.status==='정상'?'bg':g.status==='폐기'?'bgr':'ba'}" style="font-size:11px">${g.status||'정상'}</span></td>
+          <td style="white-space:nowrap">
+            <button onclick="openGaugeModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
+            <button onclick="delGauge(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+          </td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>
+  </div>${pager}`;
+  })()}`;
+}
+
+function openGaugeModal(idx){
+  if(!requireEdit())return;
+  const g=idx!==undefined?gauges[idx]:null;
+  document.getElementById('mo-title').textContent=g?'📐 측정기 수정':'📐 측정기 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">측정기명 *</label><input type="text" class="fi" id="ga-name" placeholder="예: 버니어캘리퍼스" value="${g?.name||''}"></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">모델/규격</label><input type="text" class="fi" id="ga-model" placeholder="예: 0~150mm" value="${g?.model||''}"></div>
+      <div class="fg"><label class="fl">관리번호</label><input type="text" class="fi" id="ga-serial" placeholder="예: M-001" value="${g?.serialNo||''}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">사용부서/위치</label><input type="text" class="fi" id="ga-location" placeholder="예: 품질팀" value="${g?.location||''}"></div>
+      <div class="fg"><label class="fl">검교정업체</label><input type="text" class="fi" id="ga-vendor" placeholder="예: 한국계측기" value="${g?.vendor||''}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">최근 검교정일</label><input type="date" class="fi" id="ga-calibdate" value="${g?.calibDate||''}"></div>
+      <div class="fg"><label class="fl">차기 검교정일</label><input type="date" class="fi" id="ga-nextcalibdate" value="${g?.nextCalibDate||''}"></div>
+    </div>
+    <div class="fg"><label class="fl">상태</label>
+      <select class="fi" id="ga-status">
+        <option value="정상" ${(!g||g.status==='정상')?'selected':''}>정상</option>
+        <option value="교정필요" ${g?.status==='교정필요'?'selected':''}>교정필요</option>
+        <option value="폐기" ${g?.status==='폐기'?'selected':''}>폐기</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ga-note" placeholder="메모" value="${g?.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitGauge(${idx!==undefined?idx:'undefined'})">✓ ${g?'수정 완료':'등록'}</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitGauge(idx){
+  if(!requireEdit())return;
+  const name=document.getElementById('ga-name')?.value?.trim();
+  const model=document.getElementById('ga-model')?.value?.trim();
+  const serialNo=document.getElementById('ga-serial')?.value?.trim();
+  const location=document.getElementById('ga-location')?.value?.trim();
+  const vendor=document.getElementById('ga-vendor')?.value?.trim();
+  const calibDate=document.getElementById('ga-calibdate')?.value||'';
+  const nextCalibDate=document.getElementById('ga-nextcalibdate')?.value||'';
+  const status=document.getElementById('ga-status')?.value||'정상';
+  const note=document.getElementById('ga-note')?.value?.trim()||'';
+  if(!name){tst('측정기명을 입력해주세요');return;}
+  if(idx!==undefined&&gauges[idx]){
+    Object.assign(gauges[idx],{name,model,serialNo,location,vendor,calibDate,nextCalibDate,status,note});
+  }else{
+    gauges.unshift({id:Date.now()+Math.random(),name,model,serialNo,location,vendor,calibDate,nextCalibDate,status,note,ts:Date.now()});
+  }
+  saveGauges();cmo();tst('✓ 저장 완료');render();
+}
+
+function delGauge(idx){
+  if(!requireEdit())return;
+  const g=gauges[idx];
+  if(!g)return;
+  if(!confirm('"'+g.name+'" 측정기를 삭제하시겠습니까?'))return;
+  gauges.splice(idx,1);
+  saveGauges(true);tst('✓ 삭제 완료');render();
 }
 
 
