@@ -1333,8 +1333,8 @@ async function jbPull() {
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
-      const mergedV=mergeByKey(vendors, rv, v=>v.name);
-      const mergedVO=mergeByKey(vendorOrders, rvo, o=>[o.vendorName,o.type,o.item,o.ts].join('|'));
+      const mergedV=mergeByKeyRemoteWins(vendors, rv, v=>v.name);
+      const mergedVO=mergeByKeyRemoteWins(vendorOrders, rvo, o=>[o.vendorName,o.type,o.item,o.ts].join('|'));
       const vChanged=JSON.stringify(mergedV)!==JSON.stringify(vendors)||JSON.stringify(mergedV)!==JSON.stringify(rv||[]);
       const voChanged=JSON.stringify(mergedVO)!==JSON.stringify(vendorOrders)||JSON.stringify(mergedVO)!==JSON.stringify(rvo||[]);
       vendors=mergedV;vendorOrders=mergedVO;
