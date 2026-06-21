@@ -963,6 +963,14 @@ function mergeByKey(localArr, remoteArr, keyFn){
   (Array.isArray(localArr)?localArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); }); // 로컬 값을 우선(최신 편집) 적용
   return Array.from(map.values());
 }
+// pull(서버에서 받아올 때) 전용 병합: 같은 키는 원격(다른 기기의 최신 수정)을 우선하고,
+// 아직 서버에 올라가지 않은 로컬 신규 항목만 추가로 보존한다.
+function mergeByKeyRemoteWins(localArr, remoteArr, keyFn){
+  const map=new Map();
+  (Array.isArray(localArr)?localArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); });
+  (Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); }); // 원격 값을 우선 적용
+  return Array.from(map.values());
+}
 async function svVendors(force){
   // 저장 전 Firebase의 최신 상태와 병합 → 오래된 탭/기기에서 저장해도 다른 곳에서 추가된 데이터가 사라지지 않음
   // force=true (삭제 작업 등) 인 경우는 병합 없이 현재 로컬 상태를 그대로 반영
@@ -1335,9 +1343,9 @@ async function jbPull() {
       if(vChanged)cfSet('vendors',vendors).catch(()=>{});
       if(voChanged)cfSet('vendorOrders',vendorOrders).catch(()=>{});
     }
-    // 장비 수리 이력: 병합
+    // 장비 수리 이력: 병합 (다른 기기의 최신 수정을 반영하기 위해 원격 우선)
     {
-      const mergedR=mergeByKey(repairs, rrep, x=>x.id);
+      const mergedR=mergeByKeyRemoteWins(repairs, rrep, x=>x.id);
       const rChanged=JSON.stringify(mergedR)!==JSON.stringify(repairs)||JSON.stringify(mergedR)!==JSON.stringify(rrep||[]);
       repairs=mergedR;
       localStorage.setItem('sr-repairs',JSON.stringify(repairs));
