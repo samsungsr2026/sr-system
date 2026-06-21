@@ -518,11 +518,14 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
       변경이력
     </button>
-    <div class="nav-section" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding-right:8px" onclick="toggleEquipMenu()">
-      <span>🔧 장비/측정기 관리</span>
-      <svg id="equip-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"></polyline></svg>
-    </div>
-    <div id="equip-menu" style="display:none">
+    <button class="nav-item" style="justify-content:space-between" onclick="toggleEquipMenu()">
+      <span style="display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:20px;height:20px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        장비/측정기 관리
+      </span>
+      <svg id="equip-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s;flex-shrink:0"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div id="equip-menu" style="display:none;padding-left:10px">
       <button class="nav-item" onclick="go(&#39;repair&#39;)" id="nb-repair">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
         장비 수리 이력
@@ -1025,6 +1028,10 @@ async function saveRepairs(force){
 }
 // ── 측정기 관리 ────────────────────────────────────────────────────
 let gauges=JSON.parse(localStorage.getItem('sr-gauges')||'[]');
+let gaugeCerts=JSON.parse(localStorage.getItem('sr-gauge-certs')||'{}'); // {gaugeId:[{type,name,data,isImage,ts},...]} - 교정성적서 첨부파일(로컬 저장)
+function svGaugeCerts(){
+  try{localStorage.setItem('sr-gauge-certs',JSON.stringify(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);}
+}
 async function saveGauges(force){
   if(!force){
     try{
@@ -7263,11 +7270,11 @@ function rGauge(){
     </div>`:'';
     return `
   <div class="card" style="padding:0;overflow:hidden">
-    <table class="tbl" style="min-width:820px">
+    <table class="tbl" style="min-width:900px">
       <thead><tr>
         <th>측정기명</th><th>모델/규격</th><th>관리번호</th><th>사용부서</th>
         <th>검교정업체</th><th style="width:100px">차기검교정일</th>
-        <th style="width:75px">상태</th><th style="width:110px">작업</th>
+        <th style="width:75px">상태</th><th style="width:180px">작업</th>
       </tr></thead>
       <tbody>
         ${pageItems.map(g=>{
@@ -7283,6 +7290,7 @@ function rGauge(){
           <td><span class="badge ${g.status==='정상'?'bg':g.status==='폐기'?'bgr':'ba'}" style="font-size:11px">${g.status||'정상'}</span></td>
           <td style="white-space:nowrap">
             <button onclick="openGaugeModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
+            <button onclick="openGaugeCertModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--blue);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">📄 성적서${(gaugeCerts[String(g.id)]||[]).length?'('+gaugeCerts[String(g.id)].length+')':''}</button>
             <button onclick="delGauge(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
           </td>
         </tr>`;}).join('')}
@@ -7346,9 +7354,124 @@ function delGauge(idx){
   if(!requireEdit())return;
   const g=gauges[idx];
   if(!g)return;
-  if(!confirm('"'+g.name+'" 측정기를 삭제하시겠습니까?'))return;
+  if(!confirm('"'+g.name+'" 측정기를 삭제하시겠습니까?\n(첨부된 교정성적서도 함께 삭제됩니다)'))return;
+  delete gaugeCerts[String(g.id)];svGaugeCerts();
   gauges.splice(idx,1);
   saveGauges(true);tst('✓ 삭제 완료');render();
+}
+
+// ── 측정기 교정성적서 첨부 ────────────────────────────────────────
+function openGaugeCertModal(idx){
+  const g=gauges[idx];
+  if(!g)return;
+  const gid=String(g.id);
+  const list=gaugeCerts[gid]||[];
+  document.getElementById('mo-title').textContent='📄 교정성적서 - '+(g.name||'');
+  document.getElementById('mb').innerHTML=`
+    <div class="fg">
+      <label class="fl">성적서 파일 첨부 (이미지·PDF·문서 등 모든 파일, 여러 개 선택 가능)</label>
+      <input type="file" multiple class="fi" onchange="handleGaugeCertUpload('${gid}',this)">
+    </div>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+      ${!list.length?`<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">첨부된 성적서가 없습니다</div>`:
+      list.map((f,i)=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+          <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${f.name||'파일'}</div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button onclick="viewGaugeCert('${gid}',${i})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">보기</button>
+            <button onclick="downloadGaugeCert('${gid}',${i})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">다운로드</button>
+            <button onclick="removeGaugeCert('${gid}',${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">삭제</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function handleGaugeCertUpload(gaugeId,inputEl){
+  if(!requireEdit()){inputEl.value='';return;}
+  gaugeId=String(gaugeId);
+  const files=inputEl.files;
+  if(!files||!files.length)return;
+  if(!gaugeCerts[gaugeId])gaugeCerts[gaugeId]=[];
+  let remaining=files.length;
+  const finishOne=()=>{
+    remaining--;
+    if(remaining===0){
+      svGaugeCerts();
+      tst('✓ 성적서 첨부 완료');
+      const idx=gauges.findIndex(g=>String(g.id)===gaugeId);
+      if(idx>=0)openGaugeCertModal(idx);
+    }
+  };
+  Array.from(files).forEach(file=>{
+    if(file.size>15*1024*1024){tst('⚠️ "'+file.name+'" 파일이 너무 큽니다 (15MB 이하 권장)',3000);}
+    const isImage=file.type.startsWith('image/');
+    const reader=new FileReader();
+    reader.onload=function(e){
+      if(isImage){
+        const img=new Image();
+        img.onload=function(){
+          const maxW=1400;let w=img.width,h=img.height;
+          if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
+          const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+          cv.getContext('2d').drawImage(img,0,0,w,h);
+          gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
+          finishOne();
+        };
+        img.onerror=function(){
+          gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+          finishOne();
+        };
+        img.src=e.target.result;
+      }else{
+        gaugeCerts[gaugeId].push({type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+        finishOne();
+      }
+    };
+    reader.onerror=function(){finishOne();};
+    reader.readAsDataURL(file);
+  });
+  inputEl.value='';
+}
+
+function viewGaugeCert(gaugeId,i){
+  gaugeId=String(gaugeId);
+  const f=(gaugeCerts[gaugeId]||[])[i];
+  if(!f)return;
+  if(f.isImage){viewBig(f.data);return;}
+  try{
+    const win=window.open('','_blank');
+    if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
+    if(f.type==='application/pdf'){
+      win.document.write('<iframe src="'+f.data+'" style="border:0;position:fixed;inset:0;width:100%;height:100%"></iframe>');
+      win.document.title=f.name||'성적서';
+    }else{
+      win.document.write('<title>'+(f.name||'성적서')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center"><p style="font-size:16px;margin-bottom:20px">'+(f.name||'파일')+'</p><a href="'+f.data+'" download="'+(f.name||'file')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a></body>');
+      win.document.close();
+    }
+  }catch(e){tst('파일을 열 수 없습니다');}
+}
+
+function downloadGaugeCert(gaugeId,i){
+  gaugeId=String(gaugeId);
+  const f=(gaugeCerts[gaugeId]||[])[i];
+  if(!f)return;
+  const a=document.createElement('a');
+  a.href=f.data;a.download=f.name||'성적서';a.click();
+  tst('📥 성적서 다운로드');
+}
+
+function removeGaugeCert(gaugeId,i){
+  if(!requireEdit())return;
+  gaugeId=String(gaugeId);
+  if(!confirm('이 첨부파일을 삭제하시겠습니까?'))return;
+  if(gaugeCerts[gaugeId]){
+    gaugeCerts[gaugeId].splice(i,1);
+    if(!gaugeCerts[gaugeId].length)delete gaugeCerts[gaugeId];
+  }
+  svGaugeCerts();tst('✓ 삭제 완료');
+  const idx=gauges.findIndex(g=>String(g.id)===gaugeId);
+  if(idx>=0)openGaugeCertModal(idx);
 }
 
 
@@ -7700,7 +7823,9 @@ function dlBackupAll(){
       workers:WK.length,
       suppliers:SUPPLIERS.length,
       images:Object.keys(imgs).length,
-      drawings:Object.keys(draws).length
+      drawings:Object.keys(draws).length,
+      gauges:gauges.length,
+      gaugeCerts:Object.keys(gaugeCerts).length
     },
     data:{
       inv:inv,
@@ -7711,6 +7836,8 @@ function dlBackupAll(){
       suppliers:SUPPLIERS,
       images:imgs,
       drawings:draws,
+      gauges:gauges,
+      gaugeCerts:gaugeCerts,
       changeLogs:changeLogs,
       notices:notices,
       dailyReports:dailyReports
@@ -7753,10 +7880,12 @@ function restoreBackup(file){
       if(b.data.suppliers)SUPPLIERS=b.data.suppliers;
       if(b.data.images)imgs=b.data.images;
       if(b.data.drawings)draws=b.data.drawings;
+      if(b.data.gauges)gauges=b.data.gauges;
+      if(b.data.gaugeCerts)gaugeCerts=b.data.gaugeCerts;
       if(b.data.changeLogs)changeLogs=b.data.changeLogs;
       if(b.data.notices)notices=b.data.notices;
       if(b.data.dailyReports)dailyReports=b.data.dailyReports;
-      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
