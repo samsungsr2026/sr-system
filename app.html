@@ -7694,8 +7694,8 @@ function handleGaugeCertUpload(inputEl){
     }
   };
   Array.from(files).forEach(file=>{
-    if(file.size>10*1024*1024){
-      tst('⚠️ "'+file.name+'" 파일이 너무 큽니다 (10MB 이하만 가능) - 용량을 줄여 다시 시도해주세요',4000);
+    if(file.size>2*1024*1024){
+      tst('⚠️ "'+file.name+'" 파일이 너무 큽니다 (2MB 이하만 가능) - Firebase 저장 방식의 한계로 큰 파일(특히 엑셀)은 압축하거나 PDF/이미지로 변환해서 올려주세요',5000);
       finishOne();
       return;
     }
@@ -7832,8 +7832,8 @@ function handleFacilityLedgerUpload(inputEl){
     }
   };
   Array.from(files).forEach(file=>{
-    if(file.size>10*1024*1024){
-      tst('⚠️ "'+file.name+'" 파일이 너무 큽니다 (10MB 이하만 가능) - 용량을 줄여 다시 시도해주세요',4000);
+    if(file.size>2*1024*1024){
+      tst('⚠️ "'+file.name+'" 파일이 너무 큽니다 (2MB 이하만 가능) - Firebase 저장 방식의 한계로 큰 파일(특히 엑셀)은 압축하거나 PDF/이미지로 변환해서 올려주세요',5000);
       finishOne();
       return;
     }
