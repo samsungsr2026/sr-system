@@ -981,6 +981,11 @@ function rPurchaseStats(){
 }
 let vendorOrders=JSON.parse(localStorage.getItem('sr-vendor-orders')||'[]');
 // 배열을 key 기준으로 병합 (덮어쓰지 않고 합침 - 동시 편집/오래된 탭으로 인한 데이터 손실 방지)
+// 대소문자 구분 없는 검색용 헬퍼 (영문 대소문자 무시하고 포함 여부 확인)
+function ciInc(str,q){
+  if(!q)return true;
+  return (str==null?'':String(str)).toLowerCase().includes(String(q).toLowerCase());
+}
 function mergeByKey(localArr, remoteArr, keyFn){
   const map=new Map();
   (Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); });
@@ -1560,7 +1565,7 @@ function fil(){
   return inv.filter(i=>{
     const stop=isStop(i);
     const stOk = fcat==='전체'||(fcat==='정상'&&st(i)==='ok'&&!stop)||(fcat==='주의'&&st(i)==='med'&&!stop)||(fcat==='부족'&&st(i)==='low'&&!stop)||(fcat==='생산중단'&&stop);
-    const srOk = !sq||i.name.includes(sq)||i.id.includes(sq)||(i.material||'').includes(sq)||(i.classNo||'').includes(sq)||(i.location||'').includes(sq);
+    const srOk = !sq||ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq);
     return stOk&&srOk;
   }).sort((a,b)=>{
     // 중단 품목 하단
@@ -3072,7 +3077,7 @@ function ioItemHTML(type,sq){
   const col=type==='in'?'var(--green)':'var(--amber)';
   const bg=type==='in'?'var(--green-bg)':'var(--amber-bg)';
   if(!sq)return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">🔍 품목을 검색하세요</div>';
-  const f=inv.filter(i=>i.name.includes(sq)||i.id.includes(sq)||(i.classNo||'').includes(sq));
+  const f=inv.filter(i=>ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.classNo,sq));
   if(!f.length)return '<div style="text-align:center;padding:16px;color:var(--text3)">검색 결과 없음</div>';
   return f.slice(0,30).map(it=>`
     <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg3);border-radius:8px;margin-bottom:6px;border:1px solid var(--border);cursor:pointer" onclick="selectIOItem('${type}','${it.id}')">
@@ -3162,10 +3167,10 @@ function findItem(type,val){
   const info=document.getElementById(type==='in'?'ii-info':'oi-info');
   if(!val){info.style.display='none';manIOSelected[type]=null;return;}
   // 정확히 일치 우선 (금형번호 또는 부품번호)
-  let it=inv.find(i=>i.id===val||i.classNo===val||i.barcode===val);
+  let it=inv.find(i=>i.id.toLowerCase()===val.toLowerCase()||(i.classNo||'').toLowerCase()===val.toLowerCase()||(i.barcode||'').toLowerCase()===val.toLowerCase());
   // 정확 일치 없으면 부분 일치 - 1개만 매칭되면 자동 선택
   if(!it){
-    const matches=inv.filter(i=>i.id.includes(val)||(i.classNo||'').includes(val));
+    const matches=inv.filter(i=>ciInc(i.id,val)||ciInc(i.classNo,val));
     if(matches.length===1)it=matches[0];
     else if(matches.length>1){
       info.style.display='block';
@@ -3941,7 +3946,7 @@ function rPlan(){
   // 검색어 필터 (품명/금형번호/부품번호)
   if(planSq){
     const q=planSq;
-    const match=i=>i.name.includes(q)||i.id.includes(q)||(i.classNo||'').includes(q);
+    const match=i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q);
     low=low.filter(match);med=med.filter(match);
   }
   const sc=Object.values(planSel).filter(v=>v>0).length;
@@ -3986,7 +3991,7 @@ function planSearchResultHTML(){
   if(!planSq)return '';
   const q=planSq;
   const all=[...inv.filter(i=>st(i)==='low'&&!isStop(i)),...inv.filter(i=>st(i)==='med'&&!isStop(i)),...inv.filter(i=>st(i)==='ok'&&!isStop(i))];
-  const f=all.filter(i=>i.name.includes(q)||i.id.includes(q)||(i.classNo||'').includes(q));
+  const f=all.filter(i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q));
   if(!f.length)return '<div style="text-align:center;padding:14px;color:var(--text3)">검색 결과 없음</div>';
   return f.slice(0,20).map(it=>{
     const s=st(it);
@@ -4290,9 +4295,9 @@ function rBarcode(){
   const sq2=window._bcSq||'';
   const filtered=inv.filter(i=>
     !sq2||
-    i.name.includes(sq2)||
-    i.id.includes(sq2)||
-    (i.classNo||'').includes(sq2)
+    ciInc(i.name,sq2)||
+    ciInc(i.id,sq2)||
+    ciInc(i.classNo,sq2)
   );
 
   return `
@@ -4447,9 +4452,9 @@ function bcSearch(val){
   const sq2=val||'';
   const filtered=inv.filter(i=>
     !sq2||
-    i.name.includes(sq2)||
-    i.id.includes(sq2)||
-    (i.classNo||'').includes(sq2)
+    ciInc(i.name,sq2)||
+    ciInc(i.id,sq2)||
+    ciInc(i.classNo,sq2)
   );
   const box=document.getElementById('bc-result-box');
   if(!box)return;
@@ -5015,7 +5020,7 @@ function mvItemResultHTML(i){
   const v=SUPPLIERS[i];
   const already=(SUPPLIER_ITEMS[v]||[]).map(it=>it.id).filter(Boolean);
   if(!mvItemSq) return '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">재고 품목을 검색하세요</div>';
-  const f=inv.filter(it=>!already.includes(it.id)&&(it.name.includes(mvItemSq)||it.id.includes(mvItemSq)||(it.classNo||'').includes(mvItemSq)));
+  const f=inv.filter(it=>!already.includes(it.id)&&(ciInc(it.name,mvItemSq)||ciInc(it.id,mvItemSq)||ciInc(it.classNo,mvItemSq)));
   if(!f.length) return '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">검색 결과 없음</div>';
   return f.slice(0,20).map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg2,var(--bg));border-radius:6px;margin-bottom:5px;border:1px solid var(--border)">
     <div style="flex:1;min-width:0;font-size:12px">${it.name} <span style="color:var(--text3);font-size:10px">(${it.id})</span></div>
@@ -5102,7 +5107,7 @@ function ordResultHTML(){
     return html;
   }
   if(!orderSq) return html+'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">🔍 품목을 검색하세요</div>';
-  let f=inv.filter(i=>i.name.includes(orderSq)||i.id.includes(orderSq)||(i.classNo||'').includes(orderSq));
+  let f=inv.filter(i=>ciInc(i.name,orderSq)||ciInc(i.id,orderSq)||ciInc(i.classNo,orderSq));
   // 업체가 선택돼 있으면 그 업체 취급 품목을 우선 정렬
   if(vendor&&supItems.length){
     const supIds=new Set(supItems.map(si=>si.id).filter(Boolean));
@@ -5344,8 +5349,8 @@ function rDelProd(){
     <div class="warn-box">⚠️ 관리자 로그인 후 사용할 수 있습니다.</div>`;
   }
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
-    !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
-    (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
+    !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
   );
   const sc=delSel.size;
   return `
@@ -5402,8 +5407,8 @@ function rDelProd(){
 
 function renderDelList(){
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
-    !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
-    (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
+    !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
   );
   const tbody=document.getElementById('del-list-body');
   if(!tbody){render();return;}
@@ -5426,8 +5431,8 @@ function toggleDelItem(idx, checked){
 
 function toggleDelAll(checked){
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
-    !delSq||i.name.includes(delSq)||i.id.includes(delSq)||
-    (i.classNo||'').includes(delSq)||(i.location||'').includes(delSq)
+    !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
   );
   list.forEach(i=>{ if(checked) delSel.add(i._idx); else delSel.delete(i._idx); });
   render();
@@ -7030,7 +7035,7 @@ function rChangeLog(){
 
   let list=changeLogs.filter(l=>{
     const typeOk=clFilter==='전체'||l.type===clFilter;
-    const sqOk=!clSq||l.title.includes(clSq)||l.detail.includes(clSq)||(l.user||'').includes(clSq);
+    const sqOk=!clSq||ciInc(l.title,clSq)||ciInc(l.detail,clSq)||ciInc(l.user,clSq);
     return typeOk&&sqOk;
   });
 
@@ -7108,7 +7113,7 @@ function rRepair(){
   const statusMap={'완료':'완료','진행중':'진행중'};
   let list=repairs.filter(r=>{
     const stOk=repFilter==='전체'||r.status===repFilter;
-    const sqOk=!repSq||(r.equipment||'').includes(repSq)||(r.issue||'').includes(repSq)||(r.vendor||'').includes(repSq);
+    const sqOk=!repSq||ciInc(r.equipment,repSq)||ciInc(r.issue,repSq)||ciInc(r.vendor,repSq);
     return stOk&&sqOk;
   }).sort((a,b)=>b.ts-a.ts);
 
@@ -7238,7 +7243,7 @@ function rGauge(){
   const certList=(gaugeCerts['_repo']||[]).slice().sort((a,b)=>b.ts-a.ts);
   let list=gauges.filter(g=>{
     const stOk=gauFilter==='전체'||g.status===gauFilter;
-    const sqOk=!gauSq||(g.name||'').includes(gauSq)||(g.serialNo||'').includes(gauSq)||(g.location||'').includes(gauSq)||(g.vendor||'').includes(gauSq);
+    const sqOk=!gauSq||ciInc(g.name,gauSq)||ciInc(g.serialNo,gauSq)||ciInc(g.location,gauSq)||ciInc(g.vendor,gauSq);
     return stOk&&sqOk;
   }).sort((a,b)=>b.ts-a.ts);
 
@@ -8067,7 +8072,7 @@ function locRenderResults(q) {
   }
   var qu = q.toUpperCase();
   var list = inv.filter(function(d) {
-    return d.id.toUpperCase().includes(qu) || d.name.toUpperCase().includes(qu) || (d.classNo || '').includes(q);
+    return d.id.toUpperCase().includes(qu) || d.name.toUpperCase().includes(qu) || (d.classNo || '').toUpperCase().includes(qu);
   }).sort(function(a, b) {
     var aExact = a.id.toUpperCase() === qu;
     var bExact = b.id.toUpperCase() === qu;

@@ -394,7 +394,7 @@ function doLocSearch(val) {
   const list = inv.filter(d =>
     d.id.toUpperCase().includes(qu) ||
     d.name.toUpperCase().includes(qu) ||
-    (d.classNo || '').includes(q)
+    (d.classNo || '').toUpperCase().includes(qu)
   ).sort((a, b) => {
     if (a.id.toUpperCase() === qu) return -1;
     if (b.id.toUpperCase() === qu) return 1;
