@@ -1123,6 +1123,7 @@ let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendX
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
 let draws=JSON.parse(localStorage.getItem('sr-draws')||'{}');   // 제품 도면 (이미지/PDF/문서 등 모든 파일)
+let drawsDeleted=JSON.parse(localStorage.getItem('sr-draws-deleted')||'[]'); // 도면 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
 // 추가 첨부파일 저장소 (품목ID → [{name,type,data,size,ts}])
 let attaches=JSON.parse(localStorage.getItem('sr-attaches')||'{}');
 
@@ -1236,11 +1237,12 @@ async function gdDeleteFile(itemId, fileId){
 // ── Google Drive 연동 끝 ────────────────────────────────────────
 
 function svImgs(){
-  localStorage.setItem('sr-imgs',JSON.stringify(imgs));
-  localStorage.setItem('sr-draws',JSON.stringify(draws));
-  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));
+  try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){tst('⚠️ 저장공간 부족 - 사진 용량을 줄여주세요',3000);}
+  try{localStorage.setItem('sr-draws',JSON.stringify(draws));}catch(e){tst('⚠️ 저장공간 부족 - 도면 파일 용량을 줄여주세요',3000);}
+  try{localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));}catch(e){}
+  try{localStorage.setItem('sr-attaches',JSON.stringify(attaches));}catch(e){tst('⚠️ 저장공간 부족 - 첨부파일 용량을 줄여주세요',3000);}
   cfSet('imgs',imgs).catch(()=>{});
-}catch(e){}
+  cfSetFile('draws',{data:draws,deleted:drawsDeleted}).catch(()=>{});
 }
 function getImg(id){return imgs[id]||'';}
 // 도면 데이터를 {type,name,data,isImage} 형태로 정규화하여 반환
@@ -1474,6 +1476,20 @@ async function jbPull() {
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}
     if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
+    // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
+    try{
+      const remoteDrawsObj=await cfGetFile('draws');
+      const remoteDraws=(remoteDrawsObj&&remoteDrawsObj.data)||{};
+      const remoteDrawsDel=(remoteDrawsObj&&remoteDrawsObj.deleted)||[];
+      drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
+      const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
+      drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
+      const drawsChanged=JSON.stringify(mergedDraws)!==JSON.stringify(draws)||JSON.stringify(mergedDraws)!==JSON.stringify(remoteDraws);
+      draws=mergedDraws;
+      localStorage.setItem('sr-draws',JSON.stringify(draws));
+      localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
+      if(drawsChanged)cfSetFile('draws',{data:draws,deleted:drawsDeleted}).catch(()=>{});
+    }catch(e){}
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
       const mergedV=mergeByKeyRemoteWins(vendors, rv, v=>v.name);
@@ -1614,7 +1630,10 @@ function handleImgUpload(itemId,kind,inputEl){
 function removeImg(itemId,kind){
   if(!requireEdit())return;
   if(!confirm(kind==='draw'?'도면을 삭제하시겠습니까?':'제품 사진을 삭제하시겠습니까?'))return;
-  if(kind==='draw')delete draws[itemId];else delete imgs[itemId];
+  if(kind==='draw'){
+    delete draws[itemId];
+    if(!drawsDeleted.includes(itemId))drawsDeleted.push(itemId);
+  }else delete imgs[itemId];
   svImgs();tst('삭제되었습니다');opD(itemId);
 }
 // 목록에서 사진 클릭 시 상세 모달 열기
