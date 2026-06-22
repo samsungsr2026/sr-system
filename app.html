@@ -7223,10 +7223,10 @@ function rRepair(){
     </div>`:'';
     return `
   <div class="card" style="padding:0;overflow:hidden">
-    <table class="tbl" style="min-width:760px">
+    <table class="tbl" style="min-width:800px">
       <thead><tr>
         <th>장비명</th><th>고장내용</th><th>수리내용</th><th>수리업체/담당</th>
-        <th style="width:90px">비용</th><th style="width:100px">수리일</th>
+        <th style="width:120px">비용</th><th style="width:100px">수리일</th>
         <th style="width:70px">상태</th><th style="width:110px">작업</th>
       </tr></thead>
       <tbody>
@@ -7237,7 +7237,7 @@ function rRepair(){
           <td style="font-size:12px;color:var(--text2)">${r.issue||'-'}</td>
           <td style="font-size:12px;color:var(--text2)">${r.action||'-'}</td>
           <td style="font-size:12px;color:var(--text3)">${r.vendor||'-'}</td>
-          <td style="font-family:monospace;font-size:12px">${r.cost?Number(r.cost).toLocaleString()+'원':'-'}</td>
+          <td style="font-family:monospace;font-size:12px;white-space:nowrap">${r.cost?Number(r.cost).toLocaleString()+'원':'-'}</td>
           <td style="font-size:12px;color:var(--text3);white-space:nowrap">${r.date||'-'}</td>
           <td><span class="badge ${r.status==='완료'?'bg':'ba'}" style="font-size:11px">${r.status||'진행중'}</span></td>
           <td style="white-space:nowrap">
