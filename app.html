@@ -556,6 +556,13 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M9 12h6M9 16h4"></path></svg>
       물품 발주 관리
     </button>
+    <button class="nav-item" onclick="go(&#39;pending&#39;)" id="nb-pending" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:20px;height:20px;flex-shrink:0"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        승인 대기
+      </span>
+      <span id="pending-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 6px"></span>
+    </button>
     <button class="nav-item" onclick="go(&#39;vendor&#39;)" id="nb-vendor">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
       외주업체 관리
@@ -1383,6 +1390,69 @@ function requireEdit(){
   return false;
 }
 
+// ── 관리자 변경사항 승인 대기 시스템 ──────────────────────────────
+// 입출고(재고 증감)는 제외, 제품 등록/수정/삭제는 관리자(admin)가 하면 마스터 승인 전까지 미반영
+let pendingChanges=JSON.parse(localStorage.getItem('sr-pending')||'[]');
+function isAdminPendingRequired(){ return curUser && curUser.role==='admin'; } // master는 즉시 반영
+function savePending(){
+  localStorage.setItem('sr-pending', JSON.stringify(pendingChanges));
+  cfSet('pending', pendingChanges).catch(()=>{});
+}
+function queuePendingChange(type, key, payload, label){
+  pendingChanges.unshift({
+    id: gcNewId(),
+    type, key, payload, label,
+    requestedBy: curUser?curUser.name:'(알수없음)',
+    requestedAt: Date.now()
+  });
+  savePending();
+}
+function approvePending(pid){
+  if(!isMaster()){tst('🔒 마스터만 승인할 수 있습니다');return;}
+  const idx=pendingChanges.findIndex(p=>p.id===pid);
+  if(idx<0)return;
+  const p=pendingChanges[idx];
+  if(p.type==='add'){
+    if(inv.find(i=>i.id===p.key)){tst('❌ 이미 존재하는 금형번호라 승인할 수 없습니다 - 거부해주세요',3500);return;}
+    inv.push(p.payload);
+    sv();
+    addLog('addprod','품목 추가(승인) — '+p.payload.name, `요청자: ${p.requestedBy}`);
+  }else if(p.type==='edit'){
+    if(!inv.find(i=>i.id===p.key)){tst('❌ 대상 품목을 찾을 수 없습니다 - 거부해주세요',3500);return;}
+    applyItemEdit(p.key, p.payload);
+    addLog('stock','품목 수정(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+  }else if(p.type==='delete'){
+    const ids=(p.payload&&p.payload.ids)||[];
+    ids.forEach(id=>{ const i=inv.findIndex(x=>x.id===id); if(i>=0) inv.splice(i,1); });
+    sv();
+    addLog('delprod','품목 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+  }
+  pendingChanges.splice(idx,1);
+  savePending();
+  tst('✓ 승인 완료');
+  render();
+}
+function rejectPending(pid){
+  if(!isMaster()){tst('🔒 마스터만 거부할 수 있습니다');return;}
+  const idx=pendingChanges.findIndex(p=>p.id===pid);
+  if(idx<0)return;
+  if(!confirm('"'+(pendingChanges[idx].label||'')+'" 요청을 거부하시겠습니까?'))return;
+  pendingChanges.splice(idx,1);
+  savePending();
+  tst('🚫 거부되었습니다');
+  render();
+}
+function cancelPending(pid){
+  const idx=pendingChanges.findIndex(p=>p.id===pid);
+  if(idx<0)return;
+  if(pendingChanges[idx].requestedBy!==(curUser&&curUser.name)&&!isMaster()){tst('본인 요청만 취소할 수 있습니다');return;}
+  if(!confirm('이 요청을 취소하시겠습니까?'))return;
+  pendingChanges.splice(idx,1);
+  savePending();
+  tst('취소되었습니다');
+  render();
+}
+
 // ── GitHub Gist 실시간 공유 DB ──────────────────────────────────
 // ── Firebase Realtime Database ──────────────────────────────────
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
@@ -1523,7 +1593,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
-          vendors, vendorOrders, repairs, gauges
+          vendors, vendorOrders, repairs, gauges, pending: pendingChanges
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1543,7 +1613,7 @@ async function jbPull() {
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
-          rrep=fbAll['repairs'], rgau=fbAll['gauges'];
+          rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
     if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
@@ -1603,6 +1673,14 @@ async function jbPull() {
       gauges=mergedG;
       localStorage.setItem('sr-gauges',JSON.stringify(gauges));
       if(gChanged)cfSet('gauges',gauges).catch(()=>{});
+    }
+    // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록)
+    {
+      const mergedPend=mergeByKeyRemoteWins(pendingChanges, rpend, x=>x.id);
+      const pendChanged=JSON.stringify(mergedPend)!==JSON.stringify(pendingChanges)||JSON.stringify(mergedPend)!==JSON.stringify(rpend||[]);
+      pendingChanges=mergedPend;
+      localStorage.setItem('sr-pending',JSON.stringify(pendingChanges));
+      if(pendChanged)cfSet('pending',pendingChanges).catch(()=>{});
     }
     // 교정성적서 보관함: 핵심 데이터(/sr.json)와 분리된 별도 경로에서 가져와 병합
     // (대용량 첨부파일 문제가 재고 등 핵심 동기화 실패로 이어지지 않도록 독립된 try/catch)
@@ -1834,6 +1912,12 @@ function dots(){
   const noteDot=document.getElementById('notedot');
   if(noteDot){const hasImportant=notices.some(n=>n.important&&!n.done);noteDot.style.display=hasImportant?'flex':'none';}
   document.getElementById('inv-count').textContent='총 '+inv.length+'종 · 부족 '+inv.filter(i=>st(i)==='low').length+'건';
+  const pendBadge=document.getElementById('pending-badge');
+  if(pendBadge){
+    const cnt=isMaster()?pendingChanges.length:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name)).length;
+    pendBadge.style.display=cnt>0?'inline-flex':'none';
+    pendBadge.textContent=cnt;
+  }
   const ts=document.getElementById('top-status');
   // 상단 재고부족 메시지 제거
   ts.innerHTML='';
@@ -1930,6 +2014,7 @@ function render(){
   else if(tab==='changelog')m.innerHTML=rChangeLog();
   else if(tab==='repair')m.innerHTML=rRepair();
   else if(tab==='gauge')m.innerHTML=rGauge();
+  else if(tab==='pending')m.innerHTML=rPending();
   dots();
 }
 
@@ -5694,6 +5779,38 @@ function delOneProd(idx){
   render();
 }
 
+function rPending(){
+  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', delete:'🗑️ 삭제'};
+  const isM=isMaster();
+  const list=(isM?pendingChanges:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
+  return `
+  <div class="page-title">✅ 승인 대기</div>
+  <div class="page-sub">${isM?'관리자가 요청한 제품 등록/수정/삭제 변경사항을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>대기 중인 요청이 없습니다</div></div>`:
+  `<div style="display:flex;flex-direction:column;gap:10px">
+    ${list.map(p=>`
+    <div class="card" style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="badge ${p.type==='delete'?'br':p.type==='add'?'bg':'ba'}" style="font-size:11px">${typeLabel[p.type]||p.type}</span>
+          <span style="font-weight:700">${p.label||''}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text3)">${p.requestedBy} · ${new Date(p.requestedAt).toLocaleString('ko',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        ${isM?`
+          <button onclick="approvePending('${p.id}')" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
+          <button onclick="rejectPending('${p.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
+        `:`
+          <span style="font-size:12px;color:var(--text3);align-self:center">⏳ 마스터 승인 대기 중</span>
+          <button onclick="cancelPending('${p.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">요청 취소</button>
+        `}
+      </div>
+    </div>`).join('')}
+  </div>`}`;
+}
+
 function confirmDelProd(){
   if(!requireEdit()) return;
   if(!delSel.size){tst('삭제할 품목을 선택해주세요'); return;}
@@ -5701,6 +5818,15 @@ function confirmDelProd(){
   const idxList=[...delSel].sort((a,b)=>b-a);
   const names=idxList.map(idx=>inv[idx]?inv[idx].name+' ('+inv[idx].id+')':'').filter(Boolean);
   if(!confirm('선택한 '+idxList.length+'개 품목을 삭제하시겠습니까?\n\n'+names.slice(0,5).join('\n')+(names.length>5?'\n... 외 '+(names.length-5)+'개':'')+' \n\n이 작업은 되돌릴 수 없습니다.')) return;
+  if(isAdminPendingRequired()){
+    const ids=idxList.map(idx=>inv[idx]&&inv[idx].id).filter(Boolean);
+    const label='품목 삭제 '+idxList.length+'건 — '+names.slice(0,5).join(', ')+(names.length>5?' 외 '+(names.length-5)+'건':'');
+    queuePendingChange('delete', ids.join(','), {ids}, label);
+    delSel.clear();
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다 ('+idxList.length+'건)');
+    render();
+    return;
+  }
   idxList.forEach(idx=>{ inv.splice(idx,1); });
   delSel.clear();
   sv();
@@ -5738,6 +5864,12 @@ function addNewProduct(){
   const sameCat=inv.find(i=>i.cat===cat&&i.e);
   const e=sameCat?sameCat.e:'📦';
   const newItem={id:moldNo,name,cat,unit,packUnit,qty,min,e,classNo,material,rubberWeight,steelWeight,moldLoc,cavity,location,producer,avgOut,barcode,note};
+  if(isAdminPendingRequired()){
+    queuePendingChange('add', moldNo, newItem, '품목 등록 — '+name);
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    render();
+    return;
+  }
   inv.push(newItem);
   sv();
   addLog('addprod','품목 추가 — '+name, `금형번호: ${moldNo} / 부품번호: ${classNo||'-'} / 재질: ${material||'-'}`);
@@ -6991,6 +7123,19 @@ function saveItemEdit(id){
   const prodStop=document.getElementById('edit-prodstop')?.value||'';
   if(isNaN(qty)){tst('재고 수량을 확인해주세요');return;}
   if(isNaN(min)||min<0){tst('최소기준을 확인해주세요');return;}
+  const payload={qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop};
+  if(isAdminPendingRequired()){
+    queuePendingChange('edit', id, payload, '품목 수정 — '+inv[idx].name);
+    cmo();tst('📨 마스터 승인 대기 중으로 등록되었습니다');render();
+    return;
+  }
+  applyItemEdit(id, payload);
+  cmo();tst('✓ '+inv[idx].name+' 정보 저장 완료');render();
+}
+// 승인된(또는 마스터가 직접 한) 품목 수정을 실제로 반영
+function applyItemEdit(id, payload){
+  const idx=inv.findIndex(i=>i.id===id);if(idx<0)return;
+  const {qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop}=payload;
   const prevQty=inv[idx].qty;
   const finalProducer=producer||inv[idx].producer||'';
   inv[idx].qty=qty;
@@ -7032,7 +7177,6 @@ function saveItemEdit(id){
   if(moldNo&&moldNo!==id) changes.push(`금형번호: ${id} → ${moldNo}`);
   if(partNo&&partNo!==inv[idx].classNo) changes.push(`부품번호: ${inv[idx].classNo||'-'} → ${partNo}`);
   if(changes.length>0) addLog('stock','품목 수정 — '+inv[idx].name, changes.join(' / '), inv[idx].id);
-  cmo();tst('✓ '+inv[idx].name+' 정보 저장 완료');render();
 }
 function modalAddWorker(itemId){
   if(!requireEdit())return;
@@ -8653,6 +8797,7 @@ function locSaveDetail(id) {
 }
 
 function locSaveProducer(id) {
+  if(!requireEdit())return;
   var prod = document.getElementById('loc-prod-input') ? document.getElementById('loc-prod-input').value.trim() : '';
   var idx = inv.findIndex(function(i) { return i.id === id; });
   if (idx < 0) return;
