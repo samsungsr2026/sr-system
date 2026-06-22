@@ -1354,8 +1354,9 @@ async function jbPull() {
     // Firebase에서 모든 데이터 한번에 읽기
     const fbAll = await fetch(`${FB}/sr.json`).then(r=>r.ok?r.json():null).catch(()=>null);
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
-    // Firebase가 비어있으면 현재 로컬 데이터를 전체 업로드 (초기 세팅)
-    if(!fbAll.inv || (Array.isArray(fbAll.inv) && fbAll.inv.length===0)) {
+    // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
+    // ⚠️ inv만 비어있는 경우는 일시적 네트워크 오류일 수 있으므로 절대 전체 덮어쓰기 하지 않음
+    if(Object.keys(fbAll).length===0) {
       jbStat('📤 초기 데이터 업로드 중...','#c07800');
       await fetch(`${FB}/sr.json`, {method:'PUT', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -1366,6 +1367,11 @@ async function jbPull() {
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
+      return;
+    }
+    if(!fbAll.inv || (Array.isArray(fbAll.inv) && fbAll.inv.length===0)) {
+      // inv가 비정상적으로 비어있어도 다른 데이터는 그대로 두고, inv만 복구 시도(전체 덮어쓰기 금지)
+      jbStat('⚠️ 재고 데이터 확인 중...','#c07800');
       return;
     }
     // ── Firebase 데이터를 그대로 사용 (Firebase = 단일 진실 공급원) ──
