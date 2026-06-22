@@ -1073,6 +1073,14 @@ function gcRepoForStorage(obj){
     _deleted: (obj&&obj['_deleted'])||[]
   });
 }
+// 파일 보관함 ID 생성기: Date.now()+Math.random()은 같은 밀리초에 여러 파일이 처리되면
+// 부동소수점 정밀도 손실로 ID가 겹칠 수 있음(다중 파일 업로드 시 한 파일이 사라지는 버그 원인).
+// 문자열 결합 + 시퀀스 카운터로 항상 고유하게 생성.
+let _gcIdSeq=0;
+function gcNewId(){
+  _gcIdSeq++;
+  return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+_gcIdSeq;
+}
 function gcMergeDeleted(localDel, remoteDel){
   const set=new Set([...(localDel||[]).map(String), ...(remoteDel||[]).map(String)]);
   return Array.from(set);
@@ -7619,16 +7627,16 @@ function handleGaugeCertUpload(inputEl){
           if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
           const cv=document.createElement('canvas');cv.width=w;cv.height=h;
           cv.getContext('2d').drawImage(img,0,0,w,h);
-          gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
+          gaugeCerts['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
           finishOne();
         };
         img.onerror=function(){
-          gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+          gaugeCerts['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
           finishOne();
         };
         img.src=e.target.result;
       }else{
-        gaugeCerts['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+        gaugeCerts['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
         finishOne();
       }
     };
@@ -7745,16 +7753,16 @@ function handleFacilityLedgerUpload(inputEl){
           if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
           const cv=document.createElement('canvas');cv.width=w;cv.height=h;
           cv.getContext('2d').drawImage(img,0,0,w,h);
-          facilityLedger['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
+          facilityLedger['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true,ts:Date.now()});
           finishOne();
         };
         img.onerror=function(){
-          facilityLedger['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+          facilityLedger['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
           finishOne();
         };
         img.src=e.target.result;
       }else{
-        facilityLedger['_repo'].push({id:Date.now()+Math.random(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
+        facilityLedger['_repo'].push({id:gcNewId(),label,type:file.type,name:file.name,data:e.target.result,isImage:false,ts:Date.now()});
         finishOne();
       }
     };
