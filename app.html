@@ -1037,6 +1037,7 @@ async function saveRepairs(force){
 // 설비 관리 대장 (첨부파일 보관함) - 교정성적서 보관함과 동일한 방식: /srFiles 분리 경로 + tombstone 삭제 동기화
 let facilityLedger=JSON.parse(localStorage.getItem('sr-facility-ledger')||'{}'); // {_repo:[{id,label,type,name,data,isImage,ts},...], _deleted:[id,...]}
 async function svFacilityLedger(force){
+  let ok=true;
   if(!force){
     try{
       const remoteFL=await cfGetFile('facilityLedger');
@@ -1046,12 +1047,17 @@ async function svFacilityLedger(force){
       facilityLedger['_repo']=gcApplyTombstones(mergeByKey(facilityLedger['_repo']||[], remoteRepo, x=>x.id), facilityLedger['_deleted']);
     }catch(e){}
   }
-  try{localStorage.setItem('sr-facility-ledger',JSON.stringify(facilityLedger));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);}
+  try{localStorage.setItem('sr-facility-ledger',JSON.stringify(facilityLedger));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
   jbStat('💾 저장 중...');
   try{
-    await cfSetFile('facilityLedger',facilityLedger);
-    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
-  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+    const r=await cfSetFile('facilityLedger',facilityLedger);
+    if(r){
+      jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+    }else{
+      jbStat('⚠️ 저장오류','#c07800'); ok=false;
+    }
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); ok=false; }
+  return ok;
 }
 // ── 측정기 관리 ────────────────────────────────────────────────────
 let gauges=JSON.parse(localStorage.getItem('sr-gauges')||'[]');
@@ -1066,6 +1072,7 @@ function gcApplyTombstones(repo, deletedIds){
   return (repo||[]).filter(f=>!del.has(String(f.id)));
 }
 async function svGaugeCerts(force){
+  let ok=true;
   if(!force){
     try{
       const remoteGC=await cfGetFile('gaugeCerts');
@@ -1075,12 +1082,17 @@ async function svGaugeCerts(force){
       gaugeCerts['_repo']=gcApplyTombstones(mergeByKey(gaugeCerts['_repo']||[], remoteRepo, x=>x.id), gaugeCerts['_deleted']);
     }catch(e){}
   }
-  try{localStorage.setItem('sr-gauge-certs',JSON.stringify(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);}
+  try{localStorage.setItem('sr-gauge-certs',JSON.stringify(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
   jbStat('💾 저장 중...');
   try{
-    await cfSetFile('gaugeCerts',gaugeCerts);
-    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
-  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+    const r=await cfSetFile('gaugeCerts',gaugeCerts);
+    if(r){
+      jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+    }else{
+      jbStat('⚠️ 저장오류','#c07800'); ok=false;
+    }
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); ok=false; }
+  return ok;
 }
 async function saveGauges(force){
   if(!force){
@@ -7540,11 +7552,17 @@ function handleGaugeCertUpload(inputEl){
   const label=document.getElementById('gc-label')?.value?.trim()||'';
   if(!gaugeCerts['_repo'])gaugeCerts['_repo']=[];
   let remaining=files.length;
-  const finishOne=()=>{
+  const finishOne=async ()=>{
     remaining--;
     if(remaining===0){
-      svGaugeCerts();
-      tst('✓ 성적서 첨부 완료');
+      tst('💾 저장 중... (완료 전 화면을 벗어나지 마세요)',2500);
+      render();
+      const ok=await svGaugeCerts();
+      if(ok){
+        tst('✓ 성적서 첨부 완료 (저장됨)');
+      }else{
+        tst('⚠️ 저장에 실패했습니다 - 다시 시도해주세요',4000);
+      }
       const lb=document.getElementById('gc-label');
       if(lb)lb.value=label; // 같은 라벨로 연속 첨부 가능하도록 유지
       render();
@@ -7656,11 +7674,17 @@ function handleFacilityLedgerUpload(inputEl){
   const label=document.getElementById('fl-label')?.value?.trim()||'';
   if(!facilityLedger['_repo'])facilityLedger['_repo']=[];
   let remaining=files.length;
-  const finishOne=()=>{
+  const finishOne=async ()=>{
     remaining--;
     if(remaining===0){
-      svFacilityLedger();
-      tst('✓ 대장 파일 첨부 완료');
+      tst('💾 저장 중... (완료 전 화면을 벗어나지 마세요)',2500);
+      render();
+      const ok=await svFacilityLedger();
+      if(ok){
+        tst('✓ 대장 파일 첨부 완료 (저장됨)');
+      }else{
+        tst('⚠️ 저장에 실패했습니다 - 다시 시도해주세요',4000);
+      }
       const lb=document.getElementById('fl-label');
       if(lb)lb.value=label; // 같은 라벨로 연속 첨부 가능하도록 유지
       render();
