@@ -1036,9 +1036,21 @@ async function saveRepairs(force){
 }
 // ── 측정기 관리 ────────────────────────────────────────────────────
 let gauges=JSON.parse(localStorage.getItem('sr-gauges')||'[]');
-let gaugeCerts=JSON.parse(localStorage.getItem('sr-gauge-certs')||'{}'); // {gaugeId:[{type,name,data,isImage,ts},...]} - 교정성적서 첨부파일(로컬 저장)
-function svGaugeCerts(){
+let gaugeCerts=JSON.parse(localStorage.getItem('sr-gauge-certs')||'{}'); // {_repo:[{id,label,type,name,data,isImage,ts},...]} - 교정성적서 첨부파일(보관함, Firebase 동기화)
+async function svGaugeCerts(force){
+  if(!force){
+    try{
+      const remoteGC=await cfGet('gaugeCerts');
+      const remoteRepo=(remoteGC&&remoteGC['_repo'])||[];
+      gaugeCerts['_repo']=mergeByKey(gaugeCerts['_repo']||[], remoteRepo, x=>x.id);
+    }catch(e){}
+  }
   try{localStorage.setItem('sr-gauge-certs',JSON.stringify(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);}
+  jbStat('💾 저장 중...');
+  try{
+    await cfSet('gaugeCerts',gaugeCerts);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
 async function saveGauges(force){
   if(!force){
@@ -1350,7 +1362,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
-          vendors, vendorOrders, repairs, gauges
+          vendors, vendorOrders, repairs, gauges, gaugeCerts
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1365,7 +1377,7 @@ async function jbPull() {
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
-          rrep=fbAll['repairs'], rgau=fbAll['gauges'];
+          rrep=fbAll['repairs'], rgau=fbAll['gauges'], rgc=fbAll['gaugeCerts'];
 
     if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
     if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
@@ -1407,6 +1419,15 @@ async function jbPull() {
       gauges=mergedG;
       localStorage.setItem('sr-gauges',JSON.stringify(gauges));
       if(gChanged)cfSet('gauges',gauges).catch(()=>{});
+    }
+    // 교정성적서 보관함: 병합 (다른 기기에서 첨부한 파일이 보이도록)
+    {
+      const remoteRepo=(rgc&&rgc['_repo'])||[];
+      const mergedRepo=mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remoteRepo, x=>x.id);
+      const gcChanged=JSON.stringify(mergedRepo)!==JSON.stringify(gaugeCerts['_repo']||[])||JSON.stringify(mergedRepo)!==JSON.stringify(remoteRepo);
+      gaugeCerts['_repo']=mergedRepo;
+      localStorage.setItem('sr-gauge-certs',JSON.stringify(gaugeCerts));
+      if(gcChanged)cfSet('gaugeCerts',gaugeCerts).catch(()=>{});
     }
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
@@ -7481,7 +7502,7 @@ function removeGaugeCert(id){
   if(idx<0)return;
   if(!confirm('"'+(list[idx].name||'파일')+'"을 보관함에서 삭제하시겠습니까?'))return;
   list.splice(idx,1);
-  svGaugeCerts();tst('✓ 삭제 완료');render();
+  svGaugeCerts(true);tst('✓ 삭제 완료');render();
 }
 
 
@@ -7895,7 +7916,7 @@ function restoreBackup(file){
       if(b.data.changeLogs)changeLogs=b.data.changeLogs;
       if(b.data.notices)notices=b.data.notices;
       if(b.data.dailyReports)dailyReports=b.data.dailyReports;
-      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts();
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts(true);
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
