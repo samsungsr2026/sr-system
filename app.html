@@ -1393,10 +1393,14 @@ function requireEdit(){
 // ── 관리자 변경사항 승인 대기 시스템 ──────────────────────────────
 // 입출고(재고 증감)는 제외, 제품 등록/수정/삭제는 관리자(admin)가 하면 마스터 승인 전까지 미반영
 let pendingChanges=JSON.parse(localStorage.getItem('sr-pending')||'[]');
+// 승인/거부/취소된 요청이 다른 기기와의 union 병합으로 되살아나지 않도록 tombstone(_deleted) 처리
+let pendingDeleted=JSON.parse(localStorage.getItem('sr-pending-deleted')||'[]');
 function isAdminPendingRequired(){ return curUser && curUser.role==='admin'; } // master는 즉시 반영
 function savePending(){
   localStorage.setItem('sr-pending', JSON.stringify(pendingChanges));
+  localStorage.setItem('sr-pending-deleted', JSON.stringify(pendingDeleted));
   cfSet('pending', pendingChanges).catch(()=>{});
+  cfSet('pendingDeleted', pendingDeleted).catch(()=>{});
 }
 function queuePendingChange(type, key, payload, label, before){
   pendingChanges.unshift({
@@ -1470,6 +1474,7 @@ function approvePending(pid){
     }
   }
   pendingChanges.splice(idx,1);
+  if(!pendingDeleted.includes(pid))pendingDeleted.push(pid);
   savePending();
   tst('✓ 승인 완료');
   render();
@@ -1480,6 +1485,7 @@ function rejectPending(pid){
   if(idx<0)return;
   if(!confirm('"'+(pendingChanges[idx].label||'')+'" 요청을 거부하시겠습니까?'))return;
   pendingChanges.splice(idx,1);
+  if(!pendingDeleted.includes(pid))pendingDeleted.push(pid);
   savePending();
   tst('🚫 거부되었습니다');
   render();
@@ -1490,6 +1496,7 @@ function cancelPending(pid){
   if(pendingChanges[idx].requestedBy!==(curUser&&curUser.name)&&!isMaster()){tst('본인 요청만 취소할 수 있습니다');return;}
   if(!confirm('이 요청을 취소하시겠습니까?'))return;
   pendingChanges.splice(idx,1);
+  if(!pendingDeleted.includes(pid))pendingDeleted.push(pid);
   savePending();
   tst('취소되었습니다');
   render();
@@ -1635,7 +1642,7 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
-          vendors, vendorOrders, repairs, gauges, pending: pendingChanges
+          vendors, vendorOrders, repairs, gauges, pending: pendingChanges, pendingDeleted
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1716,13 +1723,19 @@ async function jbPull() {
       localStorage.setItem('sr-gauges',JSON.stringify(gauges));
       if(gChanged)cfSet('gauges',gauges).catch(()=>{});
     }
-    // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록)
+    // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록) + tombstone으로 거부/승인/취소된 항목 부활 방지
     {
-      const mergedPend=mergeByKeyRemoteWins(pendingChanges, rpend, x=>x.id);
+      const rpendDel=fbAll['pendingDeleted'];
+      pendingDeleted=gcMergeDeleted(pendingDeleted, rpendDel);
+      let mergedPend=mergeByKeyRemoteWins(pendingChanges, rpend, x=>x.id);
+      mergedPend=gcApplyTombstones(mergedPend, pendingDeleted);
       const pendChanged=JSON.stringify(mergedPend)!==JSON.stringify(pendingChanges)||JSON.stringify(mergedPend)!==JSON.stringify(rpend||[]);
+      const pendDelChanged=JSON.stringify(pendingDeleted.slice().sort())!==JSON.stringify((rpendDel||[]).slice().sort());
       pendingChanges=mergedPend;
       localStorage.setItem('sr-pending',JSON.stringify(pendingChanges));
+      localStorage.setItem('sr-pending-deleted',JSON.stringify(pendingDeleted));
       if(pendChanged)cfSet('pending',pendingChanges).catch(()=>{});
+      if(pendDelChanged)cfSet('pendingDeleted',pendingDeleted).catch(()=>{});
     }
     // 교정성적서 보관함: 핵심 데이터(/sr.json)와 분리된 별도 경로에서 가져와 병합
     // (대용량 첨부파일 문제가 재고 등 핵심 동기화 실패로 이어지지 않도록 독립된 try/catch)
