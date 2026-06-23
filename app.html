@@ -771,6 +771,20 @@ function saveNotices(){
   localStorage.setItem('sr-notices',JSON.stringify(notices));
   cfSet('notices',notices).catch(()=>{});
 }
+// 공지/할일 삭제: 관리자가 요청하면 마스터 승인 전까지 미반영
+function delNotice(id){
+  if(!requireEdit())return;
+  const n=notices.find(x=>x.id===id);
+  if(!n)return;
+  if(!confirm('삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', String(n.id), {module:'notice', moduleLabel:'공지/할일', id:n.id, title:n.title}, '공지/할일 삭제 — '+(n.title||''));
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
+  notices=notices.filter(x=>x.id!==id);
+  saveNotices();render();
+}
 function saveDR(){
   localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));
   cfSet('dailyreport',dailyReports).catch(()=>{});
@@ -808,6 +822,20 @@ function toggleMasterMenu(){
 function saveCL(){
   localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));
   cfSet('changelog',changeLogs).catch(()=>{});
+}
+// 변경이력 삭제: 관리자가 요청하면 마스터 승인 전까지 미반영
+function delChangeLog(id){
+  if(!requireEdit())return;
+  const l=changeLogs.find(x=>x.id==id);
+  if(!l)return;
+  if(!confirm('"'+(l.title||'')+'" 변경이력을 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', String(l.id), {module:'changelog', moduleLabel:'변경이력', id:l.id, title:l.title}, '변경이력 삭제 — '+(l.title||''));
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
+  changeLogs=changeLogs.filter(x=>x.id!=id);
+  saveCL();render();
 }
 function addLog(type,title,detail,itemId){
   const user=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
@@ -1512,6 +1540,24 @@ function approvePending(pid){
     }else if(fp.module==='supplier'){
       const i=SUPPLIERS.indexOf(fp.name);
       if(i>=0){delete SUPPLIER_ITEMS[fp.name];SUPPLIERS.splice(i,1);saveSUP();saveSUPITEMS();}
+    }else if(fp.module==='changelog'){
+      const i=changeLogs.findIndex(l=>String(l.id)===String(fp.id));
+      if(i>=0){changeLogs.splice(i,1);saveCL();}
+    }else if(fp.module==='notice'){
+      const i=notices.findIndex(n=>String(n.id)===String(fp.id));
+      if(i>=0){notices.splice(i,1);saveNotices();}
+    }else if(fp.module==='worker'){
+      const i=WK.indexOf(fp.name);
+      if(i>=0){WK.splice(i,1);saveWK();}
+    }else if(fp.module==='supplierItem'){
+      const arr=SUPPLIER_ITEMS[fp.vendor];
+      if(arr){
+        const i=arr.findIndex(x=>x.name===fp.itemName);
+        if(i>=0){arr.splice(i,1);saveSUPITEMS();}
+      }
+    }else if(fp.module==='supplierItemsAll'){
+      SUPPLIERS.forEach(v=>{SUPPLIER_ITEMS[v]=[];});
+      saveSUPITEMS();
     }
     addLog('other',(fp.moduleLabel||'데이터')+' 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
   }
@@ -5502,8 +5548,17 @@ function mvAddDirectItem(i){
   saveSUPITEMS();tst('✓ '+name+' 취급 품목 등록');mvRefresh();
 }
 function mvRemoveItem(i,ii){
+  if(!requireEdit())return;
   const v=SUPPLIERS[i];
   if(!SUPPLIER_ITEMS[v])return;
+  const it=SUPPLIER_ITEMS[v][ii];
+  if(!it)return;
+  if(!confirm('"'+(it.name||'')+'" 취급품목을 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', v+'|'+it.name, {module:'supplierItem', moduleLabel:'공급업체 취급품목', vendor:v, itemName:it.name}, '취급품목 삭제 — '+it.name+' ('+v+')');
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   SUPPLIER_ITEMS[v].splice(ii,1);
   saveSUPITEMS();mvRefresh();
 }
@@ -5533,6 +5588,11 @@ function removeVendor(i){
 function clearAllSupplierItems(){
   if(!requireEdit())return;
   if(!confirm('등록된 모든 공급업체의 취급 품목을 전부 삭제하시겠습니까?\n\n업체 목록은 유지되며, 각 업체의 취급 품목만 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', 'all', {module:'supplierItemsAll', moduleLabel:'공급업체 취급품목 전체'}, '공급업체 취급품목 전체 삭제');
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   SUPPLIERS.forEach(v=>{SUPPLIER_ITEMS[v]=[];});
   saveSUPITEMS();
   mvExpanded=-1;
@@ -5998,8 +6058,10 @@ function pendingDetailHtml(p){
     if(fp.docNo)rows.push(['문서번호',fp.docNo]);
     if(fp.vendor)rows.push(['거래처',fp.vendor]);
     if(fp.name)rows.push(['명칭',fp.name]);
+    if(fp.title)rows.push(['제목',fp.title]);
     if(fp.equipment)rows.push(['설비명',fp.equipment]);
     if(fp.vendorName)rows.push(['업체명',fp.vendorName]);
+    if(fp.itemName)rows.push(['품목명',fp.itemName]);
     if(fp.item)rows.push(['품목',fp.item+(fp.qty!=null?' ('+fp.qty+' '+(fp.unit||'')+')':'')]);
     return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
       ${rows.map(r=>row(r[0],r[1])).join('')}
@@ -7435,6 +7497,11 @@ function modalRemoveWorker(idx,itemId){
   if(WK.length<=1){tst('최소 1명은 있어야 합니다');return;}
   const name=WK[idx];
   if(!confirm(name+' 을(를) 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', name, {module:'worker', moduleLabel:'생산자', name}, '생산자 삭제 — '+name);
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   WK.splice(idx,1);saveWK();
   tst(name+' 삭제 완료');
   opD(itemId);
@@ -7453,6 +7520,11 @@ function removeWorker(idx){
   if(WK.length<=1){tst('최소 1명은 있어야 합니다');return;}
   const name=WK[idx];
   if(!confirm(name+' 을(를) 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', name, {module:'worker', moduleLabel:'생산자', name}, '생산자 삭제 — '+name);
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   WK.splice(idx,1);saveWK();tst(name+' 삭제 완료');render();
 }
 
@@ -7719,7 +7791,7 @@ function rChangeLog(){
           <td style="font-size:12px;color:var(--text3)">${l.detail||'-'}</td>
           <td style="font-size:12px;color:var(--text2)">${l.user||'-'}</td>
           <td style="text-align:center">
-            <button onclick="changeLogs=changeLogs.filter(x=>x.id!=${l.id});saveCL();render()"
+            <button onclick="delChangeLog(${l.id})"
               style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer">삭제</button>
           </td>
         </tr>`).join('')}
@@ -8645,7 +8717,7 @@ function rNotice(){
           <div style="font-size:15px;font-weight:700;margin-bottom:5px;${n.done?'text-decoration:line-through;color:var(--text3)':''}">${n.title}</div>
           <div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6">${n.body||''}</div>
         </div>
-        <button onclick="if(confirm('삭제하시겠습니까?')){notices=notices.filter(x=>x.id!==${n.id});saveNotices();render();}"
+        <button onclick="delNotice(${n.id})"
           style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px">✕</button>
       </div>
     </div>`).join('')}`;
