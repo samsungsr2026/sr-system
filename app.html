@@ -1398,10 +1398,11 @@ function savePending(){
   localStorage.setItem('sr-pending', JSON.stringify(pendingChanges));
   cfSet('pending', pendingChanges).catch(()=>{});
 }
-function queuePendingChange(type, key, payload, label){
+function queuePendingChange(type, key, payload, label, before){
   pendingChanges.unshift({
     id: gcNewId(),
     type, key, payload, label,
+    before: before!==undefined?before:null,
     requestedBy: curUser?curUser.name:'(알수없음)',
     requestedAt: Date.now()
   });
@@ -1426,6 +1427,47 @@ function approvePending(pid){
     ids.forEach(id=>{ const i=inv.findIndex(x=>x.id===id); if(i>=0) inv.splice(i,1); });
     sv();
     addLog('delprod','품목 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+  }else if(p.type==='filedel'){
+    const fp=p.payload||{};
+    if(fp.kind==='attach'){
+      const arr=attaches[fp.itemId]||[];
+      const fidx=arr.findIndex(f=>f.ts===fp.ts && f.name===fp.fileName);
+      if(fidx>=0){arr.splice(fidx,1);svImgs();}
+      addLog('other','첨부파일 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+    }else if(fp.kind==='img'){
+      if(fp.imgKind==='draw'){
+        delete draws[fp.itemId];
+        drawsDirty.delete(fp.itemId);
+        if(!drawsDeleted.includes(fp.itemId))drawsDeleted.push(fp.itemId);
+        cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(fp.itemId)}`).catch(()=>{});
+      }else delete imgs[fp.itemId];
+      svImgs();
+      addLog('other',(fp.imgKind==='draw'?'도면':'사진')+' 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+    }else if(fp.kind==='gaugecert'){
+      const list=gaugeCerts['_repo']||[];
+      const fidx=list.findIndex(f=>String(f.id)===String(fp.certId));
+      if(fidx>=0){
+        const delId=String(list[fidx].id);
+        list.splice(fidx,1);
+        if(!gaugeCerts['_deleted'])gaugeCerts['_deleted']=[];
+        if(!gaugeCerts['_deleted'].includes(delId))gaugeCerts['_deleted'].push(delId);
+        try{localStorage.setItem('sr-gauge-certs',gcRepoForStorage(gaugeCerts));}catch(e){}
+        cfRemoveFileItem('gaugeCerts', delId).then(()=>cfSetFileDeletedList('gaugeCerts', gaugeCerts['_deleted'])).catch(()=>{});
+      }
+      addLog('other','교정성적서 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+    }else if(fp.kind==='facility'){
+      const list=facilityLedger['_repo']||[];
+      const fidx=list.findIndex(f=>String(f.id)===String(fp.fileId));
+      if(fidx>=0){
+        const delId=String(list[fidx].id);
+        list.splice(fidx,1);
+        if(!facilityLedger['_deleted'])facilityLedger['_deleted']=[];
+        if(!facilityLedger['_deleted'].includes(delId))facilityLedger['_deleted'].push(delId);
+        try{localStorage.setItem('sr-facility-ledger',gcRepoForStorage(facilityLedger));}catch(e){}
+        cfRemoveFileItem('facilityLedger', delId).then(()=>cfSetFileDeletedList('facilityLedger', facilityLedger['_deleted'])).catch(()=>{});
+      }
+      addLog('other','설비관리대장 파일 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+    }
   }
   pendingChanges.splice(idx,1);
   savePending();
@@ -1802,6 +1844,13 @@ function handleImgUpload(itemId,kind,inputEl){
 function removeImg(itemId,kind){
   if(!requireEdit())return;
   if(!confirm(kind==='draw'?'도면을 삭제하시겠습니까?':'제품 사진을 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    const it=inv.find(i=>i.id===itemId);
+    const fname=kind==='draw'?((getDraw(itemId)||{}).name||'도면'):'제품 사진';
+    queuePendingChange('filedel', itemId, {kind:'img', itemId, imgKind:kind, fileName:fname}, (kind==='draw'?'도면 삭제':'사진 삭제')+' — '+(it?it.name:itemId));
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   if(kind==='draw'){
     delete draws[itemId];
     drawsDirty.delete(itemId);
@@ -5779,13 +5828,73 @@ function delOneProd(idx){
   render();
 }
 
+// 승인 대기 항목의 상세 변경 내용을 HTML로 생성 (수정전→수정후, 등록 내용, 삭제 대상, 파일 정보 등)
+function pendingDetailHtml(p){
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const row=(label,val)=>`<div style="font-size:12px;display:flex;gap:6px;flex-wrap:wrap"><span style="color:var(--text3);min-width:92px">${label}</span><span style="font-weight:700">${esc(val)}</span></div>`;
+  if(p.type==='edit'){
+    const before=p.before||{};
+    const after=p.payload||{};
+    const labels={qty:'현재 재고',min:'최소 기준',avg:'월평균 출하',producer:'생산자',loc:'제품 위치',name:'품명',moldNo:'금형번호',moldLoc:'금형위치',partNo:'부품번호',mat:'재질',packUnit:'포장 단위',rubberWeight:'고무 무게',steelWeight:'스틸 무게',cavity:'Cavity Number',prodStatus:'생산 여부',prodStop:'중단 일자'};
+    const fmt=(k,v)=>{
+      if(v===undefined||v===null||v==='')return '(없음)';
+      if(k==='prodStatus')return v==='stop'?'🚫 중단':'✅ 생산중';
+      return v;
+    };
+    const keys=Object.keys(labels).filter(k=>{
+      const a=after[k];
+      if(a===undefined)return false; // 폼에 해당 항목이 없으면 변경 대상 아님
+      const av=(a===''||a==null)?'':String(a);
+      const bv=(before[k]===''||before[k]==null)?'':String(before[k]);
+      return av!==bv;
+    });
+    if(!keys.length)return `<div style="font-size:12px;color:var(--text3);margin-top:6px">변경된 항목이 없습니다</div>`;
+    return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      ${keys.map(k=>`<div style="font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="color:var(--text3);min-width:90px">${labels[k]}</span>
+        <span style="color:var(--red);text-decoration:line-through;opacity:.8">${esc(fmt(k,before[k]))}</span>
+        <span style="color:var(--text3)">→</span>
+        <span style="color:var(--green);font-weight:700">${esc(fmt(k,after[k]))}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+  if(p.type==='add'){
+    const it=p.payload||{};
+    const rows=[['품명',it.name],['금형번호',it.id],['부품번호',it.classNo],['재질',it.material],['단위',it.unit],['포장단위',it.packUnit],['초기 재고',it.qty],['최소기준',it.min],['금형위치',it.moldLoc],['위치',it.location],['생산자',it.producer],['비고',it.note]]
+      .filter(r=>r[1]!==undefined&&r[1]!==null&&r[1]!=='');
+    if(!rows.length)return '';
+    return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      ${rows.map(r=>row(r[0],r[1])).join('')}
+    </div>`;
+  }
+  if(p.type==='delete'){
+    const items=(p.payload&&p.payload.items)||[];
+    if(!items.length)return '';
+    return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      ${items.map(it=>`<div style="font-size:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:700">${esc(it.name)}</span>
+        <span style="color:var(--text3)">(${esc(it.id)})</span>
+        <span style="color:var(--text3)">재고 ${it.qty!=null?esc(it.qty):'-'} ${esc(it.unit)}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+  if(p.type==='filedel'){
+    const fp=p.payload||{};
+    const kindLabel={attach:'첨부파일',img:(fp.imgKind==='draw'?'도면':'제품 사진'),gaugecert:'교정성적서',facility:'설비관리대장 파일'};
+    return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      ${row('파일 종류',kindLabel[fp.kind]||'파일')}
+      ${row('파일명',fp.fileName||'-')}
+    </div>`;
+  }
+  return '';
+}
 function rPending(){
-  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', delete:'🗑️ 삭제'};
+  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제'};
   const isM=isMaster();
   const list=(isM?pendingChanges:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
   return `
   <div class="page-title">✅ 승인 대기</div>
-  <div class="page-sub">${isM?'관리자가 요청한 제품 등록/수정/삭제 변경사항을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
+  <div class="page-sub">${isM?'관리자가 요청한 변경사항을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
 
   ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>대기 중인 요청이 없습니다</div></div>`:
   `<div style="display:flex;flex-direction:column;gap:10px">
@@ -5793,12 +5902,13 @@ function rPending(){
     <div class="card" style="padding:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="badge ${p.type==='delete'?'br':p.type==='add'?'bg':'ba'}" style="font-size:11px">${typeLabel[p.type]||p.type}</span>
+          <span class="badge ${(p.type==='delete'||p.type==='filedel')?'br':p.type==='add'?'bg':'ba'}" style="font-size:11px">${typeLabel[p.type]||p.type}</span>
           <span style="font-weight:700">${p.label||''}</span>
         </div>
         <div style="font-size:12px;color:var(--text3)">${p.requestedBy} · ${new Date(p.requestedAt).toLocaleString('ko',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      ${pendingDetailHtml(p)}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
         ${isM?`
           <button onclick="approvePending('${p.id}')" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
           <button onclick="rejectPending('${p.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
@@ -5820,8 +5930,9 @@ function confirmDelProd(){
   if(!confirm('선택한 '+idxList.length+'개 품목을 삭제하시겠습니까?\n\n'+names.slice(0,5).join('\n')+(names.length>5?'\n... 외 '+(names.length-5)+'개':'')+' \n\n이 작업은 되돌릴 수 없습니다.')) return;
   if(isAdminPendingRequired()){
     const ids=idxList.map(idx=>inv[idx]&&inv[idx].id).filter(Boolean);
+    const items=idxList.map(idx=>inv[idx]).filter(Boolean).map(it=>({id:it.id,name:it.name,qty:it.qty,unit:it.unit}));
     const label='품목 삭제 '+idxList.length+'건 — '+names.slice(0,5).join(', ')+(names.length>5?' 외 '+(names.length-5)+'건':'');
-    queuePendingChange('delete', ids.join(','), {ids}, label);
+    queuePendingChange('delete', ids.join(','), {ids, items}, label);
     delSel.clear();
     tst('📨 마스터 승인 대기 중으로 등록되었습니다 ('+idxList.length+'건)');
     render();
@@ -7064,6 +7175,14 @@ function dlAttach(itemId, idx){
 function rmAttach(itemId, idx){
   if(!requireEdit())return;
   if(!confirm('첨부파일을 삭제하시겠습니까?'))return;
+  const f=(attaches[itemId]||[])[idx];
+  if(isAdminPendingRequired()){
+    if(!f){tst('파일을 찾을 수 없습니다');return;}
+    const itName=(inv.find(i=>i.id===itemId)||{}).name||itemId;
+    queuePendingChange('filedel', itemId, {kind:'attach', itemId, ts:f.ts, fileName:f.name}, '첨부파일 삭제 — '+(f.name||'파일')+' ('+itName+')');
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   (attaches[itemId]||[]).splice(idx,1);
   svImgs();
   // 섹션 새로고침
@@ -7125,7 +7244,9 @@ function saveItemEdit(id){
   if(isNaN(min)||min<0){tst('최소기준을 확인해주세요');return;}
   const payload={qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop};
   if(isAdminPendingRequired()){
-    queuePendingChange('edit', id, payload, '품목 수정 — '+inv[idx].name);
+    const cur=inv[idx];
+    const before={qty:cur.qty,min:cur.min,avg:cur.avgOut,producer:cur.producer,loc:cur.location,name:cur.name,moldNo:cur.id,moldLoc:cur.moldLoc,partNo:cur.classNo,mat:cur.material,packUnit:cur.packUnit,rubberWeight:cur.rubberWeight,steelWeight:cur.steelWeight,cavity:cur.cavity,prodStatus:cur.prodStatus,prodStop:cur.prodStop};
+    queuePendingChange('edit', id, payload, '품목 수정 — '+inv[idx].name, before);
     cmo();tst('📨 마스터 승인 대기 중으로 등록되었습니다');render();
     return;
   }
@@ -7935,6 +8056,11 @@ async function removeGaugeCert(id){
   const idx=list.findIndex(f=>String(f.id)===String(id));
   if(idx<0)return;
   if(!confirm('"'+(list[idx].name||'파일')+'"을 보관함에서 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('filedel', String(id), {kind:'gaugecert', certId:String(id), fileName:list[idx].name}, '교정성적서 삭제 — '+(list[idx].name||'파일'));
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   const delId=String(list[idx].id);
   list.splice(idx,1);
   if(!gaugeCerts['_deleted'])gaugeCerts['_deleted']=[];
@@ -8056,6 +8182,11 @@ async function removeFacilityLedgerFile(id){
   const idx=list.findIndex(f=>String(f.id)===String(id));
   if(idx<0)return;
   if(!confirm('"'+(list[idx].name||'파일')+'"을 보관함에서 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('filedel', String(id), {kind:'facility', fileId:String(id), fileName:list[idx].name}, '설비관리대장 파일 삭제 — '+(list[idx].name||'파일'));
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
   const delId=String(list[idx].id);
   list.splice(idx,1);
   if(!facilityLedger['_deleted'])facilityLedger['_deleted']=[];
