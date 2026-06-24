@@ -1833,13 +1833,31 @@ async function jbPull() {
     // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
     // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
     try{
-      const remote=await cfGetFileRepoFull('attaches');
-      attachesDeleted=gcMergeDeleted(attachesDeleted, remote.deleted);
+      const rawAttach=await cfGetPath('srFiles/attaches');
+      const repoObj=(rawAttach&&rawAttach['_repo'])||{};
+      const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
+      attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
+      // repoObj의 키는 신규 방식에서는 파일ID(개별 파일 1건), 과거 임시 적용본에서는 품목ID(파일 배열)였음 - 두 형식 모두 인식해서 유실 없이 병합
+      const remoteFlat=[]; const migrated=[]; let hasLegacy=false;
+      Object.keys(repoObj).forEach(k=>{
+        const v=repoObj[k];
+        if(Array.isArray(v)){
+          hasLegacy=true;
+          v.forEach(f=>{ if(f){ if(!f.id)f.id=gcNewId(); const nf=Object.assign({},f,{itemId:k}); remoteFlat.push(nf); migrated.push(nf); } });
+        }else if(v&&typeof v==='object'){
+          remoteFlat.push(v);
+        }
+      });
       const localFlat=attachesFlatten(attaches);
-      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remote.repo, x=>String(x.id)), attachesDeleted);
+      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remoteFlat, x=>String(x.id)), attachesDeleted);
       attaches=attachesGroup(mergedFlat);
       localStorage.setItem('sr-attaches',acForStorage(attaches));
       localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));
+      if(hasLegacy){
+        // 구버전 경로의 파일들을 신규 개별 경로로 재기록하고, 구버전 키는 정리
+        migrated.forEach(f=>cfAddFileItem('attaches', f).catch(()=>{}));
+        Object.keys(repoObj).forEach(k=>{ if(Array.isArray(repoObj[k]))cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(k)}`).catch(()=>{}); });
+      }
     }catch(e){}
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
