@@ -1858,6 +1858,15 @@ async function jbPull() {
         migrated.forEach(f=>cfAddFileItem('attaches', f).catch(()=>{}));
         Object.keys(repoObj).forEach(k=>{ if(Array.isArray(repoObj[k]))cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(k)}`).catch(()=>{}); });
       }
+      // 로컬에만 있고 서버에는 아직 없는(추가 시 전송이 실패했거나 오프라인이었던) 첨부파일을 자동으로 재전송
+      // - 다른 기기에서 안 보이던 파일이 다음 동기화 때 자동 복구됨
+      const remoteIds=new Set(remoteFlat.map(x=>String(x.id)));
+      const delSet=new Set(attachesDeleted.map(String));
+      localFlat.forEach(f=>{
+        if(f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id))){
+          cfAddFileItem('attaches', f).catch(()=>{});
+        }
+      });
     }catch(e){}
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
