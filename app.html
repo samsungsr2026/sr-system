@@ -1775,7 +1775,7 @@ async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
     // Firebase에서 모든 데이터 한번에 읽기
-    const fbAll = await fetch(`${FB}/sr.json`).then(r=>r.ok?r.json():null).catch(()=>null);
+    const fbAll = await fetch(`${FB}/sr.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
     window._jbStage='fetched:'+(fbAll?'ok':'null');
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
@@ -1837,15 +1837,16 @@ async function jbPull() {
       imgsDeleted.forEach(id=>{ delete mergedImgs[id]; }); // 삭제된 항목은 되살아나지 않게 제거
       const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
       // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
-      Object.keys(mergedImgs).forEach(id=>{
-        if(!remoteImgs[id])cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).catch(()=>{});
-      });
+      const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
+      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id])));
+      const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
       imgs=mergedImgs;
       try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
       try{localStorage.setItem('sr-imgs-deleted',JSON.stringify(imgsDeleted));}catch(e){}
       if(delChanged)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
       // 기존 /sr/imgs(핵심 데이터)에 남아있던 사진 데이터를 정리 - 다음부터 핵심 동기화(/sr.json)가 가벼워짐
-      if(legacyKeys.length)cfDeletePath('sr/imgs').catch(()=>{});
+      // (이전이 전부 성공적으로 끝난 뒤에만 삭제 - 유실 방지)
+      if(legacyKeys.length&&migOk)cfDeletePath('sr/imgs').catch(()=>{});
     }catch(e){}
     window._jbStage='after-imgs';
     window._jbStage='before-draws';
