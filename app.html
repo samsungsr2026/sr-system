@@ -1763,10 +1763,12 @@ async function sv() {
 
 
 async function jbPull() {
+  window._jbStage='start';
   jbStat('🔄 동기화 중...');
   try {
     // Firebase에서 모든 데이터 한번에 읽기
     const fbAll = await fetch(`${FB}/sr.json`).then(r=>r.ok?r.json():null).catch(()=>null);
+    window._jbStage='fetched:'+(fbAll?'ok':'null');
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
     // ⚠️ inv만 비어있는 경우는 일시적 네트워크 오류일 수 있으므로 절대 전체 덮어쓰기 하지 않음
@@ -1785,6 +1787,7 @@ async function jbPull() {
     }
     if(!fbAll.inv || (Array.isArray(fbAll.inv) && fbAll.inv.length===0)) {
       // inv가 비정상적으로 비어있어도 다른 데이터는 그대로 두고, inv만 복구 시도(전체 덮어쓰기 금지)
+      window._jbStage='no-inv';
       jbStat('⚠️ 재고 데이터 확인 중...','#c07800');
       return;
     }
@@ -1812,6 +1815,7 @@ async function jbPull() {
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
     if(rim&&typeof rim==='object'){imgs=rim;try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}}
+    window._jbStage='before-draws';
     // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
     try{
       const remoteDrawsRoot=await cfGetPath('srFiles/draws');
@@ -1830,10 +1834,12 @@ async function jbPull() {
       localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
       if(delChanged)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
     }catch(e){}
+    window._jbStage='before-attaches';
     // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
     // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
     try{
       const rawAttach=await cfGetPath('srFiles/attaches');
+      window._jbStage='attaches-fetched:'+(rawAttach?'ok':'null');
       const repoObj=(rawAttach&&rawAttach['_repo'])||{};
       const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
       attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
@@ -1875,7 +1881,8 @@ async function jbPull() {
           tst('📤 첨부파일 '+ok+'개 서버로 재전송 완료',3000);
         }
       }
-    }catch(e){ tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
+    }catch(e){ window._jbStage='attaches-error:'+((e&&e.message)||e); tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
+    window._jbStage='after-attaches';
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
       const mergedV=mergeByKeyRemoteWins(vendors, rv, v=>v.name);
@@ -7337,9 +7344,10 @@ function renderAttachSection(itemId){
   const list=attaches[itemId]||[];
   const canE=canEdit();
   const diagTotal=(window._attachServerTotal!=null)?window._attachServerTotal:'확인중';
+  const diagStage=window._jbStage||'(동기화 시작전)';
   return `
   <div style="margin-top:18px">
-    <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:6px;display:inline-block">🔧 진단: 서버 전체 보관함 ${diagTotal}건 / 이 화면(화면에 보이는) ${list.length}건</div>
+    <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:6px;display:inline-block">🔧 진단: 서버 전체 보관함 ${diagTotal}건 / 이 화면 ${list.length}건 / 단계: ${diagStage}</div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">📎 추가 첨부파일 <span style="color:var(--blue)">${list.length}개</span></div>
       ${canE?`<div style="display:flex;gap:6px">
