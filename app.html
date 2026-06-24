@@ -1775,7 +1775,7 @@ async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
     // Firebase에서 모든 데이터 한번에 읽기
-    const fbAll = await fetch(`${FB}/sr.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const fbAll = await fetch(`${FB}/sr.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(45000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
     window._jbStage='fetched:'+(fbAll?'ok':'null');
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
@@ -1838,7 +1838,9 @@ async function jbPull() {
       const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
       // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
       const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
-      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id])));
+      if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
+      let migDone=0;
+      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
       const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
       imgs=mergedImgs;
       try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
@@ -1846,7 +1848,10 @@ async function jbPull() {
       if(delChanged)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
       // 기존 /sr/imgs(핵심 데이터)에 남아있던 사진 데이터를 정리 - 다음부터 핵심 동기화(/sr.json)가 가벼워짐
       // (이전이 전부 성공적으로 끝난 뒤에만 삭제 - 유실 방지)
-      if(legacyKeys.length&&migOk)cfDeletePath('sr/imgs').catch(()=>{});
+      if(legacyKeys.length&&migOk){
+        await cfDeletePath('sr/imgs').catch(()=>{});
+        jbStat('✅ 사진 정리 완료 ('+toMigrate.length+'건)','#0d9e72');
+      }
     }catch(e){}
     window._jbStage='after-imgs';
     window._jbStage='before-draws';
