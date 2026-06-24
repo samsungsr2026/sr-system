@@ -1407,10 +1407,11 @@ cfGet('accounts').then(ra=>{
     // 서버에 데이터 있으면 서버 것 사용
     accounts=ra;
     localStorage.setItem('sr-accounts',JSON.stringify(accounts));
-  } else {
-    // 서버에 없으면 현재 accounts(로컬 또는 DEFAULT)를 서버에 업로드
-    cfSet('accounts', accounts);
   }
+  // ⚠️ 서버 응답이 비어있거나(ra가 없음) 네트워크 오류로 null이 와도 절대 업로드(덮어쓰기)하지 않음.
+  // cfGet은 "서버에 진짜 데이터가 없는 경우"와 "네트워크 오류로 못 받아온 경우"를 구분하지 못하므로,
+  // 여기서 함부로 업로드하면 네트워크가 불안정할 때 관리자 계정이 통째로 사라지는 사고가 날 수 있음(실제 발생).
+  // 최초 설치(완전히 빈 DB) 시의 계정 업로드는 jbPull()의 전체 부트스트랩 절차에서만 안전하게 처리한다.
   // 설정 페이지가 열려있으면 관리자 계정 현황 테이블 갱신
   const tbl=document.getElementById('acct-tbl');
   if(tbl){
