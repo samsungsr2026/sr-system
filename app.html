@@ -1799,19 +1799,19 @@ async function jbPull() {
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'];
 
-    if(Array.isArray(ri)&&ri.length>0){inv=ri;localStorage.setItem('sr-inv',JSON.stringify(inv));}
-    if(Array.isArray(rt)){txs=rt;localStorage.setItem('sr-tx',JSON.stringify(txs));}
-    if(Array.isArray(ro)){orders=ro;localStorage.setItem('sr-orders',JSON.stringify(orders));}
-    if(Array.isArray(rp)){purchases=rp;localStorage.setItem('sr-purchases',JSON.stringify(purchases));}
-    if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}
-    if(Array.isArray(rw)&&rw.length>0){WK=rw;localStorage.setItem('sr-workers',JSON.stringify(WK));}
-    if(Array.isArray(ra)&&ra.length>0){accounts=ra;localStorage.setItem('sr-accounts',JSON.stringify(accounts));}
-    if(Array.isArray(rn)){notices=rn;localStorage.setItem('sr-notices',JSON.stringify(notices));}
-    if(Array.isArray(rdr)){dailyReports=rdr;localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}
-    if(Array.isArray(rcl)){changeLogs=rcl;localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}
-    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}
-    if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}
-    if(rim&&typeof rim==='object'){imgs=rim;localStorage.setItem('sr-imgs',JSON.stringify(imgs));}
+    if(Array.isArray(ri)&&ri.length>0){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
+    if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
+    if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
+    if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
+    if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
+    if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
+    if(Array.isArray(ra)&&ra.length>0){accounts=ra;try{localStorage.setItem('sr-accounts',JSON.stringify(accounts));}catch(e){}}
+    if(Array.isArray(rn)){notices=rn;try{localStorage.setItem('sr-notices',JSON.stringify(notices));}catch(e){}}
+    if(Array.isArray(rdr)){dailyReports=rdr;try{localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}catch(e){}}
+    if(Array.isArray(rcl)){changeLogs=rcl;try{localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}catch(e){}}
+    if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
+    if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
+    if(rim&&typeof rim==='object'){imgs=rim;try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}}
     // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
     try{
       const remoteDrawsRoot=await cfGetPath('srFiles/draws');
