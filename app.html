@@ -1771,6 +1771,117 @@ async function sv() {
 }
 
 
+// 제품 사진/도면/첨부파일 동기화 - 핵심 데이터(/sr.json) fetch와 완전히 독립적으로 동작.
+// (각자 /srFiles 의 작은 개별 경로만 읽으므로, 핵심 데이터가 크거나 느려도 영향을 받지 않음)
+// rim: jbPull()이 핵심 데이터를 성공적으로 받아왔을 때만 전달되는 레거시 /sr/imgs 마이그레이션용 데이터(선택)
+let _filesPullBusy=false;
+async function jbPullFiles(rim){
+  if(_filesPullBusy)return; // 중복 동시 실행 방지
+  _filesPullBusy=true;
+  try{
+    // 제품 사진(imgs): 핵심 데이터(/sr.json)에 통째로 섞여 있으면 동기화가 느려지거나(특히 모바일) 실패하므로
+    // 도면(draws)과 동일하게 /srFiles/imgs 개별 경로로 분리. 기존에 /sr/imgs에 남아있던 사진은 이전 후 정리(삭제)한다.
+    window._filesStage='before-imgs';
+    try{
+      const remoteImgsRoot=await cfGetPath('srFiles/imgs');
+      const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
+      const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
+      imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
+      const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
+      // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
+      const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
+      legacyKeys.forEach(id=>{ if(!mergedImgs[id])mergedImgs[id]=rim[id]; });
+      imgsDeleted.forEach(id=>{ delete mergedImgs[id]; }); // 삭제된 항목은 되살아나지 않게 제거
+      const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
+      // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
+      const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
+      if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
+      let migDone=0;
+      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
+      const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
+      imgs=mergedImgs;
+      try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
+      try{localStorage.setItem('sr-imgs-deleted',JSON.stringify(imgsDeleted));}catch(e){}
+      if(delChanged)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
+      // 기존 /sr/imgs(핵심 데이터)에 남아있던 사진 데이터를 정리 - 다음부터 핵심 동기화(/sr.json)가 가벼워짐
+      // (이전이 전부 성공적으로 끝난 뒤에만 삭제 - 유실 방지)
+      if(legacyKeys.length&&migOk){
+        await cfDeletePath('sr/imgs').catch(()=>{});
+        jbStat('✅ 사진 정리 완료 ('+toMigrate.length+'건)','#0d9e72');
+      }
+    }catch(e){}
+    window._filesStage='after-imgs';
+    window._filesStage='before-draws';
+    // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
+    try{
+      const remoteDrawsRoot=await cfGetPath('srFiles/draws');
+      const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
+      const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
+      drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
+      const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
+      drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
+      const delChanged=JSON.stringify(drawsDeleted.slice().sort())!==JSON.stringify((remoteDrawsDel||[]).slice().sort());
+      // 원격에 아직 없는(로컬 전용, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
+      Object.keys(mergedDraws).forEach(id=>{
+        if(!remoteDraws[id])cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(id)}`, mergedDraws[id]).catch(()=>{});
+      });
+      draws=mergedDraws;
+      localStorage.setItem('sr-draws',JSON.stringify(draws));
+      localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
+      if(delChanged)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
+    }catch(e){}
+    window._filesStage='before-attaches';
+    // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
+    // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
+    try{
+      const rawAttach=await cfGetPath('srFiles/attaches');
+      window._filesStage='attaches-fetched:'+(rawAttach?'ok':'null');
+      const repoObj=(rawAttach&&rawAttach['_repo'])||{};
+      const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
+      attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
+      // [진단용] 서버에 실제로 몇 건이 있는지 전역 변수에 저장 (첨부파일 화면에 계속 표시됨)
+      window._attachServerTotal=Object.keys(repoObj).length;
+      // repoObj의 키는 신규 방식에서는 파일ID(개별 파일 1건), 과거 임시 적용본에서는 품목ID(파일 배열)였음 - 두 형식 모두 인식해서 유실 없이 병합
+      const remoteFlat=[]; const migrated=[]; let hasLegacy=false;
+      Object.keys(repoObj).forEach(k=>{
+        const v=repoObj[k];
+        if(Array.isArray(v)){
+          hasLegacy=true;
+          v.forEach(f=>{ if(f){ if(!f.id)f.id=gcNewId(); const nf=Object.assign({},f,{itemId:k}); remoteFlat.push(nf); migrated.push(nf); } });
+        }else if(v&&typeof v==='object'){
+          remoteFlat.push(v);
+        }
+      });
+      const localFlat=attachesFlatten(attaches);
+      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remoteFlat, x=>String(x.id)), attachesDeleted);
+      attaches=attachesGroup(mergedFlat);
+      localStorage.setItem('sr-attaches',acForStorage(attaches));
+      localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));
+      if(hasLegacy){
+        // 구버전 경로의 파일들을 신규 개별 경로로 재기록하고, 구버전 키는 정리
+        migrated.forEach(f=>cfAddFileItem('attaches', f).catch(()=>{}));
+        Object.keys(repoObj).forEach(k=>{ if(Array.isArray(repoObj[k]))cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(k)}`).catch(()=>{}); });
+      }
+      // 로컬에만 있고 서버에는 아직 없는(추가 시 전송이 실패했거나 오프라인이었던) 첨부파일을 자동으로 재전송
+      // - 다른 기기에서 안 보이던 파일이 다음 동기화 때 자동 복구됨
+      const remoteIds=new Set(remoteFlat.map(x=>String(x.id)));
+      const delSet=new Set(attachesDeleted.map(String));
+      const toSend=localFlat.filter(f=>f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id)));
+      if(toSend.length){
+        const results=await Promise.all(toSend.map(f=>cfAddFileItem('attaches', f)));
+        const ok=results.filter(r=>r&&r.ok).length;
+        const failList=toSend.filter((f,i2)=>!(results[i2]&&results[i2].ok));
+        if(failList.length){
+          tst('⚠️ 첨부파일 서버 재전송 실패: '+failList.map(f=>f.name).join(', ')+' ('+(results.find(r=>r&&!r.ok)&&(results.find(r=>r&&!r.ok).detail||results.find(r=>r&&!r.ok).status)||'')+')',6000);
+        }else{
+          tst('📤 첨부파일 '+ok+'개 서버로 재전송 완료',3000);
+        }
+      }
+    }catch(e){ window._filesStage='attaches-error:'+((e&&e.message)||e); tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
+    window._filesStage='after-attaches';
+  }finally{ _filesPullBusy=false; }
+}
+
 async function jbPull() {
   window._jbStage='start';
   jbStat('🔄 동기화 중...');
@@ -1823,106 +1934,8 @@ async function jbPull() {
     if(Array.isArray(rcl)){changeLogs=rcl;try{localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}catch(e){}}
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
-    // 제품 사진(imgs): 핵심 데이터(/sr.json)에 통째로 섞여 있으면 동기화가 느려지거나(특히 모바일) 실패하므로
-    // 도면(draws)과 동일하게 /srFiles/imgs 개별 경로로 분리. 기존에 /sr/imgs에 남아있던 사진은 이전 후 정리(삭제)한다.
-    window._jbStage='before-imgs';
-    try{
-      const remoteImgsRoot=await cfGetPath('srFiles/imgs');
-      const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
-      const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
-      imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
-      const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
-      // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
-      const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
-      legacyKeys.forEach(id=>{ if(!mergedImgs[id])mergedImgs[id]=rim[id]; });
-      imgsDeleted.forEach(id=>{ delete mergedImgs[id]; }); // 삭제된 항목은 되살아나지 않게 제거
-      const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
-      // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
-      const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
-      if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
-      let migDone=0;
-      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
-      const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
-      imgs=mergedImgs;
-      try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
-      try{localStorage.setItem('sr-imgs-deleted',JSON.stringify(imgsDeleted));}catch(e){}
-      if(delChanged)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
-      // 기존 /sr/imgs(핵심 데이터)에 남아있던 사진 데이터를 정리 - 다음부터 핵심 동기화(/sr.json)가 가벼워짐
-      // (이전이 전부 성공적으로 끝난 뒤에만 삭제 - 유실 방지)
-      if(legacyKeys.length&&migOk){
-        await cfDeletePath('sr/imgs').catch(()=>{});
-        jbStat('✅ 사진 정리 완료 ('+toMigrate.length+'건)','#0d9e72');
-      }
-    }catch(e){}
-    window._jbStage='after-imgs';
-    window._jbStage='before-draws';
-    // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
-    try{
-      const remoteDrawsRoot=await cfGetPath('srFiles/draws');
-      const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
-      const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
-      drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
-      const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
-      drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
-      const delChanged=JSON.stringify(drawsDeleted.slice().sort())!==JSON.stringify((remoteDrawsDel||[]).slice().sort());
-      // 원격에 아직 없는(로컬 전용, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
-      Object.keys(mergedDraws).forEach(id=>{
-        if(!remoteDraws[id])cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(id)}`, mergedDraws[id]).catch(()=>{});
-      });
-      draws=mergedDraws;
-      localStorage.setItem('sr-draws',JSON.stringify(draws));
-      localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
-      if(delChanged)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
-    }catch(e){}
-    window._jbStage='before-attaches';
-    // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
-    // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
-    try{
-      const rawAttach=await cfGetPath('srFiles/attaches');
-      window._jbStage='attaches-fetched:'+(rawAttach?'ok':'null');
-      const repoObj=(rawAttach&&rawAttach['_repo'])||{};
-      const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
-      attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
-      // [진단용] 서버에 실제로 몇 건이 있는지 전역 변수에 저장 (첨부파일 화면에 계속 표시됨)
-      window._attachServerTotal=Object.keys(repoObj).length;
-      // repoObj의 키는 신규 방식에서는 파일ID(개별 파일 1건), 과거 임시 적용본에서는 품목ID(파일 배열)였음 - 두 형식 모두 인식해서 유실 없이 병합
-      const remoteFlat=[]; const migrated=[]; let hasLegacy=false;
-      Object.keys(repoObj).forEach(k=>{
-        const v=repoObj[k];
-        if(Array.isArray(v)){
-          hasLegacy=true;
-          v.forEach(f=>{ if(f){ if(!f.id)f.id=gcNewId(); const nf=Object.assign({},f,{itemId:k}); remoteFlat.push(nf); migrated.push(nf); } });
-        }else if(v&&typeof v==='object'){
-          remoteFlat.push(v);
-        }
-      });
-      const localFlat=attachesFlatten(attaches);
-      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remoteFlat, x=>String(x.id)), attachesDeleted);
-      attaches=attachesGroup(mergedFlat);
-      localStorage.setItem('sr-attaches',acForStorage(attaches));
-      localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));
-      if(hasLegacy){
-        // 구버전 경로의 파일들을 신규 개별 경로로 재기록하고, 구버전 키는 정리
-        migrated.forEach(f=>cfAddFileItem('attaches', f).catch(()=>{}));
-        Object.keys(repoObj).forEach(k=>{ if(Array.isArray(repoObj[k]))cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(k)}`).catch(()=>{}); });
-      }
-      // 로컬에만 있고 서버에는 아직 없는(추가 시 전송이 실패했거나 오프라인이었던) 첨부파일을 자동으로 재전송
-      // - 다른 기기에서 안 보이던 파일이 다음 동기화 때 자동 복구됨
-      const remoteIds=new Set(remoteFlat.map(x=>String(x.id)));
-      const delSet=new Set(attachesDeleted.map(String));
-      const toSend=localFlat.filter(f=>f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id)));
-      if(toSend.length){
-        const results=await Promise.all(toSend.map(f=>cfAddFileItem('attaches', f)));
-        const ok=results.filter(r=>r&&r.ok).length;
-        const failList=toSend.filter((f,i2)=>!(results[i2]&&results[i2].ok));
-        if(failList.length){
-          tst('⚠️ 첨부파일 서버 재전송 실패: '+failList.map(f=>f.name).join(', ')+' ('+(results.find(r=>r&&!r.ok)&&(results.find(r=>r&&!r.ok).detail||results.find(r=>r&&!r.ok).status)||'')+')',6000);
-        }else{
-          tst('📤 첨부파일 '+ok+'개 서버로 재전송 완료',3000);
-        }
-      }
-    }catch(e){ window._jbStage='attaches-error:'+((e&&e.message)||e); tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
-    window._jbStage='after-attaches';
+    // 제품 사진/도면/첨부파일 동기화는 핵심 데이터 fetch와 무관하게 독립적으로 동작 (jbPullFiles)
+    await jbPullFiles(rim);
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
       const mergedV=mergeByKeyRemoteWins(vendors, rv, v=>v.name);
@@ -7390,7 +7403,7 @@ function renderAttachSection(itemId){
   const list=attaches[itemId]||[];
   const canE=canEdit();
   const diagTotal=(window._attachServerTotal!=null)?window._attachServerTotal:'확인중';
-  const diagStage=window._jbStage||'(동기화 시작전)';
+  const diagStage=window._filesStage||'(동기화 시작전)';
   return `
   <div style="margin-top:18px">
     <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:6px;display:inline-block">🔧 진단: 서버 전체 보관함 ${diagTotal}건 / 이 화면 ${list.length}건 / 단계: ${diagStage}</div>
@@ -9329,7 +9342,9 @@ tick();setInterval(tick,30000);
 history.replaceState({tab:'dash'}, '', '#dash');
 render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
+window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // 사진/도면/첨부파일은 핵심 데이터와 무관하게 독립적으로 동기화
 setInterval(jbPull, 30000);
+setInterval(()=>jbPullFiles(), 30000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
