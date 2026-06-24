@@ -1862,12 +1862,18 @@ async function jbPull() {
       // - 다른 기기에서 안 보이던 파일이 다음 동기화 때 자동 복구됨
       const remoteIds=new Set(remoteFlat.map(x=>String(x.id)));
       const delSet=new Set(attachesDeleted.map(String));
-      localFlat.forEach(f=>{
-        if(f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id))){
-          cfAddFileItem('attaches', f).catch(()=>{});
+      const toSend=localFlat.filter(f=>f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id)));
+      if(toSend.length){
+        const results=await Promise.all(toSend.map(f=>cfAddFileItem('attaches', f)));
+        const ok=results.filter(r=>r&&r.ok).length;
+        const failList=toSend.filter((f,i2)=>!(results[i2]&&results[i2].ok));
+        if(failList.length){
+          tst('⚠️ 첨부파일 서버 재전송 실패: '+failList.map(f=>f.name).join(', ')+' ('+(results.find(r=>r&&!r.ok)&&(results.find(r=>r&&!r.ok).detail||results.find(r=>r&&!r.ok).status)||'')+')',6000);
+        }else{
+          tst('📤 첨부파일 '+ok+'개 서버로 재전송 완료',3000);
         }
-      });
-    }catch(e){}
+      }
+    }catch(e){ tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
       const mergedV=mergeByKeyRemoteWins(vendors, rv, v=>v.name);
