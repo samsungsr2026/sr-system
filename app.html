@@ -1200,11 +1200,14 @@ let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진
 let draws=JSON.parse(localStorage.getItem('sr-draws')||'{}');   // 제품 도면 (이미지/PDF/문서 등 모든 파일)
 let drawsDeleted=JSON.parse(localStorage.getItem('sr-draws-deleted')||'[]'); // 도면 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
 let drawsDirty=new Set(); // 이번 변경에서 실제로 추가/수정된 도면 itemId만 모아둠 (svImgs가 전체를 재전송하지 않도록)
-// 추가 첨부파일 저장소 (품목ID → [{name,type,data,size,ts}])
+// 추가 첨부파일 저장소 (품목ID → [{id,name,type,data,size,ts}])
+// 교정성적서/설비대장과 동일한 방식: Firebase에는 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장.
+// (이전엔 품목 하나의 첨부파일 배열 전체를 한 경로에 통째로 저장해서, 파일이 누적되면 한 번의 요청 용량이
+//  Firebase 한도를 넘어 일부만 저장되는 문제가 있었음 — 파일 개수 제한 없이 안정적으로 동작하도록 개별 경로로 변경)
 let attaches=JSON.parse(localStorage.getItem('sr-attaches')||'{}');
-let attachesDirty=new Set(); // 이번 변경에서 실제로 추가/수정된 첨부파일 품목ID만 모아둠 (svImgs가 전체를 재전송하지 않도록)
+let attachesDeleted=JSON.parse(localStorage.getItem('sr-attaches-deleted')||'[]'); // 첨부파일 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
 // localStorage 용량 부족 방지: 첨부파일은 무거운 data(base64)를 제외한 메타데이터만 로컬에 캐시한다
-// (원본은 Firebase /srFiles에 개별 품목ID 경로로 저장되며, 동기화 시 다시 채워짐)
+// (원본은 Firebase /srFiles/attaches에 파일별 개별 경로로 저장되며, 동기화 시 다시 채워짐)
 function acForStorage(obj){
   const out={};
   Object.keys(obj||{}).forEach(id=>{
@@ -1212,6 +1215,25 @@ function acForStorage(obj){
   });
   return JSON.stringify(out);
 }
+// {itemId:[file,...]} 구조 ↔ 평면 배열([{...file,itemId}]) 상호 변환 (Firebase 개별 파일 경로 저장을 위함)
+function attachesFlatten(obj){
+  const out=[];
+  Object.keys(obj||{}).forEach(itemId=>{
+    (obj[itemId]||[]).forEach(f=>{ if(!f.id)f.id=gcNewId(); out.push(Object.assign({}, f, {itemId})); });
+  });
+  return out;
+}
+function attachesGroup(arr){
+  const out={};
+  (arr||[]).forEach(f=>{
+    if(!f||!f.itemId)return;
+    const rest=Object.assign({},f); delete rest.itemId;
+    if(!out[f.itemId])out[f.itemId]=[];
+    out[f.itemId].push(rest);
+  });
+  return out;
+}
+
 
 // ── Google Drive 연동 ──────────────────────────────────────────
 const GD_CLIENT_ID = '50941092163-sist4oecj684tq6pcqg0hh8ups588hg6.apps.googleusercontent.com';
@@ -1290,7 +1312,7 @@ async function gdUploadFile(file, itemId, kind){
   
   // 링크만 저장
   if(!attaches[itemId]) attaches[itemId] = [];
-  attaches[itemId].push({
+  const newF={
     id: fileData.id,
     name: file.name,
     type: file.type,
@@ -1299,9 +1321,10 @@ async function gdUploadFile(file, itemId, kind){
     dlLink: `https://drive.google.com/uc?export=download&id=${fileData.id}`,
     ts: Date.now(),
     gdrive: true
-  });
-  attachesDirty.add(itemId);
+  };
+  attaches[itemId].push(newF);
   try{svImgs();}catch(e){tst('저장공간 부족');}
+  cfAddFileItem('attaches', Object.assign({}, newF, {itemId})).catch(()=>{});
   tst('✓ '+file.name+' Google Drive 업로드 완료');
   // 모달 섹션 새로고침
   const sec=document.querySelector('[id^="attach-drop-"]');
@@ -1317,7 +1340,8 @@ async function gdDeleteFile(itemId, fileId){
     headers:{Authorization:'Bearer '+gdToken}
   });
   attaches[itemId] = (attaches[itemId]||[]).filter(f=>f.id!==fileId);
-  attachesDirty.add(itemId);
+  if(!attachesDeleted.includes(String(fileId)))attachesDeleted.push(String(fileId));
+  cfRemoveFileItem('attaches', fileId).then(()=>cfSetFileDeletedList('attaches', attachesDeleted)).catch(()=>{});
   svImgs();
   tst('삭제되었습니다');
   opD(itemId);
@@ -1329,6 +1353,7 @@ function svImgs(){
   try{localStorage.setItem('sr-draws',JSON.stringify(draws));}catch(e){tst('⚠️ 저장공간 부족 - 도면 파일 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));}catch(e){}
   try{localStorage.setItem('sr-attaches',acForStorage(attaches));}catch(e){tst('⚠️ 저장공간 부족 - 첨부파일 용량을 줄여주세요',3000);}
+  try{localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));}catch(e){}
   cfSet('imgs',imgs).catch(()=>{});
   // 도면은 변경된(dirty) 품목만 개별 경로로 전송 - 도면이 많이 쌓여도 한 번의 요청은 변경분만 전송됨
   drawsDirty.forEach(itemId=>{
@@ -1336,13 +1361,8 @@ function svImgs(){
   });
   drawsDirty.clear();
   if(drawsDeleted.length)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
-  // 추가 첨부파일도 변경된(dirty) 품목만 개별 경로로 전송 (원본 data 포함, 누적 용량 초과 방지)
-  attachesDirty.forEach(itemId=>{
-    const arr=attaches[itemId];
-    if(arr&&arr.length)cfPutPath(`srFiles/attaches/_repo/${encodeURIComponent(itemId)}`, arr).catch(()=>{});
-    else cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
-  });
-  attachesDirty.clear();
+  // 추가 첨부파일: 파일 1건당 개별 경로로 저장(아래 addAttach/rmAttach 등에서 직접 전송)하므로
+  // 여기서는 로컬 캐시와 삭제 tombstone만 갱신한다 (개수 제한 없이 안정적으로 동작)
 }
 function getImg(id){return imgs[id]||'';}
 // 도면 데이터를 {type,name,data,isImage} 형태로 정규화하여 반환
@@ -1496,8 +1516,16 @@ function approvePending(pid){
     const fp=p.payload||{};
     if(fp.kind==='attach'){
       const arr=attaches[fp.itemId]||[];
-      const fidx=arr.findIndex(f=>f.ts===fp.ts && f.name===fp.fileName);
-      if(fidx>=0){arr.splice(fidx,1);attachesDirty.add(fp.itemId);svImgs();}
+      const fidx=fp.fileId!=null?arr.findIndex(f=>String(f.id)===String(fp.fileId)):arr.findIndex(f=>f.ts===fp.ts && f.name===fp.fileName);
+      if(fidx>=0){
+        const delF=arr[fidx];
+        arr.splice(fidx,1);
+        if(delF&&delF.id){
+          if(!attachesDeleted.includes(String(delF.id)))attachesDeleted.push(String(delF.id));
+          cfRemoveFileItem('attaches', delF.id).then(()=>cfSetFileDeletedList('attaches', attachesDeleted)).catch(()=>{});
+        }
+        svImgs();
+      }
       addLog('other','첨부파일 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
     }else if(fp.kind==='img'){
       if(fp.imgKind==='draw'){
@@ -1802,16 +1830,16 @@ async function jbPull() {
       localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
       if(delChanged)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
     }catch(e){}
-    // 추가 첨부파일(attaches): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선)
+    // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
+    // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
     try{
-      const remoteAttachRoot=await cfGetPath('srFiles/attaches');
-      const remoteAttaches=(remoteAttachRoot&&remoteAttachRoot['_repo'])||{};
-      const mergedAttaches=Object.assign({}, attaches, remoteAttaches); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
-      Object.keys(mergedAttaches).forEach(id=>{
-        if(!remoteAttaches[id])cfPutPath(`srFiles/attaches/_repo/${encodeURIComponent(id)}`, mergedAttaches[id]).catch(()=>{});
-      });
-      attaches=mergedAttaches;
+      const remote=await cfGetFileRepoFull('attaches');
+      attachesDeleted=gcMergeDeleted(attachesDeleted, remote.deleted);
+      const localFlat=attachesFlatten(attaches);
+      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remote.repo, x=>String(x.id)), attachesDeleted);
+      attaches=attachesGroup(mergedFlat);
       localStorage.setItem('sr-attaches',acForStorage(attaches));
+      localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));
     }catch(e){}
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     {
@@ -7333,10 +7361,13 @@ function addAttach(itemId, inputEl){
   if(!files||!files.length)return;
   const MAX=10*1024*1024; // 10MB 경고
   let cnt=0;
+  const newFiles=[];
   const load=(i)=>{
     if(i>=files.length){
       if(cnt)tst('✓ 첨부파일 '+cnt+'개 추가됨');
       svImgs();
+      // 새로 추가된 파일만 개별 경로로 전송 (보관함 전체를 재전송하지 않음 - 누적 용량 초과 방지)
+      newFiles.forEach(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId})).catch(()=>{}));
       // 모달 내 섹션만 새로고침
       const wrap=document.getElementById('ov').querySelector('[id^="attach-drop-"]');
       if(wrap){
@@ -7351,8 +7382,9 @@ function addAttach(itemId, inputEl){
     const reader=new FileReader();
     reader.onload=function(e){
       if(!attaches[itemId])attaches[itemId]=[];
-      attaches[itemId].push({name:file.name,type:file.type,size:file.size,data:e.target.result,ts:Date.now()});
-      attachesDirty.add(itemId);
+      const f={id:gcNewId(),name:file.name,type:file.type,size:file.size,data:e.target.result,ts:Date.now()};
+      attaches[itemId].push(f);
+      newFiles.push(f);
       cnt++;
       load(i+1);
     };
@@ -7391,12 +7423,15 @@ function rmAttach(itemId, idx){
   if(isAdminPendingRequired()){
     if(!f){tst('파일을 찾을 수 없습니다');return;}
     const itName=(inv.find(i=>i.id===itemId)||{}).name||itemId;
-    queuePendingChange('filedel', itemId, {kind:'attach', itemId, ts:f.ts, fileName:f.name}, '첨부파일 삭제 — '+(f.name||'파일')+' ('+itName+')');
+    queuePendingChange('filedel', itemId, {kind:'attach', itemId, ts:f.ts, fileName:f.name, fileId:f.id}, '첨부파일 삭제 — '+(f.name||'파일')+' ('+itName+')');
     tst('📨 마스터 승인 대기 중으로 등록되었습니다');
     return;
   }
   (attaches[itemId]||[]).splice(idx,1);
-  attachesDirty.add(itemId);
+  if(f&&f.id){
+    if(!attachesDeleted.includes(String(f.id)))attachesDeleted.push(String(f.id));
+    cfRemoveFileItem('attaches', f.id).then(()=>cfSetFileDeletedList('attaches', attachesDeleted)).catch(()=>{});
+  }
   svImgs();
   // 섹션 새로고침
   const ov=document.getElementById('ov');
@@ -7482,7 +7517,10 @@ function applyItemEdit(id, payload){
     // 금형번호(ID) 변경 시 사진/도면 저장 키도 함께 이전
     if(imgs[id]){imgs[moldNo]=imgs[id];delete imgs[id];}
     if(draws[id]){draws[moldNo]=draws[id];delete draws[id];drawsDirty.add(moldNo);cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
-    if(attaches[id]){attaches[moldNo]=attaches[id];delete attaches[id];attachesDirty.add(moldNo);cfDeletePath(`srFiles/attaches/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
+    if(attaches[id]){
+      attaches[moldNo]=attaches[id];delete attaches[id];
+      attaches[moldNo].forEach(f=>{ if(f.id)cfAddFileItem('attaches', Object.assign({}, f, {itemId:moldNo})).catch(()=>{}); });
+    }
     svImgs();
     inv[idx].id=moldNo;
   }
