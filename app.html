@@ -1197,6 +1197,8 @@ let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendX
 
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
+let imgsDeleted=JSON.parse(localStorage.getItem('sr-imgs-deleted')||'[]'); // 제품 사진 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
+let imgsDirty=new Set(); // 이번 변경에서 실제로 추가/수정된 사진 itemId만 모아둠 (svImgs가 전체를 재전송하지 않도록)
 let draws=JSON.parse(localStorage.getItem('sr-draws')||'{}');   // 제품 도면 (이미지/PDF/문서 등 모든 파일)
 let drawsDeleted=JSON.parse(localStorage.getItem('sr-draws-deleted')||'[]'); // 도면 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
 let drawsDirty=new Set(); // 이번 변경에서 실제로 추가/수정된 도면 itemId만 모아둠 (svImgs가 전체를 재전송하지 않도록)
@@ -1354,7 +1356,13 @@ function svImgs(){
   try{localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));}catch(e){}
   try{localStorage.setItem('sr-attaches',acForStorage(attaches));}catch(e){tst('⚠️ 저장공간 부족 - 첨부파일 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));}catch(e){}
-  cfSet('imgs',imgs).catch(()=>{});
+  // 제품 사진은 핵심 데이터(/sr.json)에 넣지 않고 개별 경로로만 저장 (변경된 품목만 전송 - 누적되어도 핵심 동기화 속도에 영향 없음)
+  imgsDirty.forEach(itemId=>{
+    if(imgs[itemId])cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).catch(()=>{});
+    else cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
+  });
+  imgsDirty.clear();
+  if(imgsDeleted.length)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
   // 도면은 변경된(dirty) 품목만 개별 경로로 전송 - 도면이 많이 쌓여도 한 번의 요청은 변경분만 전송됨
   drawsDirty.forEach(itemId=>{
     if(draws[itemId])cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).catch(()=>{});
@@ -1778,7 +1786,7 @@ async function jbPull() {
         body: JSON.stringify({
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
-          changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS, imgs,
+          changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, repairs, gauges, pending: pendingChanges, pendingDeleted
         })
       });
@@ -1814,7 +1822,32 @@ async function jbPull() {
     if(Array.isArray(rcl)){changeLogs=rcl;try{localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}catch(e){}}
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
-    if(rim&&typeof rim==='object'){imgs=rim;try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}}
+    // 제품 사진(imgs): 핵심 데이터(/sr.json)에 통째로 섞여 있으면 동기화가 느려지거나(특히 모바일) 실패하므로
+    // 도면(draws)과 동일하게 /srFiles/imgs 개별 경로로 분리. 기존에 /sr/imgs에 남아있던 사진은 이전 후 정리(삭제)한다.
+    window._jbStage='before-imgs';
+    try{
+      const remoteImgsRoot=await cfGetPath('srFiles/imgs');
+      const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
+      const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
+      imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
+      const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
+      // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
+      const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
+      legacyKeys.forEach(id=>{ if(!mergedImgs[id])mergedImgs[id]=rim[id]; });
+      imgsDeleted.forEach(id=>{ delete mergedImgs[id]; }); // 삭제된 항목은 되살아나지 않게 제거
+      const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
+      // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
+      Object.keys(mergedImgs).forEach(id=>{
+        if(!remoteImgs[id])cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).catch(()=>{});
+      });
+      imgs=mergedImgs;
+      try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
+      try{localStorage.setItem('sr-imgs-deleted',JSON.stringify(imgsDeleted));}catch(e){}
+      if(delChanged)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
+      // 기존 /sr/imgs(핵심 데이터)에 남아있던 사진 데이터를 정리 - 다음부터 핵심 동기화(/sr.json)가 가벼워짐
+      if(legacyKeys.length)cfDeletePath('sr/imgs').catch(()=>{});
+    }catch(e){}
+    window._jbStage='after-imgs';
     window._jbStage='before-draws';
     // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
     try{
@@ -1998,6 +2031,7 @@ function handleImgUpload(itemId,kind,inputEl){
         const cv=document.createElement('canvas');cv.width=w;cv.height=h;
         cv.getContext('2d').drawImage(img,0,0,w,h);
         imgs[itemId]=cv.toDataURL('image/jpeg',0.82);
+        imgsDirty.add(itemId);
         svImgs();tst('✓ 제품 사진이 저장되었습니다');opD(itemId);
       };
       img.onerror=function(){tst('이미지를 불러올 수 없습니다');};
@@ -2057,7 +2091,12 @@ function removeImg(itemId,kind){
     drawsDirty.delete(itemId);
     if(!drawsDeleted.includes(itemId))drawsDeleted.push(itemId);
     cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
-  }else delete imgs[itemId];
+  }else{
+    delete imgs[itemId];
+    imgsDirty.delete(itemId);
+    if(!imgsDeleted.includes(itemId))imgsDeleted.push(itemId);
+    cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
+  }
   svImgs();tst('삭제되었습니다');opD(itemId);
 }
 // 목록에서 사진 클릭 시 상세 모달 열기
@@ -7566,7 +7605,7 @@ function applyItemEdit(id, payload){
   inv[idx].moldLoc=moldLoc;
   if(moldNo&&moldNo!==id){
     // 금형번호(ID) 변경 시 사진/도면 저장 키도 함께 이전
-    if(imgs[id]){imgs[moldNo]=imgs[id];delete imgs[id];}
+    if(imgs[id]){imgs[moldNo]=imgs[id];delete imgs[id];imgsDirty.add(moldNo);cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
     if(draws[id]){draws[moldNo]=draws[id];delete draws[id];drawsDirty.add(moldNo);cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
     if(attaches[id]){
       attaches[moldNo]=attaches[id];delete attaches[id];
