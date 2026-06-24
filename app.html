@@ -7385,7 +7385,13 @@ function addAttach(itemId, inputEl){
       if(cnt)tst('✓ 첨부파일 '+cnt+'개 추가됨');
       svImgs();
       // 새로 추가된 파일만 개별 경로로 전송 (보관함 전체를 재전송하지 않음 - 누적 용량 초과 방지)
-      newFiles.forEach(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId})).catch(()=>{}));
+      Promise.all(newFiles.map(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId}))))
+        .then(results=>{
+          const failed=newFiles.filter((f,i2)=>!(results[i2]&&results[i2].ok));
+          if(failed.length){
+            tst('⚠️ '+failed.map(f=>f.name).join(', ')+' — 서버 저장 실패(다른 기기에는 보이지 않음). 파일 용량을 줄여 다시 시도해주세요',5000);
+          }
+        }).catch(()=>{});
       // 모달 내 섹션만 새로고침
       const wrap=document.getElementById('ov').querySelector('[id^="attach-drop-"]');
       if(wrap){
