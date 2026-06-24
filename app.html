@@ -1837,6 +1837,11 @@ async function jbPull() {
       const repoObj=(rawAttach&&rawAttach['_repo'])||{};
       const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
       attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
+      // [진단용 1회 표시] 서버에 실제로 몇 건이 있는지 확인
+      if(!window._attachDiagShown){
+        window._attachDiagShown=true;
+        tst('📦 서버 첨부파일 보관함: '+Object.keys(repoObj).length+'건',5000);
+      }
       // repoObj의 키는 신규 방식에서는 파일ID(개별 파일 1건), 과거 임시 적용본에서는 품목ID(파일 배열)였음 - 두 형식 모두 인식해서 유실 없이 병합
       const remoteFlat=[]; const migrated=[]; let hasLegacy=false;
       Object.keys(repoObj).forEach(k=>{
