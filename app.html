@@ -8618,11 +8618,11 @@ function rDailyReport(){
       <div class="fg" style="margin-bottom:0">
         <label class="fl">날씨</label>
         <select class="fi" id="dr-weather">
-          <option value="☀️ 맑음">☀️ 맑음</option>
-          <option value="⛅ 구름">⛅ 구름</option>
-          <option value="🌧️ 비">🌧️ 비</option>
-          <option value="❄️ 눈">❄️ 눈</option>
-          <option value="🌫️ 흐림">🌫️ 흐림</option>
+          <option value="☀️ 맑음" ${(!todayReport||todayReport.weather==='☀️ 맑음'||!todayReport.weather)?'selected':''}>☀️ 맑음</option>
+          <option value="⛅ 구름" ${todayReport&&todayReport.weather==='⛅ 구름'?'selected':''}>⛅ 구름</option>
+          <option value="🌧️ 비" ${todayReport&&todayReport.weather==='🌧️ 비'?'selected':''}>🌧️ 비</option>
+          <option value="❄️ 눈" ${todayReport&&todayReport.weather==='❄️ 눈'?'selected':''}>❄️ 눈</option>
+          <option value="🌫️ 흐림" ${todayReport&&todayReport.weather==='🌫️ 흐림'?'selected':''}>🌫️ 흐림</option>
         </select>
       </div>
     </div>
