@@ -718,6 +718,10 @@ select.fi option{background:#fff;color:#111}
   </div></main>
 </div>
 
+<!-- 맨 위로 스크롤 버튼 (제품조회에서 스크롤을 내렸을 때만 표시) -->
+<button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+  style="display:none;position:fixed;bottom:80px;right:24px;width:46px;height:46px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:90">⬆️</button>
+
 <!-- 모달 -->
 <div class="ov" id="ov">
   <div class="mo"><div class="mo-head"><div class="mo-title" id="mo-title"></div><button class="mo-close" onclick="cmo()">✕</button></div><div id="mb"></div></div>
@@ -2251,6 +2255,8 @@ function dots(){
 
 function go(t){
   tab=t;
+  const stb=document.getElementById('scroll-top-btn');
+  if(stb&&t!=='inv')stb.style.display='none';
   if(t!=='plan') planSel={};
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+t);
@@ -9381,6 +9387,13 @@ history.replaceState({tab:'dash'}, '', '#dash');
 render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // 사진/도면/첨부파일은 핵심 데이터와 무관하게 독립적으로 동기화
+// 제품조회 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
+window.addEventListener('scroll', ()=>{
+  const btn=document.getElementById('scroll-top-btn');
+  if(!btn)return;
+  btn.style.display=(tab==='inv'&&window.scrollY>300)?'flex':'none';
+  btn.style.alignItems='center';btn.style.justifyContent='center';
+});
 setInterval(jbPull, 30000);
 setInterval(()=>jbPullFiles(), 30000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
