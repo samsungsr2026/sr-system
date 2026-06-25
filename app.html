@@ -1656,26 +1656,6 @@ function cancelPending(pid){
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let _lastSave = 0;
 
-// 재고(inv) 전용 Firebase 실시간 리스너 (WebSocket).
-// 일반 REST(fetch) 방식이 일부 네트워크/브라우저 환경에서 차단·지연되는 경우가 있어,
-// 가장 중요한 재고 데이터만큼은 실시간 연결로도 동시에 받아오도록 이중화한다.
-// (REST 기반 jbPullInv()는 그대로 유지 - 둘 중 하나만 성공해도 재고는 갱신됨)
-try{
-  if(typeof firebase!=='undefined'){
-    firebase.initializeApp({databaseURL: FB});
-    firebase.database().ref('sr/inv').on('value', function(snap){
-      try{
-        const ri=snap.val();
-        if(Array.isArray(ri)&&ri.length>0){
-          inv=ri;
-          try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
-          if(typeof tab!=='undefined'&&(tab==='dash'||tab==='inv')&&typeof render==='function')render();
-        }
-      }catch(e){}
-    }, function(err){ /* 실시간 연결 실패 시 무시 - REST 폴링(jbPullInv)이 계속 시도함 */ });
-  }
-}catch(e){}
-
 function jbStat(msg, color) {
   const el = document.getElementById('jb-sync');
   if (el) { el.textContent = msg; el.style.color = color || '#888'; }
@@ -1783,6 +1763,7 @@ async function cfSetFileDeletedList(repoKey, deletedArr){
 }
 
 async function sv() {
+  _lastSave = Date.now(); // 저장 시작 시점에도 기록 - 저장 중에는 불러오기가 재고를 덮어쓰지 않도록 함
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
@@ -1912,10 +1893,11 @@ async function jbPullFiles(rim){
 let _invPullBusy=false;
 async function jbPullInv(){
   if(_invPullBusy)return;
+  if(Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
   _invPullBusy=true;
   try{
     const ri=await fetch(`${FB}/sr/inv.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
-    if(Array.isArray(ri)&&ri.length>0){
+    if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){
       inv=ri;
       try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
       if(tab==='dash'||tab==='inv')render();
@@ -1963,7 +1945,7 @@ async function jbPull() {
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'];
 
-    if(Array.isArray(ri)&&ri.length>0){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
+    if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
