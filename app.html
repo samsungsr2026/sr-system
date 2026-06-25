@@ -3033,12 +3033,24 @@ td{border:1px solid #999;padding:8px 9px;font-size:14px}
 let vendorTab = 'list'; // list | detail
 let curVendorIdx = -1;
 let vendorMonthFilter = {shipout:'all', incoming:'all', material:'all'}; // 출고/입고/지급재료 월별 보기 상태
+let vendorRangeFilter = {shipout:{from:'',to:''}, incoming:{from:'',to:''}, material:{from:'',to:''}}; // 기간 직접 선택
 function vmMonthOf(ts){ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function vmDayOf(ts){ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function vmMonthOptions(items){
   const set=new Set(items.map(o=>vmMonthOf(o.ts)));
   return Array.from(set).sort().reverse();
 }
-function vmFilterByMonth(items, month){
+function vmFilterByMonth(items, kind){
+  const month=vendorMonthFilter[kind];
+  if(month==='custom'){
+    const {from,to}=vendorRangeFilter[kind]||{};
+    return items.filter(o=>{
+      const day=vmDayOf(o.ts);
+      if(from&&day<from)return false;
+      if(to&&day>to)return false;
+      return true;
+    });
+  }
   return month==='all'?items:items.filter(o=>vmMonthOf(o.ts)===month);
 }
 function vmTotalLabel(items){
@@ -3048,6 +3060,8 @@ function vmTotalLabel(items){
   return Object.keys(byUnit).map(u=>byUnit[u].toLocaleString()+u).join(' + ');
 }
 function setVendorMonthFilter(kind, month){ vendorMonthFilter[kind]=month; render(); }
+function setVendorRangeFilter(kind, field, val){ vendorRangeFilter[kind][field]=val; vendorMonthFilter[kind]='custom'; render(); }
+
 
 function rVendor(){
   if(vendorTab==='detail' && curVendorIdx>=0) return rVendorDetail(curVendorIdx);
@@ -3104,15 +3118,24 @@ function rVendorDetail(i){
   const shipoutsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='shipout').sort((a,b)=>b.ts-a.ts);
   const matsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='material').sort((a,b)=>b.ts-a.ts);
   const mfShip=vendorMonthFilter.shipout, mfInc=vendorMonthFilter.incoming, mfMat=vendorMonthFilter.material;
-  const incomings=vmFilterByMonth(incomingsAll, mfInc);
-  const shipouts=vmFilterByMonth(shipoutsAll, mfShip);
-  const mats=vmFilterByMonth(matsAll, mfMat);
+  const incomings=vmFilterByMonth(incomingsAll, 'incoming');
+  const shipouts=vmFilterByMonth(shipoutsAll, 'shipout');
+  const mats=vmFilterByMonth(matsAll, 'material');
   const monthSelHtml=(kind, all, cur)=>{
     const opts=vmMonthOptions(all);
-    return `<select class="fi" style="padding:4px 8px;font-size:12px;width:auto" onchange="setVendorMonthFilter('${kind}',this.value)">
-      <option value="all" ${cur==='all'?'selected':''}>전체 기간</option>
-      ${opts.map(m=>`<option value="${m}" ${cur===m?'selected':''}>${m}</option>`).join('')}
-    </select>`;
+    const rf=vendorRangeFilter[kind]||{from:'',to:''};
+    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <select class="fi" style="padding:4px 8px;font-size:12px;width:auto" onchange="setVendorMonthFilter('${kind}',this.value)">
+        <option value="all" ${cur==='all'?'selected':''}>전체 기간</option>
+        ${opts.map(m=>`<option value="${m}" ${cur===m?'selected':''}>${m}</option>`).join('')}
+        <option value="custom" ${cur==='custom'?'selected':''}>📅 기간 직접 선택</option>
+      </select>
+      ${cur==='custom'?`
+      <input type="date" class="fi" style="padding:4px 6px;font-size:12px;width:auto" value="${rf.from||''}" onchange="setVendorRangeFilter('${kind}','from',this.value)">
+      <span style="font-size:12px;color:var(--text3)">~</span>
+      <input type="date" class="fi" style="padding:4px 6px;font-size:12px;width:auto" value="${rf.to||''}" onchange="setVendorRangeFilter('${kind}','to',this.value)">
+      `:''}
+    </div>`;
   };
   return `
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
