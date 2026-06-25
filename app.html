@@ -1197,7 +1197,7 @@ async function saveGauges(force){
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
 let planSq=''; // 생산계획서 품목 검색어
-let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null;
+let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null,pendStockRecon=null;
 
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
@@ -4927,6 +4927,17 @@ function rSet(){
         </div>
         <div id="xl-prev" style="display:none;margin-top:12px"></div>
       </div>
+      <div class="card" style="margin-top:14px;border-color:rgba(13,158,114,.3)">
+        <div class="card-title" style="color:var(--green)">📊 재고수량 일괄 반영 (재고조사 엑셀/CSV)</div>
+        <div style="font-size:13px;color:var(--text3);margin-bottom:12px">재고조사 엑셀 파일을 업로드하면 <strong>부품번호(품번)</strong>가 일치하는 품목의 재고수량만 업데이트합니다. 다른 항목(품목명·위치·생산자 등)은 전혀 건드리지 않으며, 적용 전 변경 내역을 미리 확인할 수 있습니다. 부품번호 열 헤더는 "Material No"/"부품번호"/"품번" 등을, 수량 열 헤더는 "재고수량"/"현재고" 등을 자동으로 인식합니다.</div>
+        <div class="uzn" onclick="document.getElementById('stock-f').click()">
+          <input type="file" id="stock-f" accept=".xlsx,.xls,.csv" onchange="rdStockRecon(this.files[0])">
+          <div style="font-size:32px;margin-bottom:8px">📈</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">엑셀/CSV 파일 선택</div>
+          <div style="font-size:12px;color:var(--text3)">재고조사 결과 파일을 업로드하세요</div>
+        </div>
+        <div id="stock-recon-prev" style="display:none;margin-top:12px"></div>
+      </div>
     </div>
     <div>
       <div class="card" style="margin-bottom:14px">
@@ -7807,6 +7818,116 @@ function rdXLFile(file){
   r.readAsText(file,'utf-8');
 }
 function apXL(){if(!requireEdit())return;if(!pendXL)return;const cnt=pendXL.length;inv=pendXL;sv();addLog('addprod','품목 CSV 일괄 등록',`총 ${cnt}개 품목 업로드`);pendXL=null;tst('✅ '+cnt+'개 품목 등록 완료');go('dash');}
+
+// ── 재고수량 일괄 반영 (재고조사 엑셀/CSV) ──────────────────────────
+// 부품번호(classNo)가 일치하는 품목의 재고수량만 업데이트. 다른 필드는 절대 건드리지 않음.
+function rdStockRecon(file){
+  if(!file)return;
+  if(!requireEdit())return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  const tryAsSheet=(ext==='xls'||ext==='xlsx')&&(typeof XLSX!=='undefined');
+  const reader=new FileReader();
+  if(tryAsSheet){
+    reader.onload=function(e){
+      try{
+        const data=new Uint8Array(e.target.result);
+        const wb=XLSX.read(data,{type:'array',raw:false});
+        let pairs=[];
+        wb.SheetNames.forEach(sn=>{
+          const ws=wb.Sheets[sn];
+          const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+          pairs=pairs.concat(extractStockPairs(rows));
+        });
+        finishStockRecon(pairs, file.name);
+      }catch(err){
+        tst('엑셀 읽기 실패, CSV로 다시 시도해주세요: '+err.message,4000);
+      }
+    };
+    reader.onerror=function(){tst('❌ 파일 읽기 실패',3000);};
+    reader.readAsArrayBuffer(file);
+  }else{
+    reader.onload=function(e){
+      try{
+        let txt=(e.target.result||'').replace(/^\uFEFF/,'');
+        const tabCount=(txt.match(/\t/g)||[]).length, commaCount=(txt.match(/,/g)||[]).length;
+        const sep=tabCount>commaCount?'\t':',';
+        const rows=txt.trim().split(/\r?\n/).map(line=>line.split(sep).map(c=>c.trim().replace(/^"|"$/g,'')));
+        const pairs=extractStockPairs(rows);
+        finishStockRecon(pairs, file.name);
+      }catch(err){tst('파일 읽기 실패: '+err.message,3500);}
+    };
+    reader.onerror=function(){tst('❌ 파일 읽기 실패',3000);};
+    reader.readAsText(file,'utf-8');
+  }
+}
+// 행 배열에서 부품번호/재고수량 열을 자동 인식해 {matNo,qty} 목록 추출
+function extractStockPairs(rows){
+  if(!rows||!rows.length)return [];
+  let headerRow=-1, idxMat=-1, idxQty=-1;
+  const maxScan=Math.min(rows.length,15);
+  for(let i=0;i<maxScan;i++){
+    const r=rows[i]||[];
+    const mi=r.findIndex(c=>/material\s*no|부품\s*번호|품번/i.test(String(c||'')));
+    const qi=r.findIndex(c=>/현\s*재고\s*수량|재고\s*수량|현재고/i.test(String(c||'')));
+    if(mi>=0&&qi>=0){headerRow=i;idxMat=mi;idxQty=qi;break;}
+  }
+  if(headerRow<0)return [];
+  const out=[];
+  for(let i=headerRow+1;i<rows.length;i++){
+    const r=rows[i];if(!r)continue;
+    const matNo=String(r[idxMat]||'').trim();
+    if(!matNo)continue;
+    const qtyRaw=String(r[idxQty]||'').replace(/[^\d.-]/g,'');
+    const qty=qtyRaw===''?0:Math.round(parseFloat(qtyRaw));
+    out.push({matNo, qty});
+  }
+  return out;
+}
+function finishStockRecon(pairs, fileName){
+  if(!pairs.length){tst('⚠️ 부품번호/재고수량 열을 인식하지 못했습니다. CSV(부품번호,재고수량) 형식으로 다시 시도해주세요',4500);return;}
+  // 같은 부품번호가 여러 번 나오면 마지막 값 사용
+  const byMat={};pairs.forEach(p=>{byMat[p.matNo]=p.qty;});
+  const changes=[];
+  let matched=0, unmatchedCount=0;
+  Object.keys(byMat).forEach(matNo=>{
+    const idx=inv.findIndex(it=>String(it.classNo||'').trim()===matNo||String(it.barcode||'').trim()===matNo);
+    if(idx<0){unmatchedCount++;return;}
+    matched++;
+    const it=inv[idx];
+    const newQty=byMat[matNo];
+    if((it.qty||0)!==newQty)changes.push({idx, name:it.name, id:it.id, unit:it.unit||'', oldQty:it.qty||0, newQty});
+  });
+  pendStockRecon=changes;
+  const p=document.getElementById('stock-recon-prev');if(!p)return;p.style.display='block';
+  p.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:14px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">${fileName} — 데이터 ${Object.keys(byMat).length}건 / 매칭 ${matched}건 / 변경 ${changes.length}건 ${unmatchedCount?`<span style="color:var(--text3);font-weight:400">(미매칭 ${unmatchedCount}건)</span>`:''}</div>
+    ${!changes.length?'<div style="color:var(--text3);font-size:13px">변경할 내용이 없습니다 (수량이 모두 동일함)</div>':`
+    <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+      <table class="tbl" style="font-size:12px">
+        <thead><tr><th>품명</th><th>금형번호</th><th>기존</th><th>변경</th></tr></thead>
+        <tbody>${changes.slice(0,200).map(c=>`<tr><td>${c.name}</td><td style="font-family:monospace;color:var(--blue)">${c.id}</td><td style="font-family:monospace;color:var(--text3)">${c.oldQty}${c.unit}</td><td style="font-family:monospace;font-weight:700;color:${c.newQty>c.oldQty?'var(--green)':'var(--red)'}">${c.newQty}${c.unit}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+    ${changes.length>200?`<div style="font-size:12px;color:var(--text3);margin-top:6px">... 외 ${changes.length-200}건</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" style="flex:1;justify-content:center;background:var(--bg4);color:var(--text2);border:1px solid var(--border)" onclick="pendStockRecon=null;document.getElementById('stock-recon-prev').style.display='none'">취소</button>
+      <button class="btn bbg" style="flex:1;justify-content:center" onclick="apStockRecon()">✓ ${changes.length}건 재고수량 반영</button>
+    </div>`}
+  </div>`;
+}
+function apStockRecon(){
+  if(!requireEdit())return;
+  if(!pendStockRecon||!pendStockRecon.length){tst('적용할 변경 내역이 없습니다');return;}
+  const cnt=pendStockRecon.length;
+  pendStockRecon.forEach(c=>{ if(inv[c.idx])inv[c.idx].qty=c.newQty; });
+  sv();
+  addLog('other','재고수량 일괄 반영 (재고조사)',`부품번호 매칭으로 ${cnt}개 품목 수량 업데이트`);
+  pendStockRecon=null;
+  const p=document.getElementById('stock-recon-prev');if(p)p.style.display='none';
+  const f=document.getElementById('stock-f');if(f)f.value='';
+  tst('✅ '+cnt+'개 품목 재고수량 반영 완료');
+  go('dash');
+}
 function dlCSV(){
   const B='\uFEFF';
   // 모든 필드 포함하여 내보내기
