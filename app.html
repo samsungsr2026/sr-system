@@ -8805,7 +8805,7 @@ function rDailyReport(){
     <div class="grid2" style="margin-bottom:12px">
       <div class="fg" style="margin-bottom:0">
         <label class="fl">날짜</label>
-        <input type="date" class="fi" id="dr-date" value="${today}">
+        <input type="date" class="fi" id="dr-date" value="${today}" onchange="onDrDateChange(this.value)">
       </div>
       <div class="fg" style="margin-bottom:0">
         <label class="fl">날씨</label>
@@ -8881,6 +8881,30 @@ function rDailyReport(){
       </tbody>
     </table>`}
   </div>`;
+}
+
+function onDrDateChange(date){
+  const r = dailyReports.find(x=>x.date===date);
+  const wt = document.getElementById('dr-weather');
+  const wk = document.getElementById('dr-work');
+  const is = document.getElementById('dr-issue');
+  const pl = document.getElementById('dr-plan');
+  const io = document.getElementById('dr-io');
+  if(r){
+    if(wt) wt.value = r.weather||'☀️ 맑음';
+    if(wk) wk.value = r.work||'';
+    if(is) is.value = r.issue||'';
+    if(pl) pl.value = r.plan||'';
+    if(io) io.value = r.io||'';
+    tst('📋 '+date+' 작성된 내용을 불러왔습니다');
+  }else{
+    if(wt) wt.value = '☀️ 맑음';
+    if(wk) wk.value = '';
+    if(is) is.value = '';
+    if(pl) pl.value = '';
+    if(io) io.value = '';
+    tst('📝 '+date+' — 새 보고서 작성');
+  }
 }
 
 function loadDailyReport(date){
