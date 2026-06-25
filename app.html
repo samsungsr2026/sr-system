@@ -6959,6 +6959,7 @@ function dashTodayIO(type){
   const bg=type==='in'?'var(--green-bg)':'var(--amber-bg)';
   const sign=type==='in'?'+':'-';
   document.getElementById('mo-title').textContent=(type==='in'?'📥 오늘 입고 내역':'📤 오늘 출고 내역');
+  const moEl0=document.querySelector('.mo');if(moEl0)moEl0.style.width='720px';
   document.getElementById('mb').innerHTML=`
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <div style="flex:1;background:var(--bg3);border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">${type==='in'?'입고':'출고'} 건수</div><div style="font-size:20px;font-weight:700;font-family:monospace">${list.length}건</div></div>
@@ -6966,7 +6967,7 @@ function dashTodayIO(type){
     </div>
     ${list.length?`<table class="tbl" style="font-size:12px">
       <thead><tr><th>품명</th><th>금형번호</th><th>수량</th><th>담당자</th><th>일시</th></tr></thead>
-      <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2)">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td></tr>`;}).join('')}</tbody>
+      <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2);white-space:nowrap">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td></tr>`;}).join('')}</tbody>
     </table>`:'<div style="text-align:center;padding:20px;color:var(--text3)">오늘 '+(type==='in'?'입고':'출고')+' 내역 없음</div>'}`;
   document.getElementById('ov').classList.add('on');
 }
@@ -9047,7 +9048,7 @@ function restoreBackup(file){
   r.readAsText(file,'utf-8');
 }
 
-function cmo(e){document.getElementById('ov').classList.remove('on');}
+function cmo(e){document.getElementById('ov').classList.remove('on');const moEl=document.querySelector('.mo');if(moEl)moEl.style.width='';}
 
 // ── 로그인 / 로그아웃 ─────────────────────────────────────────────
 function openLogin(){
