@@ -769,7 +769,7 @@ if(localStorage.getItem('sr-data-ver')!==DATA_VER){
 let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
-let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]');
+let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]').filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 function saveNotices(){
@@ -1954,7 +1954,12 @@ async function jbPull() {
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;try{localStorage.setItem('sr-accounts',JSON.stringify(accounts));}catch(e){}}
     if(Array.isArray(rn)){notices=rn;try{localStorage.setItem('sr-notices',JSON.stringify(notices));}catch(e){}}
     if(Array.isArray(rdr)){dailyReports=rdr;try{localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}catch(e){}}
-    if(Array.isArray(rcl)){changeLogs=rcl;try{localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}catch(e){}}
+    if(Array.isArray(rcl)){
+      const cleaned=rcl.filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
+      changeLogs=cleaned;
+      try{localStorage.setItem('sr-changelog',JSON.stringify(changeLogs));}catch(e){}
+      if(cleaned.length!==rcl.length) saveCL();
+    }
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
     // 제품 사진/도면/첨부파일 동기화는 핵심 데이터 fetch와 무관하게 독립적으로 동작 (jbPullFiles)
@@ -8984,7 +8989,6 @@ function saveDailyReport(){
   if(existing>=0) dailyReports[existing]=report;
   else dailyReports.push(report);
   saveDR();
-  addLog('other','업무 보고서 저장 — '+date, `날씨: ${weather||'-'} / 작성: ${curUser?.name||''}`);
   tst('✅ 업무 보고서 저장 완료');
   render();
 }
