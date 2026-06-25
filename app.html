@@ -8778,7 +8778,8 @@ async function removeFacilityLedgerFile(id){
 
 
 let noticeFilter='전체';
-let drSelDate = new Date().toISOString().slice(0,10);
+let drSelDate = (function(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+function drToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
@@ -8947,7 +8948,7 @@ function approveDailyReport(date){
 }
 
 function saveDailyReport(){
-  const date = document.getElementById('dr-date')?.value||new Date().toISOString().slice(0,10);
+  const date = document.getElementById('dr-date')?.value||drToday();
   const weather = document.getElementById('dr-weather')?.value||'';
   const work = document.getElementById('dr-work')?.value?.trim()||'';
   const issue = document.getElementById('dr-issue')?.value?.trim()||'';
@@ -9028,7 +9029,7 @@ ${rows}
 }
 
 function printDailyReport(){
-  const date = document.getElementById('dr-date')?.value||new Date().toISOString().slice(0,10);
+  const date = document.getElementById('dr-date')?.value||drToday();
   const r = dailyReports.find(x=>x.date===date);
   if(!r){tst('먼저 저장 후 출력해주세요');return;}
   const pw=window.open('','_blank','width=900,height=700');
