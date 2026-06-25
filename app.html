@@ -8778,6 +8778,7 @@ async function removeFacilityLedgerFile(id){
 
 
 let noticeFilter='전체';
+let drSelDate = new Date().toISOString().slice(0,10);
 // ── 일일 업무 보고서 (마스터 전용) ────────────────────────────────
 function rDailyReport(){
   if(!curUser||curUser.role!=='master'){
@@ -8788,7 +8789,7 @@ function rDailyReport(){
     </div>`;
   }
 
-  const today = new Date().toISOString().slice(0,10);
+  const today = drSelDate;
   const todayReport = dailyReports.find(r=>r.date===today);
 
   return `
@@ -8884,6 +8885,7 @@ function rDailyReport(){
 }
 
 function onDrDateChange(date){
+  drSelDate = date;
   const r = dailyReports.find(x=>x.date===date);
   const wt = document.getElementById('dr-weather');
   const wk = document.getElementById('dr-work');
@@ -8910,6 +8912,7 @@ function onDrDateChange(date){
 function loadDailyReport(date){
   const r = dailyReports.find(x=>x.date===date);
   if(!r) return;
+  drSelDate = date;
   // 작성폼으로 스크롤
   window.scrollTo({top:0, behavior:'smooth'});
   // 폼에 내용 채우기
@@ -8951,6 +8954,7 @@ function saveDailyReport(){
   const plan = document.getElementById('dr-plan')?.value?.trim()||'';
   const io = document.getElementById('dr-io')?.value?.trim()||'';
   if(!work){tst('업무 내용을 입력해주세요');return;}
+  drSelDate = date;
   const existing = dailyReports.findIndex(r=>r.date===date);
   const report = {date,weather,work,issue,plan,io,author:curUser?.name||'',savedAt:Date.now()};
   if(existing>=0) dailyReports[existing]=report;
