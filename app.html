@@ -2275,7 +2275,7 @@ function dots(){
 function go(t){
   tab=t;
   const stb=document.getElementById('scroll-top-btn');
-  if(stb&&t!=='inv')stb.style.display='none';
+  if(stb&&t!=='inv'&&t!=='alert')stb.style.display='none';
   if(t!=='plan') planSel={};
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nb-'+t);
@@ -4596,6 +4596,7 @@ function rAlert(){
         <th>품명</th>
         <th>금형번호</th>
         <th>생산자</th>
+        <th>제품위치</th>
         <th>현재 재고</th>
         <th>월출하량</th>
         <th>부족량</th>
@@ -4611,6 +4612,7 @@ function rAlert(){
           </td>
           <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${i.id}</td>
           <td style="color:var(--text2)">${i.producer||'-'}</td>
+          <td style="color:var(--text2);font-size:12px">${i.location||'-'}</td>
           <td style="font-family:monospace;font-weight:700;color:var(--red)">${i.qty.toLocaleString()}${i.unit}</td>
           <td style="font-family:monospace;color:var(--text2)">${i.avgOut||0}${i.unit}</td>
           <td style="font-family:monospace;font-weight:700;color:var(--red)">-${Math.max(i.min-i.qty,0)}${i.unit}</td>
@@ -4630,6 +4632,7 @@ function rAlert(){
         <th>품명</th>
         <th>금형번호</th>
         <th>생산자</th>
+        <th>제품위치</th>
         <th>현재 재고</th>
         <th>월출하량</th>
         <th>여유량</th>
@@ -4645,6 +4648,7 @@ function rAlert(){
           </td>
           <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${i.id}</td>
           <td style="color:var(--text2)">${i.producer||'-'}</td>
+          <td style="color:var(--text2);font-size:12px">${i.location||'-'}</td>
           <td style="font-family:monospace;font-weight:700;color:var(--amber)">${i.qty.toLocaleString()}${i.unit}</td>
           <td style="font-family:monospace;color:var(--text2)">${i.avgOut||0}${i.unit}</td>
           <td style="font-family:monospace;color:var(--text2)">${Math.max(i.qty-i.min,0)}${i.unit}</td>
@@ -9532,11 +9536,11 @@ render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // 사진/도면/첨부파일은 핵심 데이터와 무관하게 독립적으로 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300)); // 재고는 가장 먼저, 가장 가볍게 독립적으로 동기화
-// 제품조회 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
+// 제품조회/재고알림 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
 window.addEventListener('scroll', ()=>{
   const btn=document.getElementById('scroll-top-btn');
   if(!btn)return;
-  btn.style.display=(tab==='inv'&&window.scrollY>300)?'flex':'none';
+  btn.style.display=((tab==='inv'||tab==='alert')&&window.scrollY>300)?'flex':'none';
   btn.style.alignItems='center';btn.style.justifyContent='center';
 });
 setInterval(jbPull, 30000);
