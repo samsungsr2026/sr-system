@@ -7932,7 +7932,7 @@ function finishStockRecon(pairs, fileName){
     matched++;
     const it=inv[idx];
     const newQty=byMat[matNo];
-    if((it.qty||0)!==newQty)changes.push({idx, name:it.name, id:it.id, unit:it.unit||'', oldQty:it.qty||0, newQty});
+    if((it.qty||0)!==newQty)changes.push({matNo, name:it.name, id:it.id, unit:it.unit||'', oldQty:it.qty||0, newQty});
   });
   pendStockRecon=changes;
   const p=document.getElementById('stock-recon-prev');if(!p)return;p.style.display='block';
@@ -7956,13 +7956,17 @@ function apStockRecon(){
   if(!requireEdit())return;
   if(!pendStockRecon||!pendStockRecon.length){tst('적용할 변경 내역이 없습니다');return;}
   const cnt=pendStockRecon.length;
-  pendStockRecon.forEach(c=>{ if(inv[c.idx])inv[c.idx].qty=c.newQty; });
+  let applied=0;
+  pendStockRecon.forEach(c=>{
+    const idx=inv.findIndex(it=>String(it.classNo||'').trim()===c.matNo||String(it.barcode||'').trim()===c.matNo);
+    if(idx>=0){inv[idx].qty=c.newQty;applied++;}
+  });
   sv();
-  addLog('other','재고수량 일괄 반영 (재고조사)',`부품번호 매칭으로 ${cnt}개 품목 수량 업데이트`);
+  addLog('other','재고수량 일괄 반영 (재고조사)',`부품번호 매칭으로 ${applied}개 품목 수량 업데이트`);
   pendStockRecon=null;
   const p=document.getElementById('stock-recon-prev');if(p)p.style.display='none';
   const f=document.getElementById('stock-f');if(f)f.value='';
-  tst('✅ '+cnt+'개 품목 재고수량 반영 완료');
+  tst('✅ '+applied+'개 품목 재고수량 반영 완료');
   go('dash');
 }
 function dlCSV(){
