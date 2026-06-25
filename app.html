@@ -1886,6 +1886,22 @@ async function jbPullFiles(rim){
   }finally{ _filesPullBusy=false; }
 }
 
+// 재고(inv)는 가장 중요한 데이터라서 핵심 데이터 전체(/sr.json, tx/orders/vendors 등 포함) fetch와
+// 별도로 가볍고 빠르게 /sr/inv 경로만 독립적으로 받아온다 (모바일 등 느린 연결에서도 재고는 먼저 반영되도록)
+let _invPullBusy=false;
+async function jbPullInv(){
+  if(_invPullBusy)return;
+  _invPullBusy=true;
+  try{
+    const ri=await fetch(`${FB}/sr/inv.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(Array.isArray(ri)&&ri.length>0){
+      inv=ri;
+      try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
+      if(tab==='dash'||tab==='inv')render();
+    }
+  }catch(e){}finally{_invPullBusy=false;}
+}
+
 async function jbPull() {
   window._jbStage='start';
   jbStat('🔄 동기화 중...');
@@ -9508,6 +9524,7 @@ history.replaceState({tab:'dash'}, '', '#dash');
 render();dots();
 window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // 사진/도면/첨부파일은 핵심 데이터와 무관하게 독립적으로 동기화
+window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300)); // 재고는 가장 먼저, 가장 가볍게 독립적으로 동기화
 // 제품조회 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
 window.addEventListener('scroll', ()=>{
   const btn=document.getElementById('scroll-top-btn');
@@ -9517,6 +9534,7 @@ window.addEventListener('scroll', ()=>{
 });
 setInterval(jbPull, 30000);
 setInterval(()=>jbPullFiles(), 30000);
+setInterval(()=>jbPullInv(), 15000);
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
