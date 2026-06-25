@@ -3099,10 +3099,10 @@ function openVendorDetail(i){
 
 function rVendorDetail(i){
   const v=vendors[i];
-  const orders=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='order');
-  const incomingsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='incoming');
-  const shipoutsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='shipout');
-  const matsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='material');
+  const orders=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='order').sort((a,b)=>b.ts-a.ts);
+  const incomingsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='incoming').sort((a,b)=>b.ts-a.ts);
+  const shipoutsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='shipout').sort((a,b)=>b.ts-a.ts);
+  const matsAll=vendorOrders.filter(o=>o.vendorName===v.name&&o.type==='material').sort((a,b)=>b.ts-a.ts);
   const mfShip=vendorMonthFilter.shipout, mfInc=vendorMonthFilter.incoming, mfMat=vendorMonthFilter.material;
   const incomings=vmFilterByMonth(incomingsAll, mfInc);
   const shipouts=vmFilterByMonth(shipoutsAll, mfShip);
