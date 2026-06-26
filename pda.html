@@ -114,6 +114,10 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
       위치 조회
     </button>
+    <button class="tab" onclick="switchTab('prod')" id="tab-prod">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
+      생산현황
+    </button>
   </div>
 
   <!-- 입고 등록 탭 -->
@@ -176,7 +180,33 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>
     </div>
   </div>
-</div>
+
+  <!-- 생산현황 등록 탭 -->
+  <div class="page" id="page-prod">
+    <div class="card">
+      <div class="card-title">금일 생산 현황 등록</div>
+      <div class="fg">
+        <label class="label">작업자</label>
+        <select class="inp" id="prod-worker" onchange="showProdCurrent()">
+          <option value="">-- 작업자 선택 --</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="label">금형번호</label>
+        <input class="inp" type="text" id="prod-mold" placeholder="찍고 있는 금형번호 입력" autocomplete="off" autocapitalize="off"
+          inputmode="numeric" onkeydown="if(event.key==='Enter')doRegProd();">
+      </div>
+      <button class="btn btn-in" onclick="doRegProd()">🏭 등록</button>
+    </div>
+    <div class="card" id="prod-current-card" style="display:none">
+      <div class="card-title">현재 등록된 내 작업</div>
+      <div class="found-box" id="prod-current-box" style="display:block;background:#edfaf4;border-color:#0d9e72">
+        <div class="found-name" id="prod-current-mold"></div>
+        <div class="found-info" id="prod-current-time"></div>
+      </div>
+    </div>
+  </div>
+  </div>
 
 <div class="toast" id="toast"></div>
 
@@ -188,6 +218,7 @@ let accounts = [];
 let workers = [];
 let curUser = null;
 let foundItem = null;
+let production = {};
 
 // ── 초기화 ──────────────────────────────────────────
 async function init() {
@@ -195,23 +226,27 @@ async function init() {
   const li = localStorage.getItem('sr-inv');
   const lt = localStorage.getItem('sr-tx');
   const lw = localStorage.getItem('sr-workers');
+  const lp = localStorage.getItem('sr-production');
   if (li) inv = JSON.parse(li);
   if (lt) txs = JSON.parse(lt);
   if (lw) workers = JSON.parse(lw);
+  if (lp) production = JSON.parse(lp);
 
   // Firebase에서 최신 데이터 로드
   try {
-    const [ri, rt, ra, rw] = await Promise.all([
-      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk')
+    const [ri, rt, ra, rw, rpr] = await Promise.all([
+      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('production')
     ]);
     if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ra) && ra.length) accounts = ra;
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
+    if (rpr && typeof rpr === 'object' && !Array.isArray(rpr)) { production = rpr; localStorage.setItem('sr-production', JSON.stringify(production)); }
   } catch(e) {}
 
   // 생산자 드롭다운 채우기
   buildWorkerSelect();
+  buildProdWorkerSelect();
 
   // 세션에서 로그인 유저 복원
   const cu = sessionStorage.getItem('pda-curuser');
@@ -223,6 +258,18 @@ async function init() {
 function buildWorkerSelect() {
   const sel = document.getElementById('in-producer');
   // 기존 옵션 유지 (첫 번째 "선택 안함" 제외하고 제거)
+  while (sel.options.length > 1) sel.remove(1);
+  const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
+  list.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = w;
+    sel.appendChild(opt);
+  });
+}
+
+function buildProdWorkerSelect() {
+  const sel = document.getElementById('prod-worker');
   while (sel.options.length > 1) sel.remove(1);
   const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
   list.forEach(w => {
@@ -291,6 +338,7 @@ function switchTab(tab) {
   document.getElementById('page-' + tab).classList.add('on');
   if (tab === 'in') setTimeout(() => document.getElementById('in-code').focus(), 100);
   if (tab === 'loc') setTimeout(() => document.getElementById('loc-code').focus(), 100);
+  if (tab === 'prod') showProdCurrent();
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
@@ -378,6 +426,39 @@ function resetInForm() {
   document.getElementById('in-found').style.display = 'none';
   document.getElementById('in-form-card').style.display = 'none';
   document.getElementById('in-code').focus();
+}
+
+// ── 생산현황 등록 ──────────────────────────────────────────
+function showProdCurrent() {
+  const worker = document.getElementById('prod-worker').value;
+  const card = document.getElementById('prod-current-card');
+  if (!worker || !production[worker]) { card.style.display = 'none'; return; }
+  const p = production[worker];
+  card.style.display = 'block';
+  document.getElementById('prod-current-mold').textContent = '금형번호: ' + p.moldNo;
+  document.getElementById('prod-current-time').textContent =
+    '등록시각: ' + new Date(p.ts).toLocaleString('ko', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+async function doRegProd() {
+  const worker = document.getElementById('prod-worker').value;
+  const mold = document.getElementById('prod-mold').value.trim();
+  if (!worker) { tst('작업자를 선택해주세요'); return; }
+  if (!mold) { tst('금형번호를 입력해주세요'); return; }
+
+  production[worker] = { moldNo: mold, ts: Date.now() };
+  localStorage.setItem('sr-production', JSON.stringify(production));
+
+  try {
+    await fbSet('production', production);
+    tst(`✅ ${worker} → ${mold} 등록완료`);
+  } catch(e) {
+    tst(`✅ 저장됨 (오프라인) ${worker} → ${mold}`);
+  }
+
+  document.getElementById('prod-mold').value = '';
+  showProdCurrent();
+  document.getElementById('prod-mold').focus();
 }
 
 // ── 위치 조회 ──────────────────────────────────────────
