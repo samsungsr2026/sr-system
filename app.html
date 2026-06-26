@@ -9603,6 +9603,15 @@ window.addEventListener('scroll', ()=>{
 setInterval(jbPull, 30000);
 setInterval(()=>jbPullFiles(), 30000);
 setInterval(()=>jbPullInv(), 15000);
+// 모바일은 화면이 꺼지거나 앱이 백그라운드로 가면 setInterval이 멈추거나 크게 느려짐.
+// 화면(탭)이 다시 보이게 될 때 즉시 한 번 동기화해서 옛 데이터가 그대로 떠 있는 문제를 방지.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    jbPullInv();
+    jbPull();
+    jbPullFiles();
+  }
+});
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
