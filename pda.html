@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>삼성SR PDA</title>
@@ -230,6 +233,21 @@ let foundItem = null;
 let production = [];
 let prodEditingId = null;
 
+// 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
+// 신규 형식(배열)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
+function migrateProduction(p) {
+  if (Array.isArray(p)) return p;
+  if (p && typeof p === 'object') {
+    return Object.keys(p).map(w => ({
+      id: 'legacy-' + w + '-' + (p[w].ts || Date.now()),
+      worker: w,
+      moldNo: p[w].moldNo,
+      ts: p[w].ts || Date.now()
+    }));
+  }
+  return [];
+}
+
 // ── 초기화 ──────────────────────────────────────────
 async function init() {
   // 로컬 데이터 먼저
@@ -240,7 +258,7 @@ async function init() {
   if (li) inv = JSON.parse(li);
   if (lt) txs = JSON.parse(lt);
   if (lw) workers = JSON.parse(lw);
-  if (lp) production = JSON.parse(lp);
+  if (lp) production = migrateProduction(JSON.parse(lp));
 
   // Firebase에서 최신 데이터 로드
   try {
@@ -251,7 +269,7 @@ async function init() {
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ra) && ra.length) accounts = ra;
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
-    if (Array.isArray(rpr)) { production = rpr; localStorage.setItem('sr-production', JSON.stringify(production)); }
+    if (rpr !== null && rpr !== undefined) { production = migrateProduction(rpr); localStorage.setItem('sr-production', JSON.stringify(production)); }
   } catch(e) {}
 
   // 생산자 드롭다운 채우기
@@ -641,6 +659,18 @@ document.getElementById('in-code').addEventListener('input', function() {
     if (this.value.length >= 3) doInSearch();
   }, 300);
 });
+
+// 서비스워커 완전 제거 - 기존 캐시 삭제 (PDA가 옛 버전을 계속 보여주는 문제 방지)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(r) { r.unregister(); });
+  });
+  if (window.caches) {
+    caches.keys().then(function(keys) {
+      keys.forEach(function(k) { caches.delete(k); });
+    });
+  }
+}
 
 init();
 </script>
