@@ -1657,6 +1657,17 @@ function cancelPending(pid){
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let _lastSave = 0;
 
+// AbortSignal.timeout()은 비교적 최신 브라우저(2022년 이후)에서만 지원됨.
+// 구형 모바일 브라우저(일부 삼성 인터넷/구형 웹뷰 등)에서는 미지원이라 신호가 전달되지 않아
+// 네트워크가 느리거나 막히면 fetch가 영원히 끝나지 않고 "동기화 중..."에 멈춰있게 됨.
+// AbortController는 훨씬 더 널리 지원되므로 이를 이용해 직접 타임아웃을 구현.
+function fetchTimeout(url, ms, options){
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+  const opts = Object.assign({}, options || {}, ctrl ? {signal: ctrl.signal} : {});
+  return fetch(url, opts).finally(() => { if (timer) clearTimeout(timer); });
+}
+
 function jbStat(msg, color) {
   const el = document.getElementById('jb-sync');
   if (el) { el.textContent = msg; el.style.color = color || '#888'; }
@@ -1897,7 +1908,7 @@ async function jbPullInv(){
   if(Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
   _invPullBusy=true;
   try{
-    const ri=await fetch(`${FB}/sr/inv.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const ri=await fetchTimeout(`${FB}/sr/inv.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){
       inv=ri;
       try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
@@ -1915,7 +1926,7 @@ async function jbPullTx(){
   if(_txPullBusy)return;
   _txPullBusy=true;
   try{
-    const rt=await fetch(`${FB}/sr/tx.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const rt=await fetchTimeout(`${FB}/sr/tx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(rt)){
       txs=rt;
       try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
@@ -1929,7 +1940,7 @@ async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
     // Firebase에서 모든 데이터 한번에 읽기
-    const fbAll = await fetch(`${FB}/sr.json`, {signal:(AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(45000):undefined}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const fbAll = await fetchTimeout(`${FB}/sr.json`, 45000).then(r=>r.ok?r.json():null).catch(()=>null);
     window._jbStage='fetched:'+(fbAll?'ok':'null');
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
