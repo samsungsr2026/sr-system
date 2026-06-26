@@ -771,7 +771,7 @@ let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
 // 금일 생산 현황: 작업자별로 여러 건 등록 가능 (이력 배열). PDA 단말기에서 작업자가 직접 수기로 입력/수정/삭제.
-let production=JSON.parse(localStorage.getItem('sr-production')||'[]');
+let production=migrateProduction(JSON.parse(localStorage.getItem('sr-production')||'[]'));
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]').filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
@@ -1959,13 +1959,28 @@ async function jbPullOrders(){
 // 가볍고 빠르게 /sr/production 경로만 독립적으로 받아온다. PDA 단말기에서 작업자가 직접
 // 등록하는 데이터라 대시보드에 최대한 빠르게 반영되어야 함.
 let _productionPullBusy=false;
+// 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
+// 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
+function migrateProduction(p){
+  if(Array.isArray(p))return p;
+  if(p&&typeof p==='object'){
+    return Object.keys(p).map(w=>({
+      id:'legacy-'+w+'-'+(p[w].ts||Date.now()),
+      worker:w,
+      moldNo:p[w].moldNo,
+      ts:p[w].ts||Date.now()
+    }));
+  }
+  return [];
+}
+
 async function jbPullProduction(){
   if(_productionPullBusy)return;
   _productionPullBusy=true;
   try{
     const rpr=await fetchTimeout(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
-    if(Array.isArray(rpr)){
-      production=rpr;
+    if(rpr!==null&&rpr!==undefined){
+      production=migrateProduction(rpr);
       try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
       if(tab==='dash')render();
     }
@@ -2020,7 +2035,7 @@ async function jbPull() {
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
-    if(Array.isArray(rpr)){production=rpr;try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
+    if(rpr!==null&&rpr!==undefined){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
