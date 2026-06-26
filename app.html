@@ -505,6 +505,10 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6" rx="0.5"></rect><rect x="12" y="7" width="3" height="10" rx="0.5"></rect><rect x="17" y="13" width="3" height="4" rx="0.5"></rect></svg>
       생산자별 현황
     </button>
+    <button class="nav-item" onclick="go(&#39;prodview&#39;)" id="nb-prodview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
+      금형 생산현황
+    </button>
     <button class="nav-item" onclick="go(&#39;stats&#39;)" id="nb-stats">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
       통계 / 리포트
@@ -2435,6 +2439,7 @@ function render(){
   else if(tab==='barcode')m.innerHTML=rBarcode();
   else if(tab==='order')m.innerHTML=rOrder();
   else if(tab==='pstat')m.innerHTML=rPstat();
+  else if(tab==='prodview')m.innerHTML=rProdView();
   else if(tab==='stats')m.innerHTML=rStats();
   else if(tab==='notice')m.innerHTML=rNotice();
   else if(tab==='dailyreport')m.innerHTML=rDailyReport();
@@ -3719,7 +3724,10 @@ function rDash(){
   <!-- 금일 생산 현황 (PDA 단말기에서 작업자가 수기 등록) -->
   <div style="margin-bottom:16px">
     <div class="card" style="border-color:rgba(13,158,114,.2)">
-      <div class="card-title" style="margin-bottom:14px">🏭 금일 생산 현황</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">🏭 금일 생산 현황</div>
+        <button class="btn" style="padding:5px 12px;font-size:12px;background:var(--green-bg);color:var(--green);border:1px solid rgba(13,158,114,.3)" onclick="go('prodview')">조회 →</button>
+      </div>
       ${prodWorkers.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
         ${prodWorkers.map(w=>{
           const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -7134,6 +7142,143 @@ function rPstat(){
   </div>`}`;
 }
 
+// ── 금형 생산현황 (PDA에서 작업자가 등록한 생산 이력을 일/주/월별로 조회, 금형번호로 검색) ──────
+let prodViewRange='day'; // day | week | month
+let prodViewRef=Date.now(); // 조회 기준 시점 (이전/다음으로 이동)
+let prodViewMoldQ=''; // 금형번호 검색어
+
+function prodViewSetRange(r){ prodViewRange=r; prodViewRef=Date.now(); render(); }
+function prodViewNav(dir){
+  const d=new Date(prodViewRef);
+  if(prodViewRange==='day') d.setDate(d.getDate()+dir);
+  else if(prodViewRange==='week') d.setDate(d.getDate()+dir*7);
+  else d.setMonth(d.getMonth()+dir);
+  prodViewRef=d.getTime();
+  render();
+}
+function prodViewToday(){ prodViewRef=Date.now(); render(); }
+
+function prodViewPeriod(){
+  const ref=new Date(prodViewRef);
+  if(prodViewRange==='day'){
+    const start=new Date(ref.getFullYear(),ref.getMonth(),ref.getDate()).getTime();
+    return {start, end:start+86400000, label:ref.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'short'})};
+  }
+  if(prodViewRange==='week'){
+    // 월요일 시작 기준 주
+    const day=ref.getDay(); // 0=일 ... 6=토
+    const diffToMon=(day===0?-6:1-day);
+    const mon=new Date(ref.getFullYear(),ref.getMonth(),ref.getDate()+diffToMon);
+    const start=mon.getTime();
+    const end=start+7*86400000;
+    const sun=new Date(end-86400000);
+    return {start, end, label:mon.toLocaleDateString('ko',{month:'long',day:'numeric'})+' ~ '+sun.toLocaleDateString('ko',{month:'long',day:'numeric'})};
+  }
+  const start=new Date(ref.getFullYear(),ref.getMonth(),1).getTime();
+  const end=new Date(ref.getFullYear(),ref.getMonth()+1,1).getTime();
+  return {start, end, label:ref.toLocaleDateString('ko',{year:'numeric',month:'long'})};
+}
+
+// 바코드 등 구분자 차이를 무시하고 금형번호를 비교하기 위한 정규화 (예: "1174-58220" ↔ "117458220")
+function pvNorm(s){ return String(s==null?'':s).replace(/[^a-zA-Z0-9]/g,'').toUpperCase(); }
+
+function rProdView(){
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const all=(production||[]).slice();
+  const moldQ=prodViewMoldQ.trim();
+
+  if(moldQ){
+    // 금형번호 검색 모드: 기간과 무관하게 전체 이력에서 해당 금형번호를 누가 생산했는지 조회
+    const nq=pvNorm(moldQ);
+    const matched=all.filter(p=>pvNorm(p.moldNo).includes(nq)).sort((a,b)=>b.ts-a.ts);
+    const byMold={};
+    matched.forEach(p=>{ (byMold[p.moldNo]=byMold[p.moldNo]||[]).push(p); });
+    const moldKeys=Object.keys(byMold);
+
+    return `
+    <div class="page-title">금형 생산현황</div>
+    <div class="page-sub">금형번호로 누가 생산했는지 조회합니다</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="fg">
+        <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형번호 검색</label>
+        <input type="text" class="fi" placeholder="금형번호 입력 (예: 1174-58220)" value="${escP(prodViewMoldQ)}"
+          oninput="prodViewMoldQ=this.value;render()" style="width:100%">
+      </div>
+      <button class="btn" style="margin-top:10px" onclick="prodViewMoldQ='';render()">← 기간별 조회로 돌아가기</button>
+    </div>
+    ${!matched.length?`<div class="card"><div style="text-align:center;padding:50px;color:var(--text3)"><div style="font-size:40px;margin-bottom:14px">🔍</div><div style="font-size:15px;font-weight:600;color:var(--text)">"${escP(moldQ)}" 생산 이력이 없습니다</div></div></div>`:
+    moldKeys.map(mk=>`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title">🔧 ${escP(mk)} <span style="color:var(--text3);font-weight:500">· ${byMold[mk].length}건</span></div>
+      <table class="tbl">
+        <thead><tr><th>작업자</th><th>등록일시</th></tr></thead>
+        <tbody>
+          ${byMold[mk].map(p=>`<tr><td><strong>${escP(p.worker)}</strong></td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('')}
+    `;
+  }
+
+  // 기간별 조회 모드
+  const {start,end,label}=prodViewPeriod();
+  const inRange=all.filter(p=>p.ts>=start&&p.ts<end);
+  const byWorker={};
+  inRange.forEach(p=>{ (byWorker[p.worker]=byWorker[p.worker]||[]).push(p); });
+  Object.keys(byWorker).forEach(w=>byWorker[w].sort((a,b)=>a.ts-b.ts));
+  const workers=Object.keys(byWorker).sort();
+  const totalCount=inRange.length;
+
+  return `
+  <div class="page-title">금형 생산현황</div>
+  <div class="page-sub">작업자별 생산(금형 작업) 이력을 일·주·월 단위로 확인합니다</div>
+
+  <div class="ftabs" style="margin-bottom:14px">
+    <div class="ftab${prodViewRange==='day'?' on':''}" onclick="prodViewSetRange('day')">📅 일별</div>
+    <div class="ftab${prodViewRange==='week'?' on':''}" onclick="prodViewSetRange('week')">🗓️ 주별</div>
+    <div class="ftab${prodViewRange==='month'?' on':''}" onclick="prodViewSetRange('month')">📆 월별</div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <button class="btn" style="padding:8px 14px" onclick="prodViewNav(-1)">← 이전</button>
+    <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--text2)">${label}</div>
+    <button class="btn" style="padding:8px 14px" onclick="prodViewNav(1)">다음 →</button>
+    <button class="btn" style="padding:8px 14px;background:var(--blue-bg);color:var(--blue)" onclick="prodViewToday()">오늘</button>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="fg">
+      <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">🔧 금형번호로 검색 (누가 생산했는지 조회)</label>
+      <input type="text" class="fi" placeholder="금형번호 입력 (예: 1174-58220)" value=""
+        oninput="prodViewMoldQ=this.value;render()" style="width:100%">
+    </div>
+  </div>
+
+  <div class="stat-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">
+    <div class="stat-card" style="border-color:rgba(26,107,255,.3)">
+      <div class="stat-icon" style="background:var(--blue-bg)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg></div>
+      <div class="stat-val" style="color:var(--blue)">${workers.length}</div><div class="stat-label">작업자 수</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(13,158,114,.3)">
+      <div class="stat-icon" style="background:var(--green-bg)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div class="stat-val" style="color:var(--green)">${totalCount}</div><div class="stat-label">등록 건수</div>
+    </div>
+  </div>
+
+  ${!workers.length?`<div class="card"><div style="text-align:center;padding:50px;color:var(--text3)"><div style="font-size:40px;margin-bottom:14px">📭</div><div style="font-size:15px;font-weight:600;color:var(--text)">${escP(label)} 등록된 생산 현황이 없습니다</div></div></div>`:
+  workers.map(w=>`
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">${escP(w)} <span style="color:var(--text3);font-weight:500">· ${byWorker[w].length}건</span></div>
+    <table class="tbl">
+      <thead><tr><th>금형번호</th><th>등록일시</th></tr></thead>
+      <tbody>
+        ${byWorker[w].map(p=>`<tr><td style="font-family:monospace;font-weight:700;color:var(--green)">${escP(p.moldNo)}</td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`).join('')}
+  `;
+}
+
 // 대시보드 오늘 입고/출고 카드 클릭 시 오늘 내역 모달
 function dashTodayIO(type){
   const d0=new Date().setHours(0,0,0,0);
@@ -9785,6 +9930,10 @@ document.addEventListener('click',function(e){
     <button onclick="go(&#39;pstat&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6" rx="0.5"></rect><rect x="12" y="7" width="3" height="10" rx="0.5"></rect></svg>
       생산자현황
+    </button>
+    <button onclick="go(&#39;prodview&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
+      금형생산현황
     </button>
     <button onclick="go(&#39;addprod&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
