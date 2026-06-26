@@ -342,18 +342,32 @@ function switchTab(tab) {
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
+// 바코드 스캐너가 "-" 등 구분자를 빼고 숫자만 읽어오는 경우가 있어서,
+// 영문/숫자만 남기고 비교하는 정규화된 매칭을 보조로 사용 (예: "1174-58220" ↔ "117458220")
+function normCode(s) {
+  return String(s == null ? '' : s).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
 function doInSearch() {
   const el = document.getElementById('in-code');
   const code = el.value.trim();
   if (!code) { tst('코드를 입력해주세요'); return; }
 
-  const it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
+  let it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
+  let fuzzy = false;
+  if (!it) {
+    const nc = normCode(code);
+    if (nc) {
+      it = inv.find(i => normCode(i.id) === nc || normCode(i.barcode) === nc || (i.classNo && normCode(i.classNo) === nc));
+      if (it) fuzzy = true;
+    }
+  }
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
   if (it) {
     foundItem = it;
     box.style.display = 'block';
-    document.getElementById('in-found-name').textContent = it.name;
+    document.getElementById('in-found-name').textContent = it.name + (fuzzy ? ' (근사 일치)' : '');
     document.getElementById('in-found-info').innerHTML =
       `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
     formCard.style.display = 'block';
@@ -368,7 +382,7 @@ function doInSearch() {
       sel.value = '';
     }
     document.getElementById('in-qty').select();
-    tst('✓ ' + it.name);
+    tst(fuzzy ? '✓ ' + it.name + ' (가장 가까운 품목으로 매칭됨)' : '✓ ' + it.name);
   } else {
     foundItem = null;
     box.style.display = 'none';
@@ -472,7 +486,7 @@ function doLocSearch(val) {
     return;
   }
   const qu = q.toUpperCase();
-  const list = inv.filter(d =>
+  let list = inv.filter(d =>
     d.id.toUpperCase().includes(qu) ||
     d.name.toUpperCase().includes(qu) ||
     (d.classNo || '').toUpperCase().includes(qu)
@@ -481,6 +495,20 @@ function doLocSearch(val) {
     if (b.id.toUpperCase() === qu) return 1;
     return a.id.localeCompare(b.id);
   }).slice(0, 20);
+
+  // 바코드 스캐너가 "-" 등 구분자를 빼고 읽어서 일반 검색으로 못 찾는 경우, 구분자를 무시하고 한 번 더 시도
+  if (!list.length) {
+    const nq = normCode(q);
+    if (nq) {
+      list = inv.filter(d =>
+        normCode(d.id).includes(nq) || (d.classNo && normCode(d.classNo).includes(nq))
+      ).sort((a, b) => {
+        if (normCode(a.id) === nq) return -1;
+        if (normCode(b.id) === nq) return 1;
+        return a.id.localeCompare(b.id);
+      }).slice(0, 20);
+    }
+  }
 
   if (!list.length) {
     box.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">검색 결과 없음</div></div>';
