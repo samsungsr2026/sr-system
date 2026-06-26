@@ -770,6 +770,8 @@ if(localStorage.getItem('sr-data-ver')!==DATA_VER){
 let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
+// 금일 생산 현황: 작업자별로 현재 찍고 있는 금형번호 1건만 보관 (이력이 아닌 현재 상태). PDA 단말기에서 작업자가 직접 수기로 입력.
+let production=JSON.parse(localStorage.getItem('sr-production')||'{}');
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]').filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
@@ -1953,6 +1955,23 @@ async function jbPullOrders(){
   }catch(e){}finally{_ordersPullBusy=false;}
 }
 
+// 금일 생산 현황(production: 작업자별 현재 찍고 있는 금형번호)도 무거운 jbPull()과 무관하게
+// 가볍고 빠르게 /sr/production 경로만 독립적으로 받아온다. PDA 단말기에서 작업자가 직접
+// 등록하는 데이터라 대시보드에 최대한 빠르게 반영되어야 함.
+let _productionPullBusy=false;
+async function jbPullProduction(){
+  if(_productionPullBusy)return;
+  _productionPullBusy=true;
+  try{
+    const rpr=await fetchTimeout(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(rpr&&typeof rpr==='object'&&!Array.isArray(rpr)){
+      production=rpr;
+      try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
+      if(tab==='dash')render();
+    }
+  }catch(e){}finally{_productionPullBusy=false;}
+}
+
 let _jbPullBusy=false;
 async function jbPull() {
   if(_jbPullBusy)return; // 이전 동기화가 아직 진행 중이면 중복 실행하지 않음 (느린 연결에서 매번 "동기화 중..."으로 되돌아가는 것을 방지)
@@ -1973,7 +1992,8 @@ async function jbPull() {
           inv, tx:txs, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
-          vendors, vendorOrders, repairs, gauges, pending: pendingChanges, pendingDeleted
+          vendors, vendorOrders, repairs, gauges, pending: pendingChanges, pendingDeleted,
+          production
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -1994,11 +2014,13 @@ async function jbPull() {
           rs=fbAll['suppliers'], rim=fbAll['imgs'],
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'],
-          rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'];
+          rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
+          rpr=fbAll['production'];
 
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
+    if(rpr&&typeof rpr==='object'&&!Array.isArray(rpr)){production=rpr;try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
@@ -3634,6 +3656,9 @@ function rDash(){
   const todayOrders=orders.filter(o=>o.ts>=d0).length;
   const monthStart=new Date();monthStart.setDate(1);monthStart.setHours(0,0,0,0);
   const monthOrders=orders.filter(o=>o.ts>=monthStart.getTime()).length;
+  // 금일 생산 현황: 작업자별 현재 찍고 있는 금형번호 중, 오늘 등록/갱신된 것만 표시
+  const todayProd=Object.keys(production||{}).map(w=>({worker:w,moldNo:production[w].moldNo,ts:production[w].ts}))
+    .filter(p=>p.ts>=d0).sort((a,b)=>b.ts-a.ts);
   return `
   <div class="page-title">대시보드</div>
   <div class="page-sub">삼성SR 재고 현황 요약</div>
@@ -3671,6 +3696,23 @@ function rDash(){
       <div class="stat-val" style="color:var(--amber)">${unprinted}</div><div class="stat-label">미출력 발주서</div>
     </div>
   </div>
+  </div>
+
+  <!-- 금일 생산 현황 (PDA 단말기에서 작업자가 수기 등록) -->
+  <div style="margin-bottom:16px">
+    <div class="card" style="border-color:rgba(13,158,114,.2)">
+      <div class="card-title" style="margin-bottom:14px">🏭 금일 생산 현황</div>
+      ${todayProd.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
+        ${todayProd.map(p=>{
+          const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return `<div style="background:var(--bg3);border-radius:10px;padding:12px 14px">
+            <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${escP(p.worker)}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--green);font-family:monospace">${escP(p.moldNo)}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">${new Date(p.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>`;
+        }).join('')}
+      </div>`:`<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">아직 등록된 생산 현황이 없습니다 (PDA 단말기에서 등록)</div>`}
+    </div>
   </div>
 
   <div style="margin-bottom:16px">
@@ -9648,6 +9690,7 @@ window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // �
 window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300)); // 재고는 가장 먼저, 가장 가볍게 독립적으로 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullTx(), 300)); // 거래내역(오늘 입고/출고 등)도 재고처럼 가볍고 빠르게 독립적으로 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullOrders(), 300)); // 발주서(전체 발주서/미출력 등)도 가볍고 빠르게 독립적으로 동기화
+window.addEventListener('load', () => setTimeout(()=>jbPullProduction(), 300)); // 금일 생산 현황도 가볍고 빠르게 독립적으로 동기화
 // 제품조회/재고알림 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
 window.addEventListener('scroll', ()=>{
   const btn=document.getElementById('scroll-top-btn');
@@ -9660,6 +9703,7 @@ setInterval(()=>jbPullFiles(), 30000);
 setInterval(()=>jbPullInv(), 15000);
 setInterval(()=>jbPullTx(), 15000);
 setInterval(()=>jbPullOrders(), 15000);
+setInterval(()=>jbPullProduction(), 15000);
 // 모바일은 화면이 꺼지거나 앱이 백그라운드로 가면 setInterval이 멈추거나 크게 느려짐.
 // 화면(탭)이 다시 보이게 될 때 즉시 한 번 동기화해서 옛 데이터가 그대로 떠 있는 문제를 방지.
 document.addEventListener('visibilitychange', () => {
@@ -9667,6 +9711,7 @@ document.addEventListener('visibilitychange', () => {
     jbPullInv();
     jbPullTx();
     jbPullOrders();
+    jbPullProduction();
     jbPull();
     jbPullFiles();
   }
