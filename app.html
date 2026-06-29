@@ -1963,6 +1963,7 @@ async function jbPullOrders(){
 // 가볍고 빠르게 /sr/production 경로만 독립적으로 받아온다. PDA 단말기에서 작업자가 직접
 // 등록하는 데이터라 대시보드에 최대한 빠르게 반영되어야 함.
 let _productionPullBusy=false;
+let _lastProdSave=0; // 대시보드에서 생산현황을 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
@@ -1983,7 +1984,7 @@ async function jbPullProduction(){
   _productionPullBusy=true;
   try{
     const rpr=await fetchTimeout(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
-    if(rpr!==null&&rpr!==undefined){
+    if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){
       production=migrateProduction(rpr);
       try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
       if(tab==='dash')render();
@@ -2039,7 +2040,7 @@ async function jbPull() {
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
-    if(rpr!==null&&rpr!==undefined){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
+    if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
@@ -7211,9 +7212,9 @@ function rProdView(){
     <div class="card" style="margin-bottom:14px">
       <div class="card-title">🔧 ${escP(mk)} <span style="color:var(--text3);font-weight:500">· ${byMold[mk].length}건</span></div>
       <table class="tbl">
-        <thead><tr><th>작업자</th><th>등록일시</th></tr></thead>
+        <thead><tr><th>작업자</th><th>등록일시</th><th style="width:90px">관리</th></tr></thead>
         <tbody>
-          ${byMold[mk].map(p=>`<tr><td><strong>${escP(p.worker)}</strong></td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}
+          ${byMold[mk].map(p=>`<tr><td><strong>${escP(p.worker)}</strong></td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 8px;font-size:12px" onclick="pvEditOpen('${p.id}')">✏️</button> <button class="btn" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="pvDelete('${p.id}')">🗑️</button></td></tr>`).join('')}
         </tbody>
       </table>
     </div>`).join('')}
@@ -7270,16 +7271,61 @@ function rProdView(){
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">${escP(w)} <span style="color:var(--text3);font-weight:500">· ${byWorker[w].length}건</span></div>
     <table class="tbl">
-      <thead><tr><th>금형번호</th><th>등록일시</th></tr></thead>
+      <thead><tr><th>금형번호</th><th>등록일시</th><th style="width:90px">관리</th></tr></thead>
       <tbody>
-        ${byWorker[w].map(p=>`<tr><td style="font-family:monospace;font-weight:700;color:var(--green)">${escP(p.moldNo)}</td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}
+        ${byWorker[w].map(p=>`<tr><td style="font-family:monospace;font-weight:700;color:var(--green)">${escP(p.moldNo)}</td><td style="color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleString('ko',{month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 8px;font-size:12px" onclick="pvEditOpen('${p.id}')">✏️</button> <button class="btn" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="pvDelete('${p.id}')">🗑️</button></td></tr>`).join('')}
       </tbody>
     </table>
   </div>`).join('')}
   `;
 }
 
-// 대시보드 오늘 입고/출고 카드 클릭 시 오늘 내역 모달
+// 금형 생산현황에서 등록 내역 삭제 (PDA에서 작업자가 잘못 등록한 내역을 관리자가 직접 정정)
+function pvDelete(id){
+  if(!confirm('이 생산 등록 내역을 삭제하시겠습니까?'))return;
+  production=(production||[]).filter(p=>String(p.id)!==String(id));
+  try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
+  _lastProdSave=Date.now();
+  cfSet('production',production);
+  tst('🗑️ 삭제되었습니다');
+  render();
+}
+
+// 금형 생산현황에서 등록 내역 수정 (작업자/금형번호 변경)
+function pvEditOpen(id){
+  const p=(production||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  document.getElementById('mo-title').textContent='✏️ 생산 등록 수정';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg" style="margin-bottom:12px">
+      <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작업자</label>
+      <select class="fi" id="pv-edit-worker" style="width:100%">
+        ${(WK||[]).map(w=>`<option value="${escP(w)}" ${w===p.worker?'selected':''}>${escP(w)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:16px">
+      <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형번호</label>
+      <input type="text" class="fi" id="pv-edit-mold" value="${escP(p.moldNo)}" style="width:100%">
+    </div>
+    <button class="btn bbp btn-full" onclick="pvEditSave('${p.id}')">✅ 수정 완료</button>
+  `;
+  document.getElementById('ov').classList.add('on');
+}
+function pvEditSave(id){
+  const p=(production||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  const w=document.getElementById('pv-edit-worker').value;
+  const m=document.getElementById('pv-edit-mold').value.trim();
+  if(!m){tst('금형번호를 입력해주세요');return;}
+  p.worker=w; p.moldNo=m; p.ts=Date.now();
+  try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
+  _lastProdSave=Date.now();
+  cfSet('production',production);
+  document.getElementById('ov').classList.remove('on');
+  tst('✅ 수정 완료');
+  render();
+}
 function dashTodayIO(type){
   const d0=new Date().setHours(0,0,0,0);
   const list=txs.filter(t=>t.type===type&&t.ts>=d0).sort((a,b)=>b.ts-a.ts);
