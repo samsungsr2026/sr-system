@@ -507,7 +507,7 @@ select.fi option{background:#fff;color:#111}
     </button>
     <button class="nav-item" onclick="go(&#39;prodview&#39;)" id="nb-prodview">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
-      금형 생산현황
+      금일 생산현황
     </button>
     <button class="nav-item" onclick="go(&#39;stats&#39;)" id="nb-stats">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
@@ -7197,7 +7197,7 @@ function rProdView(){
     const moldKeys=Object.keys(byMold);
 
     return `
-    <div class="page-title">금형 생산현황</div>
+    <div class="page-title">금일 생산현황</div>
     <div class="page-sub">금형번호로 누가 생산했는지 조회합니다</div>
     <div class="card" style="margin-bottom:16px">
       <div class="fg">
@@ -7231,7 +7231,7 @@ function rProdView(){
   const totalCount=inRange.length;
 
   return `
-  <div class="page-title">금형 생산현황</div>
+  <div class="page-title">금일 생산현황</div>
   <div class="page-sub">작업자별 생산(금형 작업) 이력을 일·주·월 단위로 확인합니다</div>
 
   <div class="ftabs" style="margin-bottom:14px">
