@@ -232,6 +232,7 @@ let curUser = null;
 let foundItem = null;
 let production = [];
 let prodEditingId = null;
+let _lastProdSave = 0; // 방금 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
 
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
@@ -544,9 +545,26 @@ function cancelProdEdit() {
 }
 
 async function saveProduction() {
+  _lastProdSave = Date.now();
   localStorage.setItem('sr-production', JSON.stringify(production));
   try { await fbSet('production', production); } catch(e) {}
 }
+
+// PC 대시보드(금일 생산현황)에서 다른 사람이 삭제/수정한 내역이 폰에도 반영되도록
+// 주기적으로(15초) + 화면 복귀 시 production만 가볍게 다시 받아옴
+async function pullProductionFromServer() {
+  if (Date.now() - _lastProdSave < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
+  try {
+    const rpr = await fbGet('production');
+    if (rpr !== null && rpr !== undefined) {
+      production = migrateProduction(rpr);
+      localStorage.setItem('sr-production', JSON.stringify(production));
+      if (document.getElementById('page-prod').classList.contains('on')) renderProdList();
+    }
+  } catch(e) {}
+}
+setInterval(pullProductionFromServer, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
 
 async function deleteProdEntry(id) {
   if (!confirm('이 등록 내역을 삭제하시겠습니까?')) return;
