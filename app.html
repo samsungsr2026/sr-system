@@ -3461,8 +3461,6 @@ function openEditVendorOrderModal(vi, ts, type){
   type=type||'order';
   const o=vendorOrders.find(x=>x.vendorName===v.name&&x.type===type&&x.ts===ts);
   if(!o)return;
-  const idx=vendorOrders.indexOf(o);
-  if(idx<0)return;
   const titleMap={order:'📋 발주 수정 — ',incoming:'📦 입고 수정 — ',material:'🔧 지급 재료 수정 — ',shipout:'📤 출고 수정 — '};
   document.getElementById('mo-title').textContent=titleMap[type]+v.name;
   let extraFields='';
@@ -3483,14 +3481,17 @@ function openEditVendorOrderModal(vi, ts, type){
     </div>
     ${extraFields}
     <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="ve-note" value="${o.note||''}"></div>
-    <button class="btn bbl btn-full" onclick="submitEditVendorOrder(${idx},'${type}')">✓ 수정 완료</button>`;
+    <button class="btn bbl btn-full" onclick="submitEditVendorOrder('${v.name.replace(/'/g,"\\'")}',${ts},'${type}')">✓ 수정 완료</button>`;
   document.getElementById('ov').classList.add('on');
 }
 
-function submitEditVendorOrder(idx, type){
+function submitEditVendorOrder(vname, ts, type){
   if(!requireEdit())return;
+  // 배경 동기화로 배열이 통째로 교체될 수 있으므로 인덱스를 캐싱하지 않고
+  // 저장 시점에 안정적인 키(거래처명+구분+원래 일시)로 다시 찾는다.
+  const idx=vendorOrders.findIndex(x=>x.vendorName===vname&&x.type===type&&x.ts===ts);
+  if(idx<0){tst('대상 내역을 찾을 수 없습니다 (이미 변경되었을 수 있습니다)');return;}
   const o=vendorOrders[idx];
-  if(!o)return;
   const item=document.getElementById('ve-item')?.value?.trim();
   const qty=parseFloat(document.getElementById('ve-qty')?.value);
   const unit=document.getElementById('ve-unit')?.value?.trim()||'개';
