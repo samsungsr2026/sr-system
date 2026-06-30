@@ -1528,6 +1528,12 @@ function approvePending(pid){
     if(!inv.find(i=>i.id===p.key)){tst('❌ 대상 품목을 찾을 수 없습니다 - 거부해주세요',3500);return;}
     applyItemEdit(p.key, p.payload);
     addLog('stock','품목 수정(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+  }else if(p.type==='loc'){
+    if(!inv.find(i=>i.id===p.key)){tst('❌ 대상 품목을 찾을 수 없습니다 - 거부해주세요',3500);return;}
+    const li=inv.findIndex(i=>i.id===p.key);
+    inv[li].location=(p.payload&&p.payload.location)||'';
+    sv();
+    addLog('location','위치 변경(승인) — '+p.label, `요청자: ${p.requestedBy}`, inv[li].id);
   }else if(p.type==='delete'){
     const ids=(p.payload&&p.payload.ids)||[];
     ids.forEach(id=>{ const i=inv.findIndex(x=>x.id===id); if(i>=0) inv.splice(i,1); });
@@ -6412,6 +6418,15 @@ function pendingDetailHtml(p){
       </div>
     </div>`;
   }
+  if(p.type==='loc'){
+    const before=(p.before&&p.before.location)||'';
+    const after=(p.payload&&p.payload.location)||'';
+    return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      <span style="font-size:12.5px;background:var(--red-bg);color:var(--red);padding:3px 9px;border-radius:6px;font-weight:600">${esc(before||'-')}</span>
+      <span style="color:var(--text3);font-weight:700">→</span>
+      <span style="font-size:12.5px;background:var(--green-bg);color:var(--green);padding:3px 9px;border-radius:6px;font-weight:700">${esc(after||'-')}</span>
+    </div>`;
+  }
   if(p.type==='add'){
     const it=p.payload||{};
     const rows=[['품명',it.name],['금형번호',it.id],['부품번호',it.classNo],['재질',it.material],['단위',it.unit],['포장단위',it.packUnit],['초기 재고',it.qty],['최소기준',it.min],['금형위치',it.moldLoc],['위치',it.location],['생산자',it.producer],['비고',it.note]]
@@ -6459,7 +6474,7 @@ function pendingDetailHtml(p){
   return '';
 }
 function rPending(){
-  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제'};
+  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제'};
   const isM=isMaster();
   const list=(isM?pendingChanges:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
   return `
@@ -9884,12 +9899,25 @@ function locSelectProducer(el, name) {
 }
 
 function locSaveLocation(id) {
+  if (!requireEdit()) return;
   var newLoc = document.getElementById('loc-edit-input') ? document.getElementById('loc-edit-input').value.trim() : '';
   if (!newLoc) { tst('위치를 입력해주세요'); return; }
   var idx = inv.findIndex(function(i) { return i.id === id; });
   if (idx < 0) return;
+  var before = inv[idx].location || '';
+  if (before === newLoc) { tst('변경 사항이 없습니다'); return; }
+  var itName = inv[idx].name || id;
+  if (isAdminPendingRequired()) {
+    queuePendingChange('loc', id, { location: newLoc }, '위치 변경 — ' + itName + ' : ' + (before || '-') + ' → ' + newLoc, { location: before });
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    cmo();
+    var q0 = document.getElementById('loc-search');
+    if (q0 && q0.value) locRenderResults(q0.value.trim());
+    return;
+  }
   inv[idx].location = newLoc;
   sv();
+  addLog('location', '위치 변경 — ' + itName, (before || '-') + ' → ' + newLoc, inv[idx].id);
   cmo();
   tst('📍 위치 저장: ' + newLoc);
   var q = document.getElementById('loc-search');
