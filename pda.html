@@ -91,6 +91,13 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .prod-item-btn{border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer}
 .prod-item-edit{background:#e8f0ff;color:#1a6bff}
 .prod-item-del{background:#fce8ed;color:#d42048}
+
+/* 입고 등록 내역 리스트 (재사용: prod-item과 동일 톤) */
+.in-item{display:flex;align-items:center;justify-content:space-between;background:#f0f2f8;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.in-item-main{display:flex;flex-direction:column}
+.in-item-name{font-size:15px;font-weight:800;color:#1a1f35}
+.in-item-sub{font-size:12px;color:#8090b8;margin-top:2px}
+.in-item-actions{display:flex;gap:6px;flex-shrink:0;margin-left:8px}
 </style>
 </head>
 <body tabindex="-1">
@@ -174,8 +181,13 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <label class="label">메모 (선택)</label>
         <input class="inp" type="text" id="in-memo" placeholder="예: 구보 납품 등">
       </div>
-      <button class="btn btn-in" onclick="doRegIn()">⬇ 입고 등록</button>
+      <button class="btn btn-in" id="btn-in-reg" onclick="doRegIn()">⬇ 입고 등록</button>
       <button class="btn btn-cancel" onclick="resetInForm()">취소</button>
+    </div>
+
+    <div class="card" id="in-list-card" style="display:none">
+      <div class="card-title" id="in-list-title">오늘 입고 등록 내역</div>
+      <div id="in-list"></div>
     </div>
   </div>
 
@@ -230,6 +242,8 @@ let accounts = [];
 let workers = [];
 let curUser = null;
 let foundItem = null;
+let inEditingTxId = null; // 입고 등록 내역 중 수정 중인 tx의 id
+let _lastInSave = 0; // 방금 이 폰에서 입고 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
 let production = [];
 let prodEditingId = null;
 let _lastProdSave = 0; // 방금 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
@@ -282,6 +296,7 @@ async function init() {
   if (cu) curUser = JSON.parse(cu);
 
   showApp();
+  renderInList();
 }
 
 function buildWorkerSelect() {
@@ -365,7 +380,7 @@ function switchTab(tab) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
   document.getElementById('tab-' + tab).classList.add('on');
   document.getElementById('page-' + tab).classList.add('on');
-  if (tab === 'in') setTimeout(() => document.getElementById('in-code').focus(), 100);
+  if (tab === 'in') { setTimeout(() => document.getElementById('in-code').focus(), 100); renderInList(); }
   if (tab === 'loc') setTimeout(() => document.getElementById('loc-code').focus(), 100);
   if (tab === 'prod') renderProdList();
 }
@@ -434,6 +449,39 @@ async function doRegIn() {
   const producer = document.getElementById('in-producer').value;
   const memo = document.getElementById('in-memo').value.trim();
 
+  if (inEditingTxId) {
+    const tx = txs.find(t => String(t.id) === String(inEditingTxId));
+    if (!tx) { tst('수정할 내역을 찾을 수 없습니다'); resetInForm(); return; }
+    // 기존 입고 수량을 재고에서 되돌린 뒤 새 값을 적용 (품목이 바뀐 경우도 처리)
+    const oldIdx = inv.findIndex(i => i.id === tx.iid);
+    if (oldIdx >= 0) inv[oldIdx].qty -= tx.qty;
+    const newIdx = inv.findIndex(i => i.id === foundItem.id);
+    if (newIdx < 0) { tst('품목을 찾을 수 없습니다'); return; }
+    inv[newIdx].qty += qty;
+    if (producer) inv[newIdx].producer = producer;
+
+    tx.iid = foundItem.id;
+    tx.qty = qty;
+    tx.w = producer || curUser.name;
+    tx.memo = memo ? '[PDA] ' + memo : '[PDA]';
+    tx.ts = Date.now();
+
+    _lastInSave = Date.now();
+    localStorage.setItem('sr-inv', JSON.stringify(inv));
+    localStorage.setItem('sr-tx', JSON.stringify(txs));
+
+    try {
+      await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+      tst(`✅ 입고 수정완료 · 현재 ${inv[newIdx].qty}${foundItem.unit}`);
+    } catch(e) {
+      tst('✅ 저장됨 (오프라인, 수정)');
+    }
+
+    resetInForm();
+    renderInList();
+    return;
+  }
+
   const idx = inv.findIndex(i => i.id === foundItem.id);
   if (idx < 0) { tst('품목을 찾을 수 없습니다'); return; }
 
@@ -445,6 +493,7 @@ async function doRegIn() {
   const tx = {id: Date.now(), type: 'in', iid: foundItem.id, qty, w: workerName, ts: Date.now(), memo: memo ? '[PDA] ' + memo : '[PDA]'};
   txs.unshift(tx);
 
+  _lastInSave = Date.now();
   // 로컬 저장
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
@@ -458,18 +507,119 @@ async function doRegIn() {
   }
 
   resetInForm();
+  renderInList();
 }
 
 function resetInForm() {
   foundItem = null;
+  inEditingTxId = null;
   document.getElementById('in-code').value = '';
   document.getElementById('in-qty').value = 1;
   document.getElementById('in-producer').value = '';
   document.getElementById('in-memo').value = '';
   document.getElementById('in-found').style.display = 'none';
   document.getElementById('in-form-card').style.display = 'none';
+  document.getElementById('btn-in-reg').textContent = '⬇ 입고 등록';
   document.getElementById('in-code').focus();
 }
+
+// 입고 등록 내역의 "수정" 버튼 클릭 시 - 해당 내역을 폼에 불러옴
+function editInTx(id) {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  const tx = txs.find(t => String(t.id) === String(id));
+  if (!tx) { tst('내역을 찾을 수 없습니다'); return; }
+  const it = inv.find(i => i.id === tx.iid);
+  if (!it) { tst('품목 정보를 찾을 수 없습니다'); return; }
+
+  inEditingTxId = tx.id;
+  foundItem = it;
+
+  document.getElementById('in-code').value = it.id;
+  document.getElementById('in-found').style.display = 'block';
+  document.getElementById('in-found-name').textContent = it.name;
+  document.getElementById('in-found-info').innerHTML =
+    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
+  document.getElementById('in-form-card').style.display = 'block';
+  document.getElementById('in-qty').value = tx.qty;
+
+  const sel = document.getElementById('in-producer');
+  const opt = Array.from(sel.options).find(o => o.value === tx.w);
+  sel.value = opt ? tx.w : '';
+  document.getElementById('in-memo').value = (tx.memo || '').replace(/^\[PDA\]\s*/, '');
+
+  document.getElementById('btn-in-reg').textContent = '✓ 입고 수정 완료';
+  document.getElementById('in-qty').focus();
+  document.getElementById('in-qty').select();
+  tst('입고 내역 수정 중 - 값을 바꾸고 "수정 완료"를 누르세요');
+}
+
+// 입고 등록 내역의 "삭제" 버튼 클릭 시 - 재고에서 차감 후 내역 삭제
+async function deleteInTx(id) {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  const tx = txs.find(t => String(t.id) === String(id));
+  if (!tx) return;
+  if (!confirm('이 입고 등록 내역을 삭제하시겠습니까?\n(재고 수량에서 해당 입고분이 차감됩니다)')) return;
+
+  const idx = inv.findIndex(i => i.id === tx.iid);
+  if (idx >= 0) inv[idx].qty = Math.max(0, inv[idx].qty - tx.qty);
+  txs = txs.filter(t => String(t.id) !== String(id));
+  if (inEditingTxId && String(inEditingTxId) === String(id)) resetInForm();
+
+  _lastInSave = Date.now();
+  localStorage.setItem('sr-inv', JSON.stringify(inv));
+  localStorage.setItem('sr-tx', JSON.stringify(txs));
+
+  try {
+    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+  } catch(e) {}
+
+  tst('삭제되었습니다 (재고 차감됨)');
+  renderInList();
+}
+
+// 오늘 등록된 입고 내역 목록 표시 (수정/삭제 가능)
+function renderInList() {
+  const card = document.getElementById('in-list-card');
+  const listEl = document.getElementById('in-list');
+  const today0 = startOfDay(Date.now());
+  const todays = txs.filter(t => t.type === 'in' && t.ts >= today0).sort((a, b) => b.ts - a.ts);
+
+  if (!todays.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  listEl.innerHTML = todays.map(t => {
+    const it = inv.find(i => i.id === t.iid);
+    const name = it ? it.name : t.iid;
+    const unit = it ? it.unit : '';
+    const memo = (t.memo || '').replace(/^\[PDA\]\s*/, '');
+    return `<div class="in-item">
+      <div class="in-item-main">
+        <div class="in-item-name">${escHtml(name)} <span style="color:#0d9e72">+${t.qty}${unit}</span></div>
+        <div class="in-item-sub">${escHtml(t.iid)} · ${escHtml(t.w || '')} · ${new Date(t.ts).toLocaleString('ko', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${memo ? ' · ' + escHtml(memo) : ''}</div>
+      </div>
+      <div class="in-item-actions">
+        <button class="prod-item-btn prod-item-edit" onclick="editInTx('${t.id}')">수정</button>
+        <button class="prod-item-btn prod-item-del" onclick="deleteInTx('${t.id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// PC 대시보드 등 다른 곳에서 입고 내역을 수정/삭제한 경우에도 폰에 반영되도록
+// 주기적으로(15초) + 화면 복귀 시 tx만 가볍게 다시 받아옴
+async function pullTxFromServer() {
+  if (Date.now() - _lastInSave < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
+  try {
+    const rt = await fbGet('tx');
+    if (Array.isArray(rt)) {
+      txs = rt;
+      localStorage.setItem('sr-tx', JSON.stringify(txs));
+      if (document.getElementById('page-in').classList.contains('on')) renderInList();
+    }
+  } catch(e) {}
+}
+setInterval(pullTxFromServer, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullTxFromServer(); });
 
 // ── 생산현황 등록 (작업자별 여러 건 등록 가능) ──────────────────────────────
 function prodWorkerChanged() {
