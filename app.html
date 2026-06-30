@@ -8097,6 +8097,9 @@ function applyItemEdit(id, payload){
   const idx=inv.findIndex(i=>i.id===id);if(idx<0)return;
   const {qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop}=payload;
   const prevQty=inv[idx].qty;
+  const prevLoc=inv[idx].location;
+  const prevProducer=inv[idx].producer;
+  const prevClassNo=inv[idx].classNo;
   const finalProducer=producer||inv[idx].producer||'';
   inv[idx].qty=qty;
   inv[idx].min=min;
@@ -8133,13 +8136,13 @@ function applyItemEdit(id, payload){
     txs.unshift({id:Date.now(),type:qDiff>0?'in':'out',iid:txId,qty:Math.abs(qDiff),w:txWorker,ts:Date.now(),memo:'[상세수정] 재고조정 '+prevQty+'→'+qty});
   }
   sv();
-  // 변경이력 기록
+  // 변경이력 기록 (반영 전 값과 비교해야 정확함)
   const changes=[];
-  if(loc&&loc!==inv[idx].location) changes.push(`위치: ${inv[idx].location||'-'} → ${loc}`);
+  if(loc&&loc!==prevLoc) changes.push(`위치: ${prevLoc||'-'} → ${loc}`);
   if(qty!==prevQty) changes.push(`재고: ${prevQty} → ${qty}`);
-  if(producer&&producer!==inv[idx].producer) changes.push(`생산자: ${inv[idx].producer||'-'} → ${producer}`);
+  if(producer&&producer!==prevProducer) changes.push(`생산자: ${prevProducer||'-'} → ${producer}`);
   if(moldNo&&moldNo!==id) changes.push(`금형번호: ${id} → ${moldNo}`);
-  if(partNo&&partNo!==inv[idx].classNo) changes.push(`부품번호: ${inv[idx].classNo||'-'} → ${partNo}`);
+  if(partNo&&partNo!==prevClassNo) changes.push(`부품번호: ${prevClassNo||'-'} → ${partNo}`);
   if(changes.length>0) addLog('stock','품목 수정 — '+inv[idx].name, changes.join(' / '), inv[idx].id);
 }
 function modalAddWorker(itemId){
