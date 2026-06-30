@@ -7341,10 +7341,62 @@ function dashTodayIO(type){
       <div style="flex:1;background:${bg};border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:${col};margin-bottom:4px">${type==='in'?'입고':'출고'} 수량</div><div style="font-size:20px;font-weight:700;font-family:monospace;color:${col}">${sign}${totQty.toLocaleString()}</div></div>
     </div>
     ${list.length?`<table class="tbl" style="font-size:12px">
-      <thead><tr><th>품명</th><th>금형번호</th><th>수량</th><th>담당자</th><th>일시</th></tr></thead>
-      <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2);white-space:nowrap">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td></tr>`;}).join('')}</tbody>
+      <thead><tr><th>품명</th><th>금형번호</th><th>수량</th><th>담당자</th><th>일시</th><th></th></tr></thead>
+      <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2);white-space:nowrap">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button onclick="editTodayTx(${t.id},'${type}')" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:3px 8px;font-size:11px">수정</button> <button onclick="delTodayTx(${t.id},'${type}')" class="btn bbr" style="padding:3px 8px;font-size:11px">삭제</button></td></tr>`;}).join('')}</tbody>
     </table>`:'<div style="text-align:center;padding:20px;color:var(--text3)">오늘 '+(type==='in'?'입고':'출고')+' 내역 없음</div>'}`;
   document.getElementById('ov').classList.add('on');
+}
+
+// 오늘 입/출고 내역 수정 - 수량/담당자/메모를 고치고 재고에 차액만큼 반영
+function editTodayTx(id,type){
+  if(!requireEdit())return;
+  const t=txs.find(x=>String(x.id)===String(id));
+  if(!t){tst('내역을 찾을 수 없습니다');return;}
+  const it=inv.find(i=>i.id===t.iid);
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  document.getElementById('mo-title').textContent=(type==='in'?'📥 입고 내역 수정':'📤 출고 내역 수정')+' — '+(it?it.name:t.iid);
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">수량 *</label><input type="number" class="fi" id="et-qty" min="1" value="${t.qty}"></div>
+    <div class="fg"><label class="fl">담당자</label><input type="text" class="fi" id="et-w" value="${escP(t.w||'')}"></div>
+    <div class="fg"><label class="fl">메모</label><input type="text" class="fi" id="et-memo" value="${escP(t.memo||'')}"></div>
+    <button class="btn bbl btn-full" onclick="saveTodayTxEdit(${t.id},'${type}')">✓ 수정 완료</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function saveTodayTxEdit(id,type){
+  if(!requireEdit())return;
+  const t=txs.find(x=>String(x.id)===String(id));
+  if(!t){tst('내역을 찾을 수 없습니다');return;}
+  const newQty=parseInt(document.getElementById('et-qty')?.value);
+  if(!newQty||newQty<1){tst('수량을 확인해주세요');return;}
+  const newW=document.getElementById('et-w')?.value?.trim()||'';
+  const newMemo=document.getElementById('et-memo')?.value?.trim()||'';
+  const idx=inv.findIndex(i=>i.id===t.iid);
+  if(idx<0){tst('품목을 찾을 수 없습니다');return;}
+  // 기존 수량을 되돌린 뒤 새 수량을 다시 반영 (입고는 더하고, 출고는 뺀 것이었으므로 부호 반대로 되돌림)
+  if(type==='in'){ inv[idx].qty-=t.qty; inv[idx].qty+=newQty; }
+  else { inv[idx].qty+=t.qty; inv[idx].qty-=newQty; }
+  t.qty=newQty; t.w=newW; t.memo=newMemo;
+  sv();
+  cmo();
+  tst('✅ 수정 완료');
+  dashTodayIO(type);
+}
+
+function delTodayTx(id,type){
+  if(!requireEdit())return;
+  const t=txs.find(x=>String(x.id)===String(id));
+  if(!t)return;
+  if(!confirm('이 '+(type==='in'?'입고':'출고')+' 내역을 삭제하시겠습니까?\n(재고 수량이 되돌려집니다)'))return;
+  const idx=inv.findIndex(i=>i.id===t.iid);
+  if(idx>=0){
+    if(type==='in') inv[idx].qty=Math.max(0,inv[idx].qty-t.qty);
+    else inv[idx].qty+=t.qty;
+  }
+  txs=txs.filter(x=>String(x.id)!==String(id));
+  sv();
+  tst('삭제되었습니다');
+  dashTodayIO(type);
 }
 
 // 생산자 클릭 시 해당 생산자의 입고 상세 모달
