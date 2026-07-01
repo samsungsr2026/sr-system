@@ -303,13 +303,20 @@ select.fi option{background:#fff;color:#111}
     align-items: center !important;
     gap: 16px !important;
   }
+  /* 노트북처럼 창이 좁을 때 타이틀이 우측 버튼과 겹치지 않도록,
+     기본은 절대중앙정렬 대신 일반 흐름(좌측 정렬)으로 배치.
+     충분히 넓은 화면(1600px~)에서만 아래 별도 미디어쿼리로 중앙정렬 적용 */
   .topbar-center {
-    position: absolute !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    position: static !important;
+    transform: none !important;
     width: auto !important;
     order: 0 !important;
+    min-width: 0 !important;
+    max-width: 46vw !important;
+    overflow: hidden !important;
   }
+  .topbar-brand { min-width: 0 !important; }
+  .brand-text, .topbar-sub { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
   .topbar-row2 {
     display: contents !important;
   }
@@ -339,6 +346,16 @@ select.fi option{background:#fff;color:#111}
   .topbar-time { display: block !important; }
   #jb-sync { display: flex !important; }
   .layout { margin-top: 72px !important; }
+}
+
+/* 충분히 넓은 화면에서만 타이틀을 화면 정중앙에 배치 (겹칠 공간 여유가 있을 때만) */
+@media (min-width: 1600px) {
+  .topbar-center {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    max-width: 40vw !important;
+  }
 }
 
 /* 하단 탭바 스타일 */
