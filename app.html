@@ -1131,18 +1131,26 @@ async function saveRepairs(force){
 let facilityLedger=JSON.parse(localStorage.getItem('sr-facility-ledger')||'{}'); // {_repo:[{id,label,type,name,data,isImage,ts},...], _deleted:[id,...]}
 async function svFacilityLedger(force, newItems){
   let ok=true;
+  let remoteFetchOk=true;
   if(!force){
     try{
       const remote=await cfGetFileRepoFull('facilityLedger');
-      facilityLedger['_deleted']=gcMergeDeleted(facilityLedger['_deleted'], remote.deleted);
-      facilityLedger['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(facilityLedger['_repo']||[], remote.repo, x=>x.id), facilityLedger['_deleted']);
+      remoteFetchOk=remote.ok;
+      if(remote.ok){
+        facilityLedger['_deleted']=gcMergeDeleted(facilityLedger['_deleted'], remote.deleted);
+        facilityLedger['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(facilityLedger['_repo']||[], remote.repo, x=>x.id), facilityLedger['_deleted']);
+      }
+      // remote.ok===false(네트워크 실패)면 서버 상태를 못 읽어온 것이므로 병합하지 않고 그대로 둔다.
+      // 이걸 "서버 비어있음"으로 오인해 아래에서 로컬(데이터 없는 캐시본)을 전체 재전송하면
+      // 실제 서버 데이터가 지워지는 심각한 유실이 발생한다(2026-07 실제 발생: 교정성적서/설비대장 열기 불가).
     }catch(e){}
   }
   try{localStorage.setItem('sr-facility-ledger',gcRepoForStorage(facilityLedger));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
   jbStat('💾 저장 중...');
   try{
     // 새로 추가된 파일만 개별 전송 (보관함 전체를 매번 재전송하지 않음 - 누적 용량 초과 방지)
-    const items=newItems&&newItems.length?newItems:(facilityLedger['_repo']||[]);
+    // newItems가 없는 전체 재전송 폴백은 remote 조회가 성공했을 때만 사용 (실패 시 데이터 유실 위험)
+    const items=(newItems&&newItems.length)?newItems:(remoteFetchOk?(facilityLedger['_repo']||[]):[]);
     let failDetail=null;
     for(const item of items){
       const r=await cfAddFileItem('facilityLedger', item);
@@ -1192,18 +1200,25 @@ function gcApplyTombstones(repo, deletedIds){
 }
 async function svGaugeCerts(force, newItems){
   let ok=true;
+  let remoteFetchOk=true;
   if(!force){
     try{
       const remote=await cfGetFileRepoFull('gaugeCerts');
-      gaugeCerts['_deleted']=gcMergeDeleted(gaugeCerts['_deleted'], remote.deleted);
-      gaugeCerts['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remote.repo, x=>x.id), gaugeCerts['_deleted']);
+      remoteFetchOk=remote.ok;
+      if(remote.ok){
+        gaugeCerts['_deleted']=gcMergeDeleted(gaugeCerts['_deleted'], remote.deleted);
+        gaugeCerts['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remote.repo, x=>x.id), gaugeCerts['_deleted']);
+      }
+      // remote.ok===false(네트워크 실패)면 서버 상태를 못 읽어온 것이므로 병합하지 않고 그대로 둔다.
+      // "서버 비어있음"으로 오인해 로컬(데이터 없는 캐시본)을 전체 재전송하면 서버 데이터가 지워진다(2026-07 실제 발생).
     }catch(e){}
   }
   try{localStorage.setItem('sr-gauge-certs',gcRepoForStorage(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
   jbStat('💾 저장 중...');
   try{
     // 새로 추가된 파일만 개별 전송 (보관함 전체를 매번 재전송하지 않음 - 누적 용량 초과 방지)
-    const items=newItems&&newItems.length?newItems:(gaugeCerts['_repo']||[]);
+    // newItems가 없는 전체 재전송 폴백은 remote 조회가 성공했을 때만 사용 (실패 시 데이터 유실 위험)
+    const items=(newItems&&newItems.length)?newItems:(remoteFetchOk?(gaugeCerts['_repo']||[]):[]);
     let failDetail=null;
     for(const item of items){
       const r=await cfAddFileItem('gaugeCerts', item);
@@ -1807,13 +1822,27 @@ async function cfGetPath(path){
     return await r.json();
   }catch(e){ return null; }
 }
-// repoKey의 전체 보관함을 읽어 {repo:[...], deleted:[...]} 형태(배열)로 반환
+// cfGetPath와 달리 "네트워크/요청 실패"와 "서버에 진짜 데이터가 없음(null)"을 구분해서 반환한다.
+// ok:false(요청 실패)를 서버가 비어있다고 착각하면, 파일 보관함처럼 "서버에 없는 항목만 재전송" 로직에서
+// 실제로는 있는 항목까지 없는 것으로 오인해 로컬(첨부 데이터 없는 캐시본)로 서버 데이터를 덮어써버리는
+// 심각한 데이터 유실이 발생한다(2026-07 실제 발생: 교정성적서/첨부파일 열기 불가). 반드시 이 함수를 사용해
+// 실패 시(ok:false)에는 "서버 비어있음"으로 취급하지 말고 이번 동기화를 건너뛰어야 한다.
+async function cfGetPathChecked(path){
+  try{
+    const r = await fetch(`${FB}/${path}.json`);
+    if(!r.ok) return {ok:false, data:null};
+    return {ok:true, data: await r.json()};
+  }catch(e){ return {ok:false, data:null}; }
+}
+// repoKey의 전체 보관함을 읽어 {repo:[...], deleted:[...], ok} 형태(배열)로 반환
+// ok:false이면 네트워크/요청 실패로 서버 상태를 못 읽어온 것이므로, 호출측은 "서버에 없음"으로 오인해
+// 로컬로 덮어쓰면 안 되고 이번 동기화를 건너뛰어야 한다.
 async function cfGetFileRepoFull(repoKey){
-  const raw=await cfGetPath(`srFiles/${repoKey}`);
+  const {ok, data:raw}=await cfGetPathChecked(`srFiles/${repoKey}`);
   const repoObj=(raw&&raw['_repo'])||{};
   const repoArr=(repoObj&&typeof repoObj==='object')?Object.keys(repoObj).map(k=>repoObj[k]).filter(Boolean):[];
   const deleted=(raw&&raw['_deleted'])||[];
-  return {repo:repoArr, deleted};
+  return {repo:repoArr, deleted, ok};
 }
 // 새 파일 1건만 개별 경로에 저장 (보관함 전체를 재전송하지 않음)
 async function cfAddFileItem(repoKey, item){
@@ -1906,8 +1935,14 @@ async function jbPullFiles(rim){
     // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
     // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
     try{
-      const rawAttach=await cfGetPath('srFiles/attaches');
-      window._filesStage='attaches-fetched:'+(rawAttach?'ok':'null');
+      const {ok:fetchOk, data:rawAttach}=await cfGetPathChecked('srFiles/attaches');
+      window._filesStage='attaches-fetched:'+(fetchOk?(rawAttach?'ok':'ok-empty'):'FAILED');
+      if(!fetchOk){
+        // 네트워크/요청 실패로 서버 상태를 못 읽어온 것뿐인데, 이걸 "서버에 파일이 0개"로 착각해서
+        // 아래 toSend 로직이 로컬(데이터 없는 캐시본)로 서버의 실제 파일들을 전부 덮어써버리는
+        // 치명적 데이터 유실이 실제로 발생했음(2026-07). 반드시 이번 동기화를 건너뛰고 다음 주기에 재시도한다.
+        tst('⚠️ 첨부파일 서버 상태 확인 실패 - 다음 동기화에서 재시도',3000);
+      }else{
       const repoObj=(rawAttach&&rawAttach['_repo'])||{};
       const remoteDel=(rawAttach&&rawAttach['_deleted'])||[];
       attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
@@ -1940,6 +1975,7 @@ async function jbPullFiles(rim){
       }
       // 로컬에만 있고 서버에는 아직 없는(추가 시 전송이 실패했거나 오프라인이었던) 첨부파일을 자동으로 재전송
       // - 다른 기기에서 안 보이던 파일이 다음 동기화 때 자동 복구됨
+      // 주의: 이 블록은 fetchOk===true(서버 상태를 실제로 확인했을 때)에만 실행된다 (위 조기 return 참고)
       const remoteIds=new Set(remoteFlat.map(x=>String(x.id)));
       const delSet=new Set(attachesDeleted.map(String));
       const toSend=localFlat.filter(f=>f&&f.id&&!remoteIds.has(String(f.id))&&!delSet.has(String(f.id)));
@@ -1952,6 +1988,7 @@ async function jbPullFiles(rim){
         }else{
           tst('📤 첨부파일 '+ok+'개 서버로 재전송 완료',3000);
         }
+      }
       }
     }catch(e){ window._filesStage='attaches-error:'+((e&&e.message)||e); tst('⚠️ 첨부파일 동기화 오류: '+((e&&e.message)||e),4000); }
     window._filesStage='after-attaches';
