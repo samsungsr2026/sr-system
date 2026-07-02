@@ -838,6 +838,7 @@ setInterval(pullProductionFromServer, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
 
 async function deleteProdEntry(id) {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
   if (!confirm('이 등록 내역을 삭제하시겠습니까?')) return;
   production = production.filter(x => String(x.id) !== String(id));
   await saveProduction();
@@ -847,6 +848,7 @@ async function deleteProdEntry(id) {
 }
 
 async function doRegProd() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
   const worker = document.getElementById('prod-worker').value;
   const mold = document.getElementById('prod-mold').value.trim();
   if (!worker) { tst('작업자를 선택해주세요'); return; }
