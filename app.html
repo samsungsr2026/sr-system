@@ -1135,7 +1135,7 @@ async function svFacilityLedger(force, newItems){
     try{
       const remote=await cfGetFileRepoFull('facilityLedger');
       facilityLedger['_deleted']=gcMergeDeleted(facilityLedger['_deleted'], remote.deleted);
-      facilityLedger['_repo']=gcApplyTombstones(mergeByKey(facilityLedger['_repo']||[], remote.repo, x=>x.id), facilityLedger['_deleted']);
+      facilityLedger['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(facilityLedger['_repo']||[], remote.repo, x=>x.id), facilityLedger['_deleted']);
     }catch(e){}
   }
   try{localStorage.setItem('sr-facility-ledger',gcRepoForStorage(facilityLedger));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
@@ -1196,7 +1196,7 @@ async function svGaugeCerts(force, newItems){
     try{
       const remote=await cfGetFileRepoFull('gaugeCerts');
       gaugeCerts['_deleted']=gcMergeDeleted(gaugeCerts['_deleted'], remote.deleted);
-      gaugeCerts['_repo']=gcApplyTombstones(mergeByKey(gaugeCerts['_repo']||[], remote.repo, x=>x.id), gaugeCerts['_deleted']);
+      gaugeCerts['_repo']=gcApplyTombstones(mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remote.repo, x=>x.id), gaugeCerts['_deleted']);
     }catch(e){}
   }
   try{localStorage.setItem('sr-gauge-certs',gcRepoForStorage(gaugeCerts));}catch(e){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);ok=false;}
@@ -1925,7 +1925,11 @@ async function jbPullFiles(rim){
         }
       });
       const localFlat=attachesFlatten(attaches);
-      const mergedFlat=gcApplyTombstones(mergeByKey(localFlat, remoteFlat, x=>String(x.id)), attachesDeleted);
+      // localStorage 캐시는 용량 절약을 위해 data(base64)를 제거하고 저장하므로(acForStorage),
+      // local 우선 병합을 쓰면 매번 새로고침할 때마다 실제 데이터를 가진 remote가 데이터 없는 local로 덮어써져
+      // "파일을 열 수 없습니다(데이터 없음)" 오류가 발생함(2026-07 실제 발생). remote를 우선하고,
+      // 아직 서버에 없는(방금 추가해 미동기화된) local 항목만 별도로 보존한다.
+      const mergedFlat=gcApplyTombstones(mergeByKeyRemoteWins(localFlat, remoteFlat, x=>String(x.id)), attachesDeleted);
       attaches=attachesGroup(mergedFlat);
       localStorage.setItem('sr-attaches',acForStorage(attaches));
       localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));
