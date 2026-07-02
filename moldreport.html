@@ -149,7 +149,10 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </div>
       <div class="fg">
         <label class="label">가황시간</label>
-        <input class="inp" type="text" id="mr-vulcan" placeholder="예: 2분30초" inputmode="numeric">
+        <div style="position:relative">
+          <input class="inp" type="number" inputmode="decimal" id="mr-vulcan" placeholder="예: 2" style="padding-right:44px">
+          <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#8090b8;font-weight:700;font-size:15px;pointer-events:none">분</span>
+        </div>
       </div>
     </div>
     <div class="grid2">
@@ -261,12 +264,19 @@ function mrCopyPrev() {
   document.getElementById('mr-temp-top').value = p.tempTop || '';
   document.getElementById('mr-temp-bottom').value = p.tempBottom || '';
   document.getElementById('mr-pressure').value = p.pressure || '';
-  document.getElementById('mr-vulcan').value = p.vulcan || '';
+  document.getElementById('mr-vulcan').value = mrVulcanNum(p.vulcan);
   mrMaterialChanged();
   tst('↩ 이전 항목값 복사됨');
 }
 
+function mrVulcanNum(v) {
+  if (v == null) return '';
+  const m = String(v).match(/[\d.]+/);
+  return m ? m[0] : '';
+}
+
 function mrReadForm() {
+  const vulcanNum = document.getElementById('mr-vulcan').value.trim();
   return {
     date: document.getElementById('mr-date').value || new Date().toISOString().slice(0,10),
     writer: document.getElementById('mr-writer').value,
@@ -282,7 +292,7 @@ function mrReadForm() {
     tempTop: document.getElementById('mr-temp-top').value,
     tempBottom: document.getElementById('mr-temp-bottom').value,
     pressure: document.getElementById('mr-pressure').value,
-    vulcan: document.getElementById('mr-vulcan').value.trim(),
+    vulcan: vulcanNum ? (vulcanNum + '분') : '',
     qtyGood: document.getElementById('mr-qty-good').value,
     qtyBad: document.getElementById('mr-qty-bad').value,
     note: document.getElementById('mr-note').value.trim()
@@ -335,7 +345,7 @@ function editMrEntry(id) {
   document.getElementById('mr-temp-top').value = p.tempTop || '';
   document.getElementById('mr-temp-bottom').value = p.tempBottom || '';
   document.getElementById('mr-pressure').value = p.pressure || '';
-  document.getElementById('mr-vulcan').value = p.vulcan || '';
+  document.getElementById('mr-vulcan').value = mrVulcanNum(p.vulcan);
   document.getElementById('mr-qty-good').value = p.qtyGood || '';
   document.getElementById('mr-qty-bad').value = p.qtyBad || '';
   document.getElementById('mr-note').value = p.note || '';
@@ -384,7 +394,7 @@ function renderMrList() {
     return `<div class="mr-item" id="mr-card-${p.id}">
       <div class="mr-item-head" onclick="toggleMrOpen('${p.id}')">
         <div>
-          <div class="mr-item-title"><span class="no">#${i+1}</span>${escHtml(p.machine || '호기 미입력')}</div>
+          <div class="mr-item-title"><span class="no">#${i+1}</span>${escHtml(p.writer || '작성자 미지정')} ${p.machine ? escHtml(p.machine) + '호기' : '호기 미입력'}</div>
           <div class="mr-item-sub">${p.mold ? '금형 ' + escHtml(p.mold) : ''}${mat ? ' · ' + escHtml(mat) : ''}${p.hardness ? ' (' + escHtml(p.hardness) + ')' : ''}${p.qtyGood ? ' · 생산 ' + escHtml(String(p.qtyGood)) + 'EA' : ''}${p.qtyBad ? ' · 불량 ' + escHtml(String(p.qtyBad)) : ''}</div>
         </div>
       </div>
