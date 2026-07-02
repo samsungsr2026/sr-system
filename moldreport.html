@@ -145,7 +145,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
     <div class="grid2">
       <div class="fg">
         <label class="label">압력(kg/㎠)</label>
-        <input class="inp" type="number" inputmode="decimal" id="mr-pressure">
+        <input class="inp" type="number" inputmode="decimal" id="mr-pressure" value="150">
       </div>
       <div class="fg">
         <label class="label">가황시간</label>
@@ -301,8 +301,10 @@ function mrReadForm() {
 
 function mrClearItemFields() {
   ['mr-machine','mr-mold','mr-material','mr-material-custom','mr-hardness','mr-lotsrc','mr-lotwork',
-   'mr-cut','mr-cav','mr-temp-top','mr-temp-bottom','mr-pressure','mr-vulcan','mr-qty-good','mr-qty-bad','mr-note']
+   'mr-cut','mr-cav','mr-temp-top','mr-temp-bottom','mr-vulcan','mr-qty-good','mr-qty-bad','mr-note']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const pr = document.getElementById('mr-pressure');
+  if (pr) pr.value = '150';
   mrMaterialChanged();
 }
 
