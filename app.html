@@ -9792,7 +9792,9 @@ function dlBackupAll(){
       images:Object.keys(imgs).length,
       drawings:Object.keys(draws).length,
       gauges:gauges.length,
-      gaugeCerts:Object.keys(gaugeCerts).length
+      gaugeCerts:Object.keys(gaugeCerts).length,
+      attaches:attachesFlatten(attaches).length,
+      facilityLedger:(facilityLedger['_repo']||[]).length
     },
     data:{
       inv:inv,
@@ -9805,6 +9807,8 @@ function dlBackupAll(){
       drawings:draws,
       gauges:gauges,
       gaugeCerts:gaugeCerts,
+      attaches:attaches,
+      facilityLedger:facilityLedger,
       changeLogs:changeLogs,
       notices:notices,
       dailyReports:dailyReports
@@ -9820,6 +9824,15 @@ function dlBackupAll(){
   tst('💾 전체 백업 완료 ('+sizeKB+' KB · 재고 '+inv.length+'종 · 입출고 '+txs.length+'건 · 발주서 '+orders.length+'건)',3500);
 }
 
+// 백업 복원 시 로컬 attaches 전체를 서버 개별 경로로 강제 재전송 (fetch 실패로 오인해 지우는 문제 없이,
+// 복원은 사용자가 명시적으로 요청한 전체 덮어쓰기이므로 무조건 전송)
+async function svAttachesForce(){
+  const flat=attachesFlatten(attaches);
+  const results=await Promise.all(flat.map(f=>cfAddFileItem('attaches', f)));
+  const fail=results.filter(r=>!(r&&r.ok)).length;
+  if(attachesDeleted&&attachesDeleted.length)await cfSetFileDeletedList('attaches', attachesDeleted).catch(()=>{});
+  return fail===0;
+}
 function restoreBackup(file){
   if(!file)return;
   if(!requireEdit()){
@@ -9849,10 +9862,12 @@ function restoreBackup(file){
       if(b.data.drawings){draws=b.data.drawings;Object.keys(draws).forEach(id=>drawsDirty.add(id));}
       if(b.data.gauges)gauges=b.data.gauges;
       if(b.data.gaugeCerts)gaugeCerts=b.data.gaugeCerts;
+      if(b.data.attaches)attaches=b.data.attaches;
+      if(b.data.facilityLedger)facilityLedger=b.data.facilityLedger;
       if(b.data.changeLogs)changeLogs=b.data.changeLogs;
       if(b.data.notices)notices=b.data.notices;
       if(b.data.dailyReports)dailyReports=b.data.dailyReports;
-      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts(true);
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts(true);svFacilityLedger(true);svAttachesForce();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
