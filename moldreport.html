@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>사출성형일보</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#f0f2f8;color:#1a1f35;min-height:100vh;font-size:16px;padding-bottom:24px}
+
+.topbar{background:linear-gradient(135deg,#0d1b4b,#1a3a8f);color:#fff;padding:16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.topbar-title{font-size:18px;font-weight:800;letter-spacing:.04em}
+.topbar-sub{font-size:11px;opacity:.7;margin-top:2px}
+
+.wrap{padding:16px}
+
+.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+.card-title{font-size:11px;font-weight:700;color:#8090b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+
+.label{font-size:13px;font-weight:600;color:#4a5270;margin-bottom:6px;display:block}
+.inp{width:100%;background:#f0f2f8;border:1.5px solid #cdd3e8;border-radius:10px;padding:14px;font-size:16px;color:#1a1f35;outline:none;font-family:inherit;-webkit-appearance:none}
+.inp:focus{border-color:#1a6bff;background:#fff}
+select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238090b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.fg{margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.btn{width:100%;padding:16px;border-radius:12px;font-size:17px;font-weight:700;border:none;cursor:pointer;font-family:inherit;margin-top:4px;transition:opacity .15s}
+.btn:active{opacity:.8}
+.btn-go{background:#0d9e72;color:#fff}
+.btn-cancel{background:#e8ecf5;color:#4a5270;margin-top:8px}
+.copy-btn{background:none;border:none;color:#1a6bff;font-size:12px;font-weight:700;cursor:pointer;padding:6px 0}
+
+.mr-item{background:#f0f2f8;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.mr-item-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.mr-item-title{font-size:15px;font-weight:800;color:#1a1f35}
+.mr-item-title .no{color:#1a6bff;font-family:monospace;margin-right:6px}
+.mr-item-sub{font-size:12px;color:#8090b8;margin-top:2px}
+.mr-item-body{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed #cdd3e8}
+.mr-item.open .mr-item-body{display:block}
+.mr-item-actions{display:flex;gap:8px;margin-top:10px}
+.mr-item-btn{flex:1;border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer}
+.mr-btn-edit{background:#e8f0ff;color:#1a6bff}
+.mr-btn-del{background:#fce8ed;color:#d42048}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1f35;color:#fff;padding:12px 24px;border-radius:24px;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+.empty{text-align:center;padding:30px 20px;color:#8090b8;font-size:14px}
+</style>
+</head>
+<body tabindex="-1">
+
+<div class="topbar">
+  <div class="topbar-title">🧪 사출성형일보</div>
+  <div class="topbar-sub">삼성SR 통합관리시스템</div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-title">작성 정보</div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">작성일자</label>
+        <input class="inp" type="date" id="mr-date" onchange="renderMrList()">
+      </div>
+      <div class="fg">
+        <label class="label">작성자</label>
+        <select class="inp" id="mr-writer">
+          <option value="">-- 선택 --</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">호기별 항목 등록</div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">호기</label>
+        <input class="inp" type="text" id="mr-machine" placeholder="예: 15" inputmode="numeric">
+      </div>
+      <div class="fg">
+        <label class="label">금형번호</label>
+        <input class="inp" type="text" id="mr-mold" placeholder="예: 31,665">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">재질</label>
+        <select class="inp" id="mr-material" onchange="mrMaterialChanged()">
+          <option value="">선택</option>
+          <option value="CR">CR</option>
+          <option value="EPDM">EPDM</option>
+          <option value="NR">NR</option>
+          <option value="NBR">NBR</option>
+          <option value="직접입력">직접입력</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="label">경도</label>
+        <input class="inp" type="text" id="mr-hardness" placeholder="예: 65±4">
+      </div>
+    </div>
+    <div class="fg" id="mr-material-custom-wrap" style="display:none">
+      <label class="label">재질 직접입력</label>
+      <input class="inp" type="text" id="mr-material-custom" placeholder="재질명 입력">
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">산지 Lot No.</label>
+        <input class="inp" type="text" id="mr-lotsrc">
+      </div>
+      <div class="fg">
+        <label class="label">작업 Lot No.</label>
+        <input class="inp" type="text" id="mr-lotwork">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">소재재단(g)</label>
+        <input class="inp" type="number" inputmode="decimal" id="mr-cut">
+      </div>
+      <div class="fg">
+        <label class="label">금형 CAV</label>
+        <input class="inp" type="number" inputmode="numeric" id="mr-cav">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">온도 - 상(°C)</label>
+        <input class="inp" type="number" inputmode="decimal" id="mr-temp-top">
+      </div>
+      <div class="fg">
+        <label class="label">온도 - 하(°C)</label>
+        <input class="inp" type="number" inputmode="decimal" id="mr-temp-bottom">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">압력(kg/㎠)</label>
+        <input class="inp" type="number" inputmode="decimal" id="mr-pressure">
+      </div>
+      <div class="fg">
+        <label class="label">가황시간</label>
+        <input class="inp" type="text" id="mr-vulcan" placeholder="예: 2분30초">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">생산수량(EA)</label>
+        <input class="inp" type="number" inputmode="numeric" id="mr-qty-good">
+      </div>
+      <div class="fg">
+        <label class="label">불량갯수</label>
+        <input class="inp" type="number" inputmode="numeric" id="mr-qty-bad">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="label">비고</label>
+      <input class="inp" type="text" id="mr-note">
+    </div>
+    <button class="copy-btn" onclick="mrCopyPrev()">↩ 이전 항목값 복사</button>
+    <button class="btn btn-go" id="btn-mr-reg" onclick="doRegMr()">🧪 등록</button>
+    <button class="btn btn-cancel" id="btn-mr-cancel" style="display:none" onclick="cancelMrEdit()">수정 취소</button>
+  </div>
+
+  <div class="card" id="mr-list-card" style="display:none">
+    <div class="card-title" id="mr-list-title">등록 내역</div>
+    <div id="mr-list"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
+let workers = [];
+let moldReports = [];
+let mrEditingId = null;
+
+async function fbGet(key) {
+  const r = await fetch(`${FB}/sr/${key}.json`);
+  if (!r.ok) return null;
+  return await r.json();
+}
+async function fbSet(key, data) {
+  await fetch(`${FB}/sr/${key}.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+}
+
+let toastTimer;
+function tst(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function init() {
+  const lw = localStorage.getItem('sr-workers');
+  const lmr = localStorage.getItem('sr-moldreport');
+  if (lw) workers = JSON.parse(lw);
+  if (lmr) moldReports = JSON.parse(lmr);
+
+  try {
+    const [rw, rmr] = await Promise.all([fbGet('wk'), fbGet('moldreport')]);
+    if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
+    if (Array.isArray(rmr)) { moldReports = rmr; localStorage.setItem('sr-moldreport', JSON.stringify(moldReports)); }
+  } catch(e) {}
+
+  buildWriterSelect();
+  document.getElementById('mr-date').value = new Date().toISOString().slice(0,10);
+  renderMrList();
+}
+
+function buildWriterSelect() {
+  const sel = document.getElementById('mr-writer');
+  while (sel.options.length > 1) sel.remove(1);
+  const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
+  list.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = w;
+    sel.appendChild(opt);
+  });
+}
+
+function mrMaterialChanged() {
+  const v = document.getElementById('mr-material').value;
+  document.getElementById('mr-material-custom-wrap').style.display = (v === '직접입력') ? 'block' : 'none';
+}
+
+function mrCopyPrev() {
+  const date = document.getElementById('mr-date').value || new Date().toISOString().slice(0,10);
+  const list = moldReports.filter(x => x.date === date).sort((a,b) => a.ts - b.ts);
+  if (!list.length) { tst('복사할 이전 항목이 없습니다'); return; }
+  const p = list[list.length - 1];
+  document.getElementById('mr-mold').value = p.mold || '';
+  document.getElementById('mr-material').value = p.material || '';
+  document.getElementById('mr-material-custom').value = p.materialCustom || '';
+  document.getElementById('mr-hardness').value = p.hardness || '';
+  document.getElementById('mr-lotsrc').value = p.lotSrc || '';
+  document.getElementById('mr-lotwork').value = p.lotWork || '';
+  document.getElementById('mr-cav').value = p.cav || '';
+  document.getElementById('mr-temp-top').value = p.tempTop || '';
+  document.getElementById('mr-temp-bottom').value = p.tempBottom || '';
+  document.getElementById('mr-pressure').value = p.pressure || '';
+  document.getElementById('mr-vulcan').value = p.vulcan || '';
+  mrMaterialChanged();
+  tst('↩ 이전 항목값 복사됨');
+}
+
+function mrReadForm() {
+  return {
+    date: document.getElementById('mr-date').value || new Date().toISOString().slice(0,10),
+    writer: document.getElementById('mr-writer').value,
+    machine: document.getElementById('mr-machine').value.trim(),
+    mold: document.getElementById('mr-mold').value.trim(),
+    material: document.getElementById('mr-material').value,
+    materialCustom: document.getElementById('mr-material-custom').value.trim(),
+    hardness: document.getElementById('mr-hardness').value.trim(),
+    lotSrc: document.getElementById('mr-lotsrc').value.trim(),
+    lotWork: document.getElementById('mr-lotwork').value.trim(),
+    cut: document.getElementById('mr-cut').value,
+    cav: document.getElementById('mr-cav').value,
+    tempTop: document.getElementById('mr-temp-top').value,
+    tempBottom: document.getElementById('mr-temp-bottom').value,
+    pressure: document.getElementById('mr-pressure').value,
+    vulcan: document.getElementById('mr-vulcan').value.trim(),
+    qtyGood: document.getElementById('mr-qty-good').value,
+    qtyBad: document.getElementById('mr-qty-bad').value,
+    note: document.getElementById('mr-note').value.trim()
+  };
+}
+
+function mrClearItemFields() {
+  ['mr-machine','mr-mold','mr-material','mr-material-custom','mr-hardness','mr-lotsrc','mr-lotwork',
+   'mr-cut','mr-cav','mr-temp-top','mr-temp-bottom','mr-pressure','mr-vulcan','mr-qty-good','mr-qty-bad','mr-note']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  mrMaterialChanged();
+}
+
+async function doRegMr() {
+  const f = mrReadForm();
+  if (!f.writer) { tst('작성자를 선택해주세요'); return; }
+  if (!f.machine) { tst('호기를 입력해주세요'); return; }
+
+  if (mrEditingId) {
+    const p = moldReports.find(x => String(x.id) === String(mrEditingId));
+    if (p) Object.assign(p, f, { ts: Date.now() });
+    await saveMoldReports();
+    tst('✅ 수정완료');
+    cancelMrEdit();
+  } else {
+    moldReports.unshift(Object.assign({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now() }, f));
+    await saveMoldReports();
+    tst('✅ 등록완료');
+    mrClearItemFields();
+    document.getElementById('mr-machine').focus();
+  }
+  renderMrList();
+}
+
+function editMrEntry(id) {
+  const p = moldReports.find(x => String(x.id) === String(id));
+  if (!p) return;
+  mrEditingId = p.id;
+  document.getElementById('mr-date').value = p.date;
+  document.getElementById('mr-writer').value = p.writer || '';
+  document.getElementById('mr-machine').value = p.machine || '';
+  document.getElementById('mr-mold').value = p.mold || '';
+  document.getElementById('mr-material').value = p.material || '';
+  document.getElementById('mr-material-custom').value = p.materialCustom || '';
+  document.getElementById('mr-hardness').value = p.hardness || '';
+  document.getElementById('mr-lotsrc').value = p.lotSrc || '';
+  document.getElementById('mr-lotwork').value = p.lotWork || '';
+  document.getElementById('mr-cut').value = p.cut || '';
+  document.getElementById('mr-cav').value = p.cav || '';
+  document.getElementById('mr-temp-top').value = p.tempTop || '';
+  document.getElementById('mr-temp-bottom').value = p.tempBottom || '';
+  document.getElementById('mr-pressure').value = p.pressure || '';
+  document.getElementById('mr-vulcan').value = p.vulcan || '';
+  document.getElementById('mr-qty-good').value = p.qtyGood || '';
+  document.getElementById('mr-qty-bad').value = p.qtyBad || '';
+  document.getElementById('mr-note').value = p.note || '';
+  mrMaterialChanged();
+  document.getElementById('btn-mr-reg').textContent = '✓ 수정 완료';
+  document.getElementById('btn-mr-cancel').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelMrEdit() {
+  mrEditingId = null;
+  mrClearItemFields();
+  document.getElementById('btn-mr-reg').textContent = '🧪 등록';
+  document.getElementById('btn-mr-cancel').style.display = 'none';
+}
+
+async function deleteMrEntry(id) {
+  if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+  moldReports = moldReports.filter(x => String(x.id) !== String(id));
+  await saveMoldReports();
+  if (mrEditingId && String(mrEditingId) === String(id)) cancelMrEdit();
+  renderMrList();
+  tst('삭제되었습니다');
+}
+
+async function saveMoldReports() {
+  localStorage.setItem('sr-moldreport', JSON.stringify(moldReports));
+  try { await fbSet('moldreport', moldReports); } catch(e) {}
+}
+
+function toggleMrOpen(id) {
+  const el = document.getElementById('mr-card-' + id);
+  if (el) el.classList.toggle('open');
+}
+
+function renderMrList() {
+  const date = document.getElementById('mr-date').value || new Date().toISOString().slice(0,10);
+  const list = moldReports.filter(x => x.date === date).sort((a,b) => a.ts - b.ts);
+  const card = document.getElementById('mr-list-card');
+  const box = document.getElementById('mr-list');
+  if (!list.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('mr-list-title').textContent = date + ' 등록 내역 (' + list.length + '건)';
+  box.innerHTML = list.map((p, i) => {
+    const mat = p.material === '직접입력' ? (p.materialCustom || '직접입력') : (p.material || '');
+    return `<div class="mr-item" id="mr-card-${p.id}">
+      <div class="mr-item-head" onclick="toggleMrOpen('${p.id}')">
+        <div>
+          <div class="mr-item-title"><span class="no">#${i+1}</span>${escHtml(p.machine || '호기 미입력')}</div>
+          <div class="mr-item-sub">${p.mold ? '금형 ' + escHtml(p.mold) : ''}${mat ? ' · ' + escHtml(mat) : ''}${p.hardness ? ' (' + escHtml(p.hardness) + ')' : ''}${p.qtyGood ? ' · 생산 ' + escHtml(String(p.qtyGood)) + 'EA' : ''}${p.qtyBad ? ' · 불량 ' + escHtml(String(p.qtyBad)) : ''}</div>
+        </div>
+      </div>
+      <div class="mr-item-body">
+        <div style="font-size:13px;color:#4a5270;line-height:1.8">
+          작성자: <b>${escHtml(p.writer || '-')}</b><br>
+          Lot(산지/작업): ${escHtml(p.lotSrc || '-')} / ${escHtml(p.lotWork || '-')}<br>
+          소재재단: ${escHtml(String(p.cut || '-'))}g · CAV: ${escHtml(String(p.cav || '-'))}<br>
+          온도(상/하): ${escHtml(String(p.tempTop || '-'))}°C / ${escHtml(String(p.tempBottom || '-'))}°C<br>
+          압력: ${escHtml(String(p.pressure || '-'))}kg/㎠ · 가황시간: ${escHtml(p.vulcan || '-')}<br>
+          ${p.note ? '비고: ' + escHtml(p.note) : ''}
+        </div>
+        <div class="mr-item-actions">
+          <button class="mr-item-btn mr-btn-edit" onclick="editMrEntry('${p.id}')">수정</button>
+          <button class="mr-item-btn mr-btn-del" onclick="deleteMrEntry('${p.id}')">삭제</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 숫자/텍스트 input 클릭 시 전체 선택
+document.addEventListener('click', e => {
+  if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'number' || e.target.type === 'text')) {
+    e.target.select();
+  }
+});
+
+// 다른 사람이 등록/삭제한 내역이 반영되도록 15초마다 재조회
+let _lastMrLocalSave = 0;
+async function pullMrFromServer() {
+  try {
+    const rmr = await fbGet('moldreport');
+    if (Array.isArray(rmr)) {
+      moldReports = rmr;
+      localStorage.setItem('sr-moldreport', JSON.stringify(moldReports));
+      renderMrList();
+    }
+  } catch(e) {}
+}
+setInterval(pullMrFromServer, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullMrFromServer(); });
+
+// 서비스워커/캐시 제거 (옛 버전이 계속 보이는 문제 방지)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
+
+init();
+</script>
+</body>
+</html>
