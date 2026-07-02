@@ -2684,6 +2684,7 @@ function editPurchaseVendor(i){
 }
 
 function savePurchaseVendor(i){
+  if(!requireEdit())return;
   const name=document.getElementById('pv-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
   purchaseVendors[i]={
@@ -2727,6 +2728,7 @@ function openPurchaseVendorModal(){
 }
 
 function addPurchaseVendor(){
+  if(!requireEdit())return;
   const name=document.getElementById('pv-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
   if(purchaseVendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
@@ -3460,6 +3462,7 @@ function openAddVendorModal(){
 }
 
 function addVendorCo(){
+  if(!requireEdit())return;
   const name=document.getElementById('v-name')?.value?.trim();
   if(!name){tst('업체명을 입력해주세요');return;}
   if(vendors.find(v=>v.name===name)){tst('이미 등록된 업체입니다');return;}
@@ -6172,6 +6175,7 @@ function mvRemoveItem(i,ii){
   saveSUPITEMS();mvRefresh();
 }
 function addVendor(){
+  if(!requireEdit())return;
   const el=document.getElementById('new-vendor');
   const v=el?.value?.trim();
   if(!v){tst('공급업체 이름을 입력해주세요');return;}
@@ -7511,6 +7515,7 @@ function rProdView(){
 
 // 금형 생산현황에서 등록 내역 삭제 (PDA에서 작업자가 잘못 등록한 내역을 관리자가 직접 정정)
 function pvDelete(id){
+  if(!requireEdit())return;
   if(!confirm('이 생산 등록 내역을 삭제하시겠습니까?'))return;
   production=(production||[]).filter(p=>String(p.id)!==String(id));
   try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
@@ -7522,6 +7527,7 @@ function pvDelete(id){
 
 // 금형 생산현황에서 등록 내역 수정 (작업자/금형번호 변경)
 function pvEditOpen(id){
+  if(!requireEdit())return;
   const p=(production||[]).find(x=>String(x.id)===String(id));
   if(!p)return;
   const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -7542,6 +7548,7 @@ function pvEditOpen(id){
   document.getElementById('ov').classList.add('on');
 }
 function pvEditSave(id){
+  if(!requireEdit())return;
   const p=(production||[]).find(x=>String(x.id)===String(id));
   if(!p)return;
   const w=document.getElementById('pv-edit-worker').value;
@@ -8760,7 +8767,7 @@ function rChangeLog(){
     </div>
     <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlChangeLog()">📄 CSV 저장</button>
     <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="printChangeLog()">🖨️ 출력</button>
-    <button class="btn bbr" style="padding:10px 16px;font-size:13px" onclick="if(confirm('전체 변경이력을 삭제하시겠습니까?')){changeLogs=[];saveCL();render();}">🗑️ 전체 삭제</button>
+    <button class="btn bbr" style="padding:10px 16px;font-size:13px" onclick="if(!requireEdit())return;if(confirm('전체 변경이력을 삭제하시겠습니까?')){changeLogs=[];saveCL();render();}">🗑️ 전체 삭제</button>
   </div>
 
   <div class="ftabs" style="margin-bottom:14px">
@@ -9513,7 +9520,7 @@ function rDailyReport(){
             <div style="display:flex;gap:4px;justify-content:center">
               <button onclick="viewDailyReport('${r.date}')" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">보기</button>
               <button onclick="printOneDailyReport('${r.date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">출력</button>
-              <button onclick="if(confirm('삭제하시겠습니까?')){dailyReports=dailyReports.filter(x=>x.date!=='${r.date}');saveDR();render();}" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">삭제</button>
+              <button onclick="if(!requireEdit())return;if(confirm('삭제하시겠습니까?')){dailyReports=dailyReports.filter(x=>x.date!=='${r.date}');saveDR();render();}" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">삭제</button>
             </div>
           </td>
         </tr>`).join('')}
@@ -9585,6 +9592,7 @@ function approveDailyReport(date){
 }
 
 function saveDailyReport(){
+  if(!requireEdit())return;
   const date = document.getElementById('dr-date')?.value||drToday();
   const weather = document.getElementById('dr-weather')?.value||'';
   const work = document.getElementById('dr-work')?.value?.trim()||'';
@@ -9762,6 +9770,7 @@ function rNotice(){
 }
 
 function addNotice(){
+  if(!requireEdit())return;
   const type=document.getElementById('n-type')?.value||'notice';
   const title=document.getElementById('n-title')?.value?.trim()||'';
   const body=document.getElementById('n-body')?.value?.trim()||'';
