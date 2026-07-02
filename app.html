@@ -530,6 +530,10 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
       금일 생산현황
     </button>
+    <button class="nav-item" onclick="go(&#39;moldreport&#39;)" id="nb-moldreport">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+      성형일보
+    </button>
     <button class="nav-item" onclick="go(&#39;stats&#39;)" id="nb-stats">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
       통계 / 리포트
@@ -797,6 +801,13 @@ let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
 // 금일 생산 현황: 작업자별로 여러 건 등록 가능 (이력 배열). PDA 단말기에서 작업자가 직접 수기로 입력/수정/삭제.
 let production=migrateProduction(JSON.parse(localStorage.getItem('sr-production')||'[]'));
+// 사출성형일보: 호기별 항목 배열. PDA에서 작성자가 직접 입력/수정/삭제.
+let moldReports=JSON.parse(localStorage.getItem('sr-moldreport')||'[]');
+function saveMoldReports(){
+  localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));
+  _lastMrSave=Date.now();
+  cfSet('moldreport',moldReports).catch(()=>{});
+}
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]').filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
@@ -2054,6 +2065,7 @@ async function jbPullOrders(){
 // 등록하는 데이터라 대시보드에 최대한 빠르게 반영되어야 함.
 let _productionPullBusy=false;
 let _lastProdSave=0; // 대시보드에서 생산현황을 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
+let _lastMrSave=0; // 대시보드에서 성형일보를 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
@@ -2082,6 +2094,21 @@ async function jbPullProduction(){
   }catch(e){}finally{_productionPullBusy=false;}
 }
 
+// 성형일보도 production과 동일한 패턴으로 /sr/moldreport 경로만 가볍고 빠르게 독립적으로 동기화
+let _mrPullBusy=false;
+async function jbPullMoldReport(){
+  if(_mrPullBusy)return;
+  _mrPullBusy=true;
+  try{
+    const rmr=await fetchTimeout(`${FB}/sr/moldreport.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){
+      moldReports=rmr;
+      try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}
+      if(tab==='moldreport')render();
+    }
+  }catch(e){}finally{_mrPullBusy=false;}
+}
+
 let _jbPullBusy=false;
 async function jbPull() {
   if(_jbPullBusy)return; // 이전 동기화가 아직 진행 중이면 중복 실행하지 않음 (느린 연결에서 매번 "동기화 중..."으로 되돌아가는 것을 방지)
@@ -2103,7 +2130,7 @@ async function jbPull() {
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
-          production
+          production, moldreport: moldReports
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -2125,12 +2152,13 @@ async function jbPull() {
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'], rvod=fbAll['vendorOrdersDeleted'],
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
-          rpr=fbAll['production'];
+          rpr=fbAll['production'], rmr=fbAll['moldreport'];
 
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
+    if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){moldReports=rmr;try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
@@ -2536,6 +2564,7 @@ function render(){
   else if(tab==='order')m.innerHTML=rOrder();
   else if(tab==='pstat')m.innerHTML=rPstat();
   else if(tab==='prodview')m.innerHTML=rProdView();
+  else if(tab==='moldreport')m.innerHTML=rMoldReport();
   else if(tab==='stats')m.innerHTML=rStats();
   else if(tab==='notice')m.innerHTML=rNotice();
   else if(tab==='dailyreport')m.innerHTML=rDailyReport();
@@ -7562,6 +7591,207 @@ function pvEditSave(id){
   tst('✅ 수정 완료');
   render();
 }
+// ── 사출성형일보 ────────────────────────────────────────────────
+let mrViewDate=new Date().toISOString().slice(0,10);
+
+function mrViewNav(days){
+  const d=new Date(mrViewDate);
+  d.setDate(d.getDate()+days);
+  mrViewDate=d.toISOString().slice(0,10);
+  render();
+}
+function mrViewToday(){ mrViewDate=new Date().toISOString().slice(0,10); render(); }
+
+function rMoldReport(){
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const matLabel=p=>p.material==='직접입력'?(p.materialCustom||'직접입력'):(p.material||'-');
+  const list=(moldReports||[]).filter(p=>p.date===mrViewDate).sort((a,b)=>a.ts-b.ts);
+  const totalGood=list.reduce((s,p)=>s+(parseInt(p.qtyGood)||0),0);
+  const totalBad=list.reduce((s,p)=>s+(parseInt(p.qtyBad)||0),0);
+
+  return `
+  <div class="page-title">사출성형일보</div>
+  <div class="page-sub">PDA에서 작성자가 등록한 호기별 성형 작업 내역을 확인·출력합니다</div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn" style="padding:8px 14px" onclick="mrViewNav(-1)">← 이전날</button>
+    <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--text2);min-width:100px">${mrViewDate}</div>
+    <button class="btn" style="padding:8px 14px" onclick="mrViewNav(1)">다음날 →</button>
+    <button class="btn" style="padding:8px 14px;background:var(--blue-bg);color:var(--blue)" onclick="mrViewToday()">오늘</button>
+    <button class="btn bbl" style="padding:8px 14px" onclick="printMoldReport('${mrViewDate}')">🖨️ 출력</button>
+  </div>
+
+  <div class="stat-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="stat-card"><div class="stat-val">${list.length}</div><div class="stat-label">등록 건수</div></div>
+    <div class="stat-card" style="border-color:rgba(13,158,114,.3)"><div class="stat-val" style="color:var(--green)">${totalGood.toLocaleString()}</div><div class="stat-label">생산수량(EA)</div></div>
+    <div class="stat-card" style="border-color:rgba(212,32,72,.3)"><div class="stat-val" style="color:var(--red)">${totalBad.toLocaleString()}</div><div class="stat-label">불량갯수</div></div>
+  </div>
+
+  ${!list.length?`<div class="card"><div style="text-align:center;padding:50px;color:var(--text3)"><div style="font-size:40px;margin-bottom:14px">📭</div><div style="font-size:15px;font-weight:600;color:var(--text)">${mrViewDate} 등록된 성형일보가 없습니다</div></div></div>`:`
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="tbl" style="min-width:1150px">
+      <thead><tr>
+        <th>NO</th><th>작성자</th><th>호기</th><th>금형번호</th><th>재질(경도)</th>
+        <th>산지Lot</th><th>작업Lot</th><th>소재재단(g)</th><th>CAV</th>
+        <th>온도(상/하)</th><th>압력</th><th>가황시간</th><th>생산수량</th><th>불량</th><th>비고</th><th style="width:90px">관리</th>
+      </tr></thead>
+      <tbody>
+        ${list.map((p,i)=>`<tr>
+          <td>${i+1}</td>
+          <td><strong>${escP(p.writer)}</strong></td>
+          <td style="font-family:monospace;font-weight:700">${escP(p.machine)}</td>
+          <td style="font-family:monospace;color:var(--blue)">${escP(p.mold)}</td>
+          <td>${escP(matLabel(p))}${p.hardness?' ('+escP(p.hardness)+')':''}</td>
+          <td>${escP(p.lotSrc)||'-'}</td>
+          <td>${escP(p.lotWork)||'-'}</td>
+          <td style="font-family:monospace">${escP(p.cut)||'-'}</td>
+          <td style="font-family:monospace">${escP(p.cav)||'-'}</td>
+          <td style="font-family:monospace">${escP(p.tempTop)||'-'}/${escP(p.tempBottom)||'-'}</td>
+          <td style="font-family:monospace">${escP(p.pressure)||'-'}</td>
+          <td>${escP(p.vulcan)||'-'}</td>
+          <td style="font-family:monospace;font-weight:700;color:var(--green)">${escP(p.qtyGood)||'-'}</td>
+          <td style="font-family:monospace;color:${p.qtyBad?'var(--red)':'var(--text3)'}">${escP(p.qtyBad)||'-'}</td>
+          <td style="color:var(--text3)">${escP(p.note)||'-'}</td>
+          <td style="white-space:nowrap"><button class="btn" style="padding:4px 8px;font-size:12px" onclick="mrEditOpen('${p.id}')">✏️</button> <button class="btn" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="mrDelete('${p.id}')">🗑️</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`}`;
+}
+
+function mrEditOpen(id){
+  if(!requireEdit())return;
+  const p=(moldReports||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const matOpts=['CR','EPDM','NR','NBR','직접입력'];
+  document.getElementById('mo-title').textContent='✏️ 성형일보 수정';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작성일자</label><input type="date" class="fi" id="mr-edit-date" value="${p.date}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작성자</label>
+      <select class="fi" id="mr-edit-writer" style="width:100%">
+        ${(WK||[]).map(w=>`<option value="${escP(w)}" ${w===p.writer?'selected':''}>${escP(w)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">호기</label><input type="text" class="fi" id="mr-edit-machine" value="${escP(p.machine)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형번호</label><input type="text" class="fi" id="mr-edit-mold" value="${escP(p.mold)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">재질</label>
+      <select class="fi" id="mr-edit-material" style="width:100%" onchange="document.getElementById('mr-edit-material-custom-wrap').style.display=this.value==='직접입력'?'block':'none'">
+        <option value="">선택</option>
+        ${matOpts.map(m=>`<option value="${m}" ${p.material===m?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg" id="mr-edit-material-custom-wrap" style="margin-bottom:12px;display:${p.material==='직접입력'?'block':'none'}">
+      <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">재질 직접입력</label>
+      <input type="text" class="fi" id="mr-edit-material-custom" value="${escP(p.materialCustom)}" style="width:100%">
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">경도</label><input type="text" class="fi" id="mr-edit-hardness" value="${escP(p.hardness)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">산지 Lot No.</label><input type="text" class="fi" id="mr-edit-lotsrc" value="${escP(p.lotSrc)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작업 Lot No.</label><input type="text" class="fi" id="mr-edit-lotwork" value="${escP(p.lotWork)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">소재재단(g)</label><input type="number" class="fi" id="mr-edit-cut" value="${escP(p.cut)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형 CAV</label><input type="number" class="fi" id="mr-edit-cav" value="${escP(p.cav)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">온도 - 상(°C)</label><input type="number" class="fi" id="mr-edit-temptop" value="${escP(p.tempTop)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">온도 - 하(°C)</label><input type="number" class="fi" id="mr-edit-tempbottom" value="${escP(p.tempBottom)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">압력(kg/㎠)</label><input type="number" class="fi" id="mr-edit-pressure" value="${escP(p.pressure)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">가황시간</label><input type="text" class="fi" id="mr-edit-vulcan" value="${escP(p.vulcan)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">생산수량(EA)</label><input type="number" class="fi" id="mr-edit-qtygood" value="${escP(p.qtyGood)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">불량갯수</label><input type="number" class="fi" id="mr-edit-qtybad" value="${escP(p.qtyBad)}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:16px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">비고</label><input type="text" class="fi" id="mr-edit-note" value="${escP(p.note)}" style="width:100%"></div>
+    <button class="btn bbp btn-full" onclick="mrEditSave('${p.id}')">✅ 수정 완료</button>
+  `;
+  document.getElementById('ov').classList.add('on');
+}
+function mrEditSave(id){
+  if(!requireEdit())return;
+  const p=(moldReports||[]).find(x=>String(x.id)===String(id));
+  if(!p)return;
+  p.date=document.getElementById('mr-edit-date').value||p.date;
+  p.writer=document.getElementById('mr-edit-writer').value;
+  p.machine=document.getElementById('mr-edit-machine').value.trim();
+  p.mold=document.getElementById('mr-edit-mold').value.trim();
+  p.material=document.getElementById('mr-edit-material').value;
+  p.materialCustom=document.getElementById('mr-edit-material-custom').value.trim();
+  p.hardness=document.getElementById('mr-edit-hardness').value.trim();
+  p.lotSrc=document.getElementById('mr-edit-lotsrc').value.trim();
+  p.lotWork=document.getElementById('mr-edit-lotwork').value.trim();
+  p.cut=document.getElementById('mr-edit-cut').value;
+  p.cav=document.getElementById('mr-edit-cav').value;
+  p.tempTop=document.getElementById('mr-edit-temptop').value;
+  p.tempBottom=document.getElementById('mr-edit-tempbottom').value;
+  p.pressure=document.getElementById('mr-edit-pressure').value;
+  p.vulcan=document.getElementById('mr-edit-vulcan').value.trim();
+  p.qtyGood=document.getElementById('mr-edit-qtygood').value;
+  p.qtyBad=document.getElementById('mr-edit-qtybad').value;
+  p.note=document.getElementById('mr-edit-note').value.trim();
+  p.ts=Date.now();
+  saveMoldReports();
+  document.getElementById('ov').classList.remove('on');
+  tst('✅ 수정 완료');
+  render();
+}
+function mrDelete(id){
+  if(!requireEdit())return;
+  if(!confirm('이 성형일보 항목을 삭제하시겠습니까?'))return;
+  moldReports=(moldReports||[]).filter(p=>String(p.id)!==String(id));
+  saveMoldReports();
+  tst('🗑️ 삭제되었습니다');
+  render();
+}
+
+function printMoldReport(date){
+  const list=(moldReports||[]).filter(p=>p.date===date).sort((a,b)=>a.ts-b.ts);
+  if(!list.length){tst('출력할 성형일보가 없습니다');return;}
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const matLabel=p=>p.material==='직접입력'?(p.materialCustom||'직접입력'):(p.material||'');
+  const writers=[...new Set(list.map(p=>p.writer).filter(Boolean))].join(', ');
+  const rows=list.map((p,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${esc(p.machine)}</td>
+      <td>${esc(p.mold)}</td>
+      <td>${esc(matLabel(p))}${p.hardness?' ('+esc(p.hardness)+')':''}</td>
+      <td>${esc(p.lotSrc)}</td>
+      <td>${esc(p.lotWork)}</td>
+      <td>${esc(p.cut)}</td>
+      <td>${esc(p.cav)}</td>
+      <td>${esc(p.tempTop)}</td>
+      <td>${esc(p.tempBottom)}</td>
+      <td>${esc(p.pressure)}</td>
+      <td>${esc(p.vulcan)}</td>
+      <td>${esc(p.qtyGood)}</td>
+      <td>${esc(p.qtyBad)}</td>
+      <td>${esc(p.note)}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>사출성형일보 ${date}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:11px}
+h1{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px}
+.sub{text-align:center;color:#666;font-size:12px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #999;padding:5px 4px;text-align:center;font-size:10.5px}
+th{background:#f0f0f0;font-weight:700}
+@media print{@page{size:A4 landscape;margin:10mm}body{padding:0}}
+</style></head><body>
+<h1>사 출 성 형 일 보</h1>
+<div class="sub">삼성SR · 작성일자: ${date} · 작성자: ${esc(writers)||'-'}</div>
+<table>
+  <thead><tr>
+    <th style="width:28px">NO</th><th>호기</th><th>금형번호</th><th>재질(경도)</th>
+    <th>산지Lot No.</th><th>작업Lot No.</th><th>소재재단(g)</th><th>CAV</th>
+    <th>온도-상</th><th>온도-하</th><th>압력</th><th>가황시간</th><th>생산수량</th><th>불량</th><th>비고</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const pw=window.open('','_blank','width=1100,height=750');
+  if(pw){pw.document.write(html);pw.document.close();}
+  else tst('팝업 허용 후 다시 시도해주세요');
+}
+
 function dashTodayIO(type){
   const d0=new Date().setHours(0,0,0,0);
   const list=txs.filter(t=>t.type===type&&t.ts>=d0).sort((a,b)=>b.ts-a.ts);
@@ -9820,7 +10050,8 @@ function dlBackupAll(){
       facilityLedger:facilityLedger,
       changeLogs:changeLogs,
       notices:notices,
-      dailyReports:dailyReports
+      dailyReports:dailyReports,
+      moldReports:moldReports
     }
   };
   const json=JSON.stringify(backup,null,2);
@@ -9876,7 +10107,8 @@ function restoreBackup(file){
       if(b.data.changeLogs)changeLogs=b.data.changeLogs;
       if(b.data.notices)notices=b.data.notices;
       if(b.data.dailyReports)dailyReports=b.data.dailyReports;
-      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveGauges(true);svGaugeCerts(true);svFacilityLedger(true);svAttachesForce();
+      if(b.data.moldReports)moldReports=b.data.moldReports;
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveMoldReports();saveGauges(true);svGaugeCerts(true);svFacilityLedger(true);svAttachesForce();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
@@ -10244,6 +10476,7 @@ window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300)); // 재�
 window.addEventListener('load', () => setTimeout(()=>jbPullTx(), 300)); // 거래내역(오늘 입고/출고 등)도 재고처럼 가볍고 빠르게 독립적으로 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullOrders(), 300)); // 발주서(전체 발주서/미출력 등)도 가볍고 빠르게 독립적으로 동기화
 window.addEventListener('load', () => setTimeout(()=>jbPullProduction(), 300)); // 금일 생산 현황도 가볍고 빠르게 독립적으로 동기화
+window.addEventListener('load', () => setTimeout(()=>jbPullMoldReport(), 300)); // 성형일보도 가볍고 빠르게 독립적으로 동기화
 // 제품조회/재고알림 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
 window.addEventListener('scroll', ()=>{
   const btn=document.getElementById('scroll-top-btn');
@@ -10257,6 +10490,7 @@ setInterval(()=>jbPullInv(), 15000);
 setInterval(()=>jbPullTx(), 15000);
 setInterval(()=>jbPullOrders(), 15000);
 setInterval(()=>jbPullProduction(), 15000);
+setInterval(()=>jbPullMoldReport(), 15000);
 // 모바일은 화면이 꺼지거나 앱이 백그라운드로 가면 setInterval이 멈추거나 크게 느려짐.
 // 화면(탭)이 다시 보이게 될 때 즉시 한 번 동기화해서 옛 데이터가 그대로 떠 있는 문제를 방지.
 document.addEventListener('visibilitychange', () => {
@@ -10265,6 +10499,7 @@ document.addEventListener('visibilitychange', () => {
     jbPullTx();
     jbPullOrders();
     jbPullProduction();
+    jbPullMoldReport();
     jbPull();
     jbPullFiles();
   }
@@ -10325,6 +10560,10 @@ document.addEventListener('click',function(e){
     <button onclick="go(&#39;prodview&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
       금형생산현황
+    </button>
+    <button onclick="go(&#39;moldreport&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      성형일보
     </button>
     <button onclick="go(&#39;addprod&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
