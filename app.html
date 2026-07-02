@@ -8160,6 +8160,12 @@ function addAttach(itemId, inputEl){
 function openAttach(itemId, idx){
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
+  if(f.gdrive||!f.data){
+    const url=f.link||f.dlLink;
+    if(!url){tst('파일을 열 수 없습니다 (데이터 없음)');return;}
+    window.open(url,'_blank');
+    return;
+  }
   try{
     const win=window.open('','_blank');
     if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
@@ -8176,6 +8182,12 @@ function openAttach(itemId, idx){
 function dlAttach(itemId, idx){
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
+  if(f.gdrive||!f.data){
+    const url=f.dlLink||f.link;
+    if(!url){tst('파일을 다운로드할 수 없습니다 (데이터 없음)');return;}
+    window.open(url,'_blank');
+    return;
+  }
   const a=document.createElement('a');a.href=f.data;a.download=f.name;a.click();
   tst('📥 '+f.name+' 다운로드');
 }
