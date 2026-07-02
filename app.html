@@ -1948,6 +1948,7 @@ async function jbPullFiles(rim){
       attachesDeleted=gcMergeDeleted(attachesDeleted, remoteDel);
       // [진단용] 서버에 실제로 몇 건이 있는지 전역 변수에 저장 (첨부파일 화면에 계속 표시됨)
       window._attachServerTotal=Object.keys(repoObj).length;
+      window._attachServerWithData=Object.values(repoObj).filter(v=>v&&typeof v==='object'&&v.data).length;
       // repoObj의 키는 신규 방식에서는 파일ID(개별 파일 1건), 과거 임시 적용본에서는 품목ID(파일 배열)였음 - 두 형식 모두 인식해서 유실 없이 병합
       const remoteFlat=[]; const migrated=[]; let hasLegacy=false;
       Object.keys(repoObj).forEach(k=>{
@@ -8097,10 +8098,11 @@ function renderAttachSection(itemId){
   const list=attaches[itemId]||[];
   const canE=canEdit();
   const diagTotal=(window._attachServerTotal!=null)?window._attachServerTotal:'확인중';
+  const diagWithData=(window._attachServerWithData!=null)?window._attachServerWithData:'확인중';
   const diagStage=window._filesStage||'(동기화 시작전)';
   return `
   <div style="margin-top:18px">
-    <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:6px;display:inline-block">🔧 진단: 서버 전체 보관함 ${diagTotal}건 / 이 화면 ${list.length}건 / 단계: ${diagStage}</div>
+    <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:6px;display:inline-block">🔧 진단: 서버 전체 보관함 ${diagTotal}건 (데이터 있음 ${diagWithData}건) / 이 화면 ${list.length}건 / 단계: ${diagStage}</div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">📎 추가 첨부파일 <span style="color:var(--blue)">${list.length}개</span></div>
       ${canE?`<div style="display:flex;gap:6px">
