@@ -271,6 +271,7 @@ let fieldWorkers = [];
 let moldReports = [];
 let mrEditingId = null;
 let attendanceReqs = [];
+let _lastAtLocalSave = 0;
 
 async function fbGet(key) {
   const r = await fetch(`${FB}/sr/${key}.json`);
@@ -388,6 +389,7 @@ function buildAtTimeSelects() {
 }
 
 async function saveAttendance() {
+  _lastAtLocalSave = Date.now();
   localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs));
   try { await fbSet('attendance', attendanceReqs); } catch(e) {}
 }
@@ -442,11 +444,10 @@ function renderAtList() {
 }
 
 // 다른 사람이 등록/삭제한 내역이 반영되도록 15초마다 재조회
-let _lastAtLocalSave = 0;
 async function pullAtFromServer() {
   try {
     const rat = await fbGet('attendance');
-    if (Array.isArray(rat)) {
+    if (Array.isArray(rat) && Date.now() - _lastAtLocalSave >= 8000) {
       attendanceReqs = rat;
       localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs));
       renderAtList();
