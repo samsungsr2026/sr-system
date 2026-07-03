@@ -7,7 +7,7 @@
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>사출성형일보</title>
+<title>성형일보</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#f0f2f8;color:#1a1f35;min-height:100vh;font-size:16px;padding-bottom:24px}
@@ -15,6 +15,12 @@ body{font-family:-apple-system,'Malgun Gothic',sans-serif;background:#f0f2f8;col
 .topbar{background:linear-gradient(135deg,#0d1b4b,#1a3a8f);color:#fff;padding:16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,.3)}
 .topbar-title{font-size:18px;font-weight:800;letter-spacing:.04em}
 .topbar-sub{font-size:11px;opacity:.7;margin-top:2px}
+
+.tabs{display:flex;background:#fff;border-bottom:2px solid #e0e4f0;position:sticky;top:0;z-index:99}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:15px;font-weight:700;color:#8090b8;cursor:pointer;border:none;background:none;font-family:inherit}
+.tab.on{color:#1a6bff;border-bottom:3px solid #1a6bff;margin-bottom:-2px}
+.tabpage{display:none}
+.tabpage.on{display:block}
 
 .wrap{padding:16px}
 
@@ -48,6 +54,13 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .mr-btn-edit{background:#e8f0ff;color:#1a6bff}
 .mr-btn-del{background:#fce8ed;color:#d42048}
 
+.at-item{background:#f0f2f8;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.at-type{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#e8f0ff;color:#1a6bff;margin-right:6px}
+.at-name{font-size:14px;font-weight:800;color:#1a1f35}
+.at-date{font-size:12px;color:#8090b8;margin-left:6px}
+.at-reason{font-size:13px;color:#4a5270;margin-top:4px}
+.at-del{border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;background:#fce8ed;color:#d42048;flex-shrink:0}
+
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1f35;color:#fff;padding:12px 24px;border-radius:24px;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
 
@@ -57,10 +70,16 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 <body tabindex="-1">
 
 <div class="topbar">
-  <div class="topbar-title">🧪 사출성형일보</div>
+  <div class="topbar-title">🧪 성형일보</div>
   <div class="topbar-sub">삼성SR 통합관리시스템</div>
 </div>
 
+<div class="tabs">
+  <button class="tab on" id="tab-btn-mr" onclick="switchTab('mr')">🧪 성형일보</button>
+  <button class="tab" id="tab-btn-at" onclick="switchTab('at')">🗓️ 근태신청</button>
+</div>
+
+<div class="tabpage on" id="tabpage-mr">
 <div class="wrap">
 
   <div class="card">
@@ -180,6 +199,50 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   </div>
 
 </div>
+</div>
+
+<div class="tabpage" id="tabpage-at">
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-title">근태신청 작성</div>
+    <div class="fg">
+      <label class="label">이름</label>
+      <select class="inp" id="at-name">
+        <option value="">-- 선택 --</option>
+      </select>
+    </div>
+    <div class="grid2">
+      <div class="fg">
+        <label class="label">구분</label>
+        <select class="inp" id="at-type">
+          <option>연차</option>
+          <option>반차</option>
+          <option>조퇴</option>
+          <option>지각</option>
+          <option>외출</option>
+          <option>기타</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="label">날짜</label>
+        <input class="inp" type="date" id="at-date">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="label">사유 (선택)</label>
+      <input class="inp" type="text" id="at-reason" placeholder="사유를 입력하세요 (선택)">
+    </div>
+    <button class="btn btn-go" onclick="doRegAt()">🗓️ 신청</button>
+  </div>
+
+  <div class="card" id="at-list-card" style="display:none">
+    <div class="card-title" id="at-list-title">신청 내역</div>
+    <div id="at-list"></div>
+  </div>
+
+</div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -188,6 +251,7 @@ const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabas
 let workers = [];
 let moldReports = [];
 let mrEditingId = null;
+let attendanceReqs = [];
 
 async function fbGet(key) {
   const r = await fetch(`${FB}/sr/${key}.json`);
@@ -218,18 +282,31 @@ function escHtml(s) {
 async function init() {
   const lw = localStorage.getItem('sr-workers');
   const lmr = localStorage.getItem('sr-moldreport');
+  const lat = localStorage.getItem('sr-attendance');
   if (lw) workers = JSON.parse(lw);
   if (lmr) moldReports = JSON.parse(lmr);
+  if (lat) attendanceReqs = JSON.parse(lat);
 
   try {
-    const [rw, rmr] = await Promise.all([fbGet('wk'), fbGet('moldreport')]);
+    const [rw, rmr, rat] = await Promise.all([fbGet('wk'), fbGet('moldreport'), fbGet('attendance')]);
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
     if (Array.isArray(rmr)) { moldReports = rmr; localStorage.setItem('sr-moldreport', JSON.stringify(moldReports)); }
+    if (Array.isArray(rat)) { attendanceReqs = rat; localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs)); }
   } catch(e) {}
 
   buildWriterSelect();
+  buildAtNameSelect();
   document.getElementById('mr-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('at-date').value = new Date().toISOString().slice(0,10);
   renderMrList();
+  renderAtList();
+}
+
+function switchTab(t) {
+  document.getElementById('tabpage-mr').classList.toggle('on', t === 'mr');
+  document.getElementById('tabpage-at').classList.toggle('on', t === 'at');
+  document.getElementById('tab-btn-mr').classList.toggle('on', t === 'mr');
+  document.getElementById('tab-btn-at').classList.toggle('on', t === 'at');
 }
 
 function buildWriterSelect() {
@@ -243,6 +320,77 @@ function buildWriterSelect() {
     sel.appendChild(opt);
   });
 }
+
+function buildAtNameSelect() {
+  const sel = document.getElementById('at-name');
+  while (sel.options.length > 1) sel.remove(1);
+  const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
+  list.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = w;
+    sel.appendChild(opt);
+  });
+}
+
+async function saveAttendance() {
+  localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs));
+  try { await fbSet('attendance', attendanceReqs); } catch(e) {}
+}
+
+async function doRegAt() {
+  const name = document.getElementById('at-name').value;
+  const type = document.getElementById('at-type').value;
+  const date = document.getElementById('at-date').value;
+  const reason = document.getElementById('at-reason').value.trim();
+  if (!name) { tst('이름을 선택해주세요'); return; }
+  if (!date) { tst('날짜를 선택해주세요'); return; }
+  attendanceReqs.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now(), name, type, date, reason });
+  await saveAttendance();
+  tst('✅ 신청완료');
+  document.getElementById('at-reason').value = '';
+  renderAtList();
+}
+
+async function delAtEntry(id) {
+  if (!confirm('이 근태신청을 삭제하시겠습니까?')) return;
+  attendanceReqs = attendanceReqs.filter(x => String(x.id) !== String(id));
+  await saveAttendance();
+  renderAtList();
+  tst('삭제되었습니다');
+}
+
+function renderAtList() {
+  const list = attendanceReqs.slice().sort((a,b) => b.ts - a.ts).slice(0, 30);
+  const card = document.getElementById('at-list-card');
+  const box = document.getElementById('at-list');
+  if (!list.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('at-list-title').textContent = '최근 신청 내역 (' + list.length + '건)';
+  box.innerHTML = list.map(a => `
+    <div class="at-item">
+      <div>
+        <div><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}</span></div>
+        ${a.reason ? '<div class="at-reason">' + escHtml(a.reason) + '</div>' : ''}
+      </div>
+      <button class="at-del" onclick="delAtEntry('${a.id}')">삭제</button>
+    </div>`).join('');
+}
+
+// 다른 사람이 등록/삭제한 내역이 반영되도록 15초마다 재조회
+let _lastAtLocalSave = 0;
+async function pullAtFromServer() {
+  try {
+    const rat = await fbGet('attendance');
+    if (Array.isArray(rat)) {
+      attendanceReqs = rat;
+      localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs));
+      renderAtList();
+    }
+  } catch(e) {}
+}
+setInterval(pullAtFromServer, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullAtFromServer(); });
 
 function mrMaterialChanged() {
   const v = document.getElementById('mr-material').value;
