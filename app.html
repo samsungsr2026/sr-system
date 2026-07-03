@@ -810,10 +810,28 @@ function saveMoldReports(){
 }
 let changeLogs=JSON.parse(localStorage.getItem('sr-changelog')||'[]').filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
 let notices=JSON.parse(localStorage.getItem('sr-notices')||'[]');
+let noticeEditingId=null;
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 function saveNotices(){
   localStorage.setItem('sr-notices',JSON.stringify(notices));
   cfSet('notices',notices).catch(()=>{});
+}
+// 공지/할일 수정: 관리자가 요청하면 마스터 승인 전까지 미반영
+function editNotice(id){
+  if(!requireEdit())return;
+  const n=notices.find(x=>x.id===id);
+  if(!n)return;
+  noticeEditingId=n.id;
+  render();
+  const ty=document.getElementById('n-type'); if(ty)ty.value=n.type;
+  const ti=document.getElementById('n-title'); if(ti)ti.value=n.title||'';
+  const bo=document.getElementById('n-body'); if(bo)bo.value=n.body||'';
+  const im=document.getElementById('n-important'); if(im)im.checked=!!n.important;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function cancelNoticeEdit(){
+  noticeEditingId=null;
+  render();
 }
 // 공지/할일 삭제: 관리자가 요청하면 마스터 승인 전까지 미반영
 function delNotice(id){
@@ -1702,6 +1720,13 @@ function approvePending(pid){
       saveSUPITEMS();
     }
     addLog('other',(fp.moduleLabel||'데이터')+' 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
+  }else if(p.type==='recedit'){
+    const fp=p.payload||{};
+    if(fp.module==='notice'){
+      const i=notices.findIndex(n=>String(n.id)===String(fp.id));
+      if(i>=0){notices[i]=Object.assign({},notices[i],fp.changes);saveNotices();}
+    }
+    addLog('other',(fp.moduleLabel||'데이터')+' 수정(승인) — '+p.label, `요청자: ${p.requestedBy}`);
   }
   pendingChanges.splice(idx,1);
   if(!pendingDeleted.includes(pid))pendingDeleted.push(pid);
@@ -6719,10 +6744,21 @@ function pendingDetailHtml(p){
       ${rows.map(r=>row(r[0],r[1])).join('')}
     </div>`;
   }
+  if(p.type==='recedit'){
+    const fp=p.payload||{};
+    const rows=[];
+    rows.push(['종류',fp.moduleLabel||'데이터']);
+    const ch=fp.changes||{};
+    if(ch.title)rows.push(['제목',ch.title]);
+    if(ch.body)rows.push(['내용',ch.body]);
+    return `<div style="display:flex;flex-direction:column;gap:5px;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-top:8px">
+      ${rows.map(r=>row(r[0],r[1])).join('')}
+    </div>`;
+  }
   return '';
 }
 function rPending(){
-  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제'};
+  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정'};
   const isM=isMaster();
   const list=(isM?pendingChanges:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
   return `
@@ -9945,7 +9981,7 @@ function rNotice(){
 
   <!-- 작성 폼 -->
   <div class="card" style="margin-bottom:16px;border-color:rgba(26,107,255,.2)">
-    <div class="card-title">✏️ 새 글 작성</div>
+    <div class="card-title">${noticeEditingId?'✏️ 글 수정':'✏️ 새 글 작성'}</div>
     <div class="grid3" style="margin-bottom:10px">
       <div class="fg" style="margin-bottom:0">
         <label class="fl">구분</label>
@@ -9969,7 +10005,10 @@ function rNotice(){
         <input type="checkbox" id="n-important" style="accent-color:var(--red);width:16px;height:16px">
         ⭐ 중요 표시
       </label>
-      <button class="btn bbl" onclick="addNotice()" style="padding:10px 24px">등록</button>
+      <div style="display:flex;gap:8px">
+        ${noticeEditingId?'<button class="btn bgr" onclick="cancelNoticeEdit()" style="padding:10px 20px">취소</button>':''}
+        <button class="btn bbl" onclick="addNotice()" style="padding:10px 24px">${noticeEditingId?'✓ 수정 완료':'등록'}</button>
+      </div>
     </div>
   </div>
 
@@ -9994,8 +10033,12 @@ function rNotice(){
           <div style="font-size:15px;font-weight:700;margin-bottom:5px;${n.done?'text-decoration:line-through;color:var(--text3)':''}">${n.title}</div>
           <div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6">${n.body||''}</div>
         </div>
+        ${canEdit()?`<div style="display:flex;gap:2px;flex-shrink:0">
+        <button onclick="editNotice(${n.id})"
+          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" title="수정">✏️</button>
         <button onclick="delNotice(${n.id})"
-          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px">✕</button>
+          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:0 4px" title="삭제">✕</button>
+        </div>`:''}
       </div>
     </div>`).join('')}`;
 }
@@ -10008,6 +10051,25 @@ function addNotice(){
   const important=document.getElementById('n-important')?.checked||false;
   if(!title){tst('제목을 입력해주세요');return;}
   const author=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
+  if(noticeEditingId){
+    const n=notices.find(x=>x.id===noticeEditingId);
+    if(!n){noticeEditingId=null;tst('❌ 수정 대상을 찾을 수 없습니다');render();return;}
+    const changes={type,title,body,important};
+    if(isAdminPendingRequired()){
+      queuePendingChange('recedit', String(n.id), {module:'notice', moduleLabel:'공지/할일', id:n.id, changes}, '공지/할일 수정 — '+(title||''));
+      tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+      noticeEditingId=null;
+      render();
+      return;
+    }
+    Object.assign(n,changes);
+    saveNotices();
+    addLog('other','공지사항 수정 — '+title, `유형: ${type} / 수정: ${author}`);
+    tst('✅ 수정 완료');
+    noticeEditingId=null;
+    render();
+    return;
+  }
   notices.unshift({id:Date.now(),ts:Date.now(),type,title,body,important,done:false,author});
   saveNotices();
   addLog('other','공지사항 등록 — '+title, `유형: ${type} / 작성: ${author}`);
