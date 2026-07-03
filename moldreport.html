@@ -60,6 +60,10 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .at-date{font-size:12px;color:#8090b8;margin-left:6px}
 .at-reason{font-size:13px;color:#4a5270;margin-top:4px}
 .at-del{border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;background:#fce8ed;color:#d42048;flex-shrink:0}
+.at-status{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-right:6px}
+.at-status.pending{background:#fff3d6;color:#c07800}
+.at-status.approved{background:#edfaf4;color:#0d9e72}
+.at-status.rejected{background:#fce8ed;color:#d42048}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1f35;color:#fff;padding:12px 24px;border-radius:24px;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
@@ -230,8 +234,12 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </div>
     </div>
     <div class="fg">
-      <label class="label">시간 (선택)</label>
-      <input class="inp" type="time" id="at-time">
+      <label class="label">시간 (선택, 24시간)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="inp" id="at-hour" style="flex:1"><option value="">--</option></select>
+        <span style="color:#8090b8;font-weight:700">:</span>
+        <select class="inp" id="at-min" style="flex:1"><option value="">--</option></select>
+      </div>
     </div>
     <div class="fg">
       <label class="label">사유</label>
@@ -310,6 +318,7 @@ async function init() {
 
   buildWriterSelect();
   buildAtNameSelect();
+  buildAtTimeSelects();
   document.getElementById('mr-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('at-date').value = new Date().toISOString().slice(0,10);
   renderMrList();
@@ -361,6 +370,23 @@ function buildAtNameSelect() {
   }
 }
 
+function buildAtTimeSelects() {
+  const hSel = document.getElementById('at-hour');
+  const mSel = document.getElementById('at-min');
+  for (let h = 0; h < 24; h++) {
+    const opt = document.createElement('option');
+    opt.value = String(h).padStart(2, '0');
+    opt.textContent = String(h).padStart(2, '0');
+    hSel.appendChild(opt);
+  }
+  ['00','10','20','30','40','50'].forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    mSel.appendChild(opt);
+  });
+}
+
 async function saveAttendance() {
   localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs));
   try { await fbSet('attendance', attendanceReqs); } catch(e) {}
@@ -370,14 +396,16 @@ async function doRegAt() {
   const name = document.getElementById('at-name').value;
   const type = document.getElementById('at-type').value;
   const date = document.getElementById('at-date').value;
-  const time = document.getElementById('at-time').value;
+  const hour = document.getElementById('at-hour').value;
+  const min = document.getElementById('at-min').value;
+  const time = (hour && min) ? (hour + ':' + min) : '';
   const reasonSel = document.getElementById('at-reason-sel').value;
   const reason = reasonSel === '직접입력' ? document.getElementById('at-reason-custom').value.trim() : reasonSel;
   if (!name) { tst('이름을 선택해주세요'); return; }
   if (!date) { tst('날짜를 선택해주세요'); return; }
-  attendanceReqs.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now(), name, type, date, time, reason });
+  attendanceReqs.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now(), name, type, date, time, reason, status: 'pending' });
   await saveAttendance();
-  tst('✅ 신청완료');
+  tst('📨 신청 완료 · 마스터 승인 대기 중');
   document.getElementById('at-reason-sel').value = '개인사유';
   document.getElementById('at-reason-custom').value = '';
   document.getElementById('at-reason-custom-wrap').style.display = 'none';
@@ -399,14 +427,18 @@ function renderAtList() {
   if (!list.length) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   document.getElementById('at-list-title').textContent = '최근 신청 내역 (' + list.length + '건)';
-  box.innerHTML = list.map(a => `
+  const statusLabel = { pending: '⏳ 승인대기', approved: '✅ 승인됨', rejected: '🚫 거부됨' };
+  box.innerHTML = list.map(a => {
+    const st = a.status || 'pending';
+    return `
     <div class="at-item">
       <div>
-        <div><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}${a.time ? ' ' + escHtml(a.time) : ''}</span></div>
+        <div><span class="at-status ${st}">${statusLabel[st]}</span><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}${a.time ? ' ' + escHtml(a.time) : ''}</span></div>
         ${a.reason ? '<div class="at-reason">' + escHtml(a.reason) + '</div>' : ''}
       </div>
       <button class="at-del" onclick="delAtEntry('${a.id}')">삭제</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // 다른 사람이 등록/삭제한 내역이 반영되도록 15초마다 재조회
