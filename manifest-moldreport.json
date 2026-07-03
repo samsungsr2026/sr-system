@@ -1,9 +1,10 @@
 {
+  "id": "./moldreport.html",
   "name": "성형일보",
   "short_name": "성형일보",
   "description": "삼성SR 성형일보 · 근태신청",
   "start_url": "./moldreport.html",
-  "scope": "./",
+  "scope": "./moldreport.html",
   "display": "standalone",
   "background_color": "#0d1b4b",
   "theme_color": "#0d1b4b",
