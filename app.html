@@ -781,6 +781,15 @@ let WK=JSON.parse(localStorage.getItem('sr-workers')||'["정창식","이창호",
     else jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   });
 }
+// 현장작업자 목록: 생산자와 별도로 관리되는 인력 목록 (근태신청 등에서 선택 가능)
+let fieldWorkers=JSON.parse(localStorage.getItem('sr-fieldworkers')||'[]');
+function saveFieldWorkers(){
+  localStorage.setItem('sr-fieldworkers',JSON.stringify(fieldWorkers));
+  cfSet('fieldWorkers', fieldWorkers).then(ok=>{
+    if(!ok) jbStat('⚠️ 현장작업자 저장 오류','#c07800');
+    else jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  });
+}
 // 공급업체 목록 (발주서 작성 시 선택)
 let SUPPLIERS=JSON.parse(localStorage.getItem('sr-suppliers')||'["성진테크","대덕","동양고무"]');
 function saveSUP(){
@@ -1719,6 +1728,9 @@ function approvePending(pid){
     }else if(fp.module==='worker'){
       const i=WK.indexOf(fp.name);
       if(i>=0){WK.splice(i,1);saveWK();}
+    }else if(fp.module==='fieldWorker'){
+      const i=fieldWorkers.indexOf(fp.name);
+      if(i>=0){fieldWorkers.splice(i,1);saveFieldWorkers();}
     }else if(fp.module==='supplierItem'){
       const arr=SUPPLIER_ITEMS[fp.vendor];
       if(arr){
@@ -2165,7 +2177,7 @@ async function jbPull() {
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
-          production, moldreport: moldReports, attendance: attendanceReqs
+          production, moldreport: moldReports, attendance: attendanceReqs, fieldWorkers
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -2187,7 +2199,7 @@ async function jbPull() {
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'], rvod=fbAll['vendorOrdersDeleted'],
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
-          rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'];
+          rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'];
 
     if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
@@ -2195,6 +2207,7 @@ async function jbPull() {
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){moldReports=rmr;try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}}
     if(Array.isArray(rat)){attendanceReqs=rat;try{localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));}catch(e){}}
+    if(Array.isArray(rfw)){fieldWorkers=rfw;try{localStorage.setItem('sr-fieldworkers',JSON.stringify(fieldWorkers));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
@@ -5379,6 +5392,24 @@ function rSet(){
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:16px;border-color:rgba(13,158,114,.3)">
+    <div class="card-title" style="color:var(--green)">👷 현장작업자 관리</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">현장작업자를 추가하거나 삭제합니다. 근태신청 등에서 선택할 수 있습니다.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      ${fieldWorkers.map((w,i)=>`<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:8px 14px">
+        <span style="font-size:15px;font-weight:700;color:#111">${w}</span>
+        <button onclick="removeFieldWorker(${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:3px 10px;border-radius:5px">삭제</button>
+      </div>`).join('')}
+      ${!fieldWorkers.length?`<div style="font-size:13px;color:var(--text3)">등록된 현장작업자가 없습니다</div>`:''}
+    </div>
+    <div style="display:flex;gap:8px">
+      <input type="text" class="fi" id="new-fieldworker" placeholder="현장작업자 이름 입력 후 엔터"
+        style="flex:1;background:#fff;color:#111;border:1.5px solid var(--border)"
+        onkeydown="if(event.key==='Enter')addFieldWorker()">
+      <button class="btn bbg" style="padding:0 24px;font-size:14px" onclick="addFieldWorker()">+ 추가</button>
+    </div>
+  </div>
+
   <div class="grid2">
     <div>
       <div class="card" style="border-color:rgba(192,120,0,.3)">
@@ -7846,6 +7877,7 @@ function rAttendance(){
   const typeBg={연차:'var(--blue-bg)',반차:'var(--blue-bg)','조퇴':'var(--amber-bg)','지각':'var(--amber-bg)','외출':'var(--bg3)','기타':'var(--bg3)'};
   const typeColor={연차:'var(--blue)',반차:'var(--blue)','조퇴':'var(--amber)','지각':'var(--amber)','외출':'var(--text2)','기타':'var(--text2)'};
   const list=(attendanceReqs||[]).slice().sort((a,b)=>b.ts-a.ts);
+  const curName=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
   return `
   <div class="page-title">근태신청</div>
   <div class="page-sub">연차 · 반차 · 조퇴 등 근태를 간단히 신청합니다</div>
@@ -7855,7 +7887,11 @@ function rAttendance(){
     <div class="grid3" style="margin-bottom:10px">
       <div class="fg" style="margin-bottom:0">
         <label class="fl">이름 *</label>
-        <input type="text" class="fi" id="at-name" placeholder="이름" value="${(typeof curUser!=='undefined'&&curUser)?curUser.name:''}">
+        <select class="fi" id="at-name">
+          <option value="">-- 선택 --</option>
+          ${WK.length?`<optgroup label="생산자">${WK.map(w=>`<option ${w===curName?'selected':''}>${w}</option>`).join('')}</optgroup>`:''}
+          ${fieldWorkers.length?`<optgroup label="현장작업자">${fieldWorkers.map(w=>`<option ${w===curName?'selected':''}>${w}</option>`).join('')}</optgroup>`:''}
+        </select>
       </div>
       <div class="fg" style="margin-bottom:0">
         <label class="fl">구분</label>
@@ -7874,8 +7910,18 @@ function rAttendance(){
       </div>
     </div>
     <div class="fg">
-      <label class="fl">사유 (선택)</label>
-      <input type="text" class="fi" id="at-reason" placeholder="사유를 입력하세요 (선택)">
+      <label class="fl">시간 (선택)</label>
+      <input type="time" class="fi" id="at-time">
+    </div>
+    <div class="fg">
+      <label class="fl">사유</label>
+      <select class="fi" id="at-reason-sel" onchange="document.getElementById('at-reason-custom-wrap').style.display=this.value==='직접입력'?'block':'none'">
+        <option>개인사유</option>
+        <option value="직접입력">직접입력</option>
+      </select>
+    </div>
+    <div class="fg" id="at-reason-custom-wrap" style="display:none">
+      <input type="text" class="fi" id="at-reason-custom" lang="ko" placeholder="사유를 직접 입력하세요">
     </div>
     <div style="display:flex;justify-content:flex-end">
       <button class="btn bbl" onclick="addAttendanceReq()" style="padding:10px 24px">신청</button>
@@ -7890,7 +7936,7 @@ function rAttendance(){
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
             <span style="background:${typeBg[a.type]||'var(--bg3)'};color:${typeColor[a.type]||'var(--text2)'};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700">${a.type||'기타'}</span>
             <span style="font-weight:700;font-size:14px">${a.name||''}</span>
-            <span style="font-size:12px;color:var(--text3)">${a.date||''}</span>
+            <span style="font-size:12px;color:var(--text3)">${a.date||''}${a.time?' '+a.time:''}</span>
           </div>
           ${a.reason?`<div style="font-size:13px;color:var(--text2)">${a.reason}</div>`:''}
         </div>
@@ -7900,15 +7946,17 @@ function rAttendance(){
 }
 
 function addAttendanceReq(){
-  const name=document.getElementById('at-name')?.value?.trim()||'';
+  const name=document.getElementById('at-name')?.value||'';
   const type=document.getElementById('at-type')?.value||'연차';
   const date=document.getElementById('at-date')?.value||'';
-  const reason=document.getElementById('at-reason')?.value?.trim()||'';
-  if(!name){tst('이름을 입력해주세요');return;}
+  const time=document.getElementById('at-time')?.value||'';
+  const reasonSel=document.getElementById('at-reason-sel')?.value||'개인사유';
+  const reason=reasonSel==='직접입력'?(document.getElementById('at-reason-custom')?.value?.trim()||''):reasonSel;
+  if(!name){tst('이름을 선택해주세요');return;}
   if(!date){tst('날짜를 선택해주세요');return;}
-  attendanceReqs.unshift({id:Date.now(),ts:Date.now(),name,type,date,reason});
+  attendanceReqs.unshift({id:Date.now(),ts:Date.now(),name,type,date,time,reason});
   saveAttendance();
-  addLog('other','근태신청 등록 — '+name, `구분: ${type} / 날짜: ${date}`);
+  addLog('other','근태신청 등록 — '+name, `구분: ${type} / 날짜: ${date}${time?' '+time:''}`);
   tst('✅ 신청 완료');
   render();
 }
@@ -8788,6 +8836,25 @@ function removeWorker(idx){
     return;
   }
   WK.splice(idx,1);saveWK();tst(name+' 삭제 완료');render();
+}
+function addFieldWorker(){
+  if(!requireEdit())return;
+  const el=document.getElementById('new-fieldworker');
+  const name=el?.value?.trim();
+  if(!name){tst('이름을 입력해주세요');return;}
+  if(fieldWorkers.includes(name)){tst('이미 등록된 이름입니다');return;}
+  fieldWorkers.push(name);saveFieldWorkers();el.value='';tst('✓ '+name+' 등록 완료');render();
+}
+function removeFieldWorker(idx){
+  if(!requireEdit())return;
+  const name=fieldWorkers[idx];
+  if(!confirm(name+' 을(를) 삭제하시겠습니까?'))return;
+  if(isAdminPendingRequired()){
+    queuePendingChange('recdel', name, {module:'fieldWorker', moduleLabel:'현장작업자', name}, '현장작업자 삭제 — '+name);
+    tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    return;
+  }
+  fieldWorkers.splice(idx,1);saveFieldWorkers();tst(name+' 삭제 완료');render();
 }
 
 function dlTpl(){
@@ -10207,7 +10274,8 @@ function dlBackupAll(){
       notices:notices,
       dailyReports:dailyReports,
       moldReports:moldReports,
-      attendanceReqs:attendanceReqs
+      attendanceReqs:attendanceReqs,
+      fieldWorkers:fieldWorkers
     }
   };
   const json=JSON.stringify(backup,null,2);
@@ -10265,7 +10333,8 @@ function restoreBackup(file){
       if(b.data.dailyReports)dailyReports=b.data.dailyReports;
       if(b.data.moldReports)moldReports=b.data.moldReports;
       if(b.data.attendanceReqs)attendanceReqs=b.data.attendanceReqs;
-      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveMoldReports();saveAttendance();saveGauges(true);svGaugeCerts(true);svFacilityLedger(true);svAttachesForce();
+      if(b.data.fieldWorkers)fieldWorkers=b.data.fieldWorkers;
+      sv();saveAccounts();saveWK();saveSUP();svImgs();saveCL();saveNotices();saveDR();saveMoldReports();saveAttendance();saveFieldWorkers();saveGauges(true);svGaugeCerts(true);svFacilityLedger(true);svAttachesForce();
       const info=b.counts?` (재고 ${b.counts.inv}종 · 입출고 ${b.counts.txs}건 · 발주서 ${b.counts.orders}건)`:'';
       tst('✅ 복원 완료'+info,3500);
       document.getElementById('backup-restore').value='';
