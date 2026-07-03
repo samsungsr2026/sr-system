@@ -576,6 +576,13 @@ select.fi option{background:#fff;color:#111}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
       설정 / 업로드
     </button>
+    <button class="nav-item" onclick="go(&#39;pending&#39;)" id="nb-pending" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:20px;height:20px;flex-shrink:0"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        승인 대기
+      </span>
+      <span id="pending-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 6px"></span>
+    </button>
     <div class="nav-section" style="color:var(--purple);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding-right:8px" onclick="toggleMasterMenu()">
       <span>🔐 마스터 관리</span>
       <svg id="master-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -590,13 +597,6 @@ select.fi option{background:#fff;color:#111}
     <button class="nav-item" onclick="go(&#39;purchase&#39;)" id="nb-purchase">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M9 12h6M9 16h4"></path></svg>
       물품 발주 관리
-    </button>
-    <button class="nav-item" onclick="go(&#39;pending&#39;)" id="nb-pending" style="justify-content:space-between">
-      <span style="display:flex;align-items:center;gap:10px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:20px;height:20px;flex-shrink:0"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-        승인 대기
-      </span>
-      <span id="pending-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 6px"></span>
     </button>
     <button class="nav-item" onclick="go(&#39;vendor&#39;)" id="nb-vendor">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
@@ -2518,7 +2518,8 @@ function dots(){
   const pendBadge=document.getElementById('pending-badge');
   const pendBadgeMob=document.getElementById('pending-badge-mob');
   if(pendBadge||pendBadgeMob){
-    const cnt=isMaster()?pendingChanges.length:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name)).length;
+    const atCnt=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').length;
+    const cnt=isMaster()?(pendingChanges.length+atCnt):pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name)).length;
     if(pendBadge){pendBadge.style.display=cnt>0?'inline-flex':'none';pendBadge.textContent=cnt;}
     if(pendBadgeMob){pendBadgeMob.style.display=cnt>0?'flex':'none';pendBadgeMob.textContent=cnt;}
   }
@@ -6801,12 +6802,17 @@ function pendingDetailHtml(p){
   return '';
 }
 function rPending(){
-  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정'};
+  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정', attendance:'🗓️ 근태신청'};
   const isM=isMaster();
-  const list=(isM?pendingChanges:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
+  const atPending=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').map(a=>({
+    __att:true, id:a.id, type:'attendance',
+    label:(a.name||'-')+' — '+(a.type||'')+' '+(a.date||'')+(a.time?' '+a.time:'')+(a.reason?' · '+a.reason:''),
+    requestedBy:a.name||'-', requestedAt:a.ts
+  }));
+  const list=(isM?[...pendingChanges,...atPending]:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
   return `
   <div class="page-title">✅ 승인 대기</div>
-  <div class="page-sub">${isM?'관리자가 요청한 변경사항을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
+  <div class="page-sub">${isM?'관리자가 요청한 변경사항과 근태신청을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
 
   ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>대기 중인 요청이 없습니다</div></div>`:
   `<div style="display:flex;flex-direction:column;gap:10px">
@@ -6814,19 +6820,19 @@ function rPending(){
     <div class="card" style="padding:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="badge ${(p.type==='delete'||p.type==='filedel'||p.type==='recdel')?'br':p.type==='add'?'bg':'ba'}" style="font-size:11px">${typeLabel[p.type]||p.type}</span>
+          <span class="badge ${p.__att?'ba':(p.type==='delete'||p.type==='filedel'||p.type==='recdel')?'br':p.type==='add'?'bg':'ba'}" style="font-size:11px">${typeLabel[p.type]||p.type}</span>
           <span style="font-weight:700">${p.label||''}</span>
         </div>
         <div style="font-size:12px;color:var(--text3)">${p.requestedBy} · ${new Date(p.requestedAt).toLocaleString('ko',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
       </div>
-      ${pendingDetailHtml(p)}
+      ${p.__att?'':pendingDetailHtml(p)}
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
         ${isM?`
-          <button onclick="approvePending('${p.id}')" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
-          <button onclick="rejectPending('${p.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
+          <button onclick="${p.__att?'approveAttendance('+p.id+')':"approvePending('"+p.id+"')"}" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
+          <button onclick="${p.__att?'rejectAttendance('+p.id+')':"rejectPending('"+p.id+"')"}" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
         `:`
           <span style="font-size:12px;color:var(--text3);align-self:center">⏳ 마스터 승인 대기 중</span>
-          <button onclick="cancelPending('${p.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">요청 취소</button>
+          ${p.__att?'':`<button onclick="cancelPending('${p.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">요청 취소</button>`}
         `}
       </div>
     </div>`).join('')}
