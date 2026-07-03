@@ -230,8 +230,18 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       </div>
     </div>
     <div class="fg">
-      <label class="label">사유 (선택)</label>
-      <input class="inp" type="text" id="at-reason" placeholder="사유를 입력하세요 (선택)">
+      <label class="label">시간 (선택)</label>
+      <input class="inp" type="time" id="at-time">
+    </div>
+    <div class="fg">
+      <label class="label">사유</label>
+      <select class="inp" id="at-reason-sel" onchange="document.getElementById('at-reason-custom-wrap').style.display=this.value==='직접입력'?'block':'none'">
+        <option>개인사유</option>
+        <option value="직접입력">직접입력</option>
+      </select>
+    </div>
+    <div class="fg" id="at-reason-custom-wrap" style="display:none">
+      <input class="inp" type="text" id="at-reason-custom" lang="ko" placeholder="사유를 직접 입력하세요">
     </div>
     <button class="btn btn-go" onclick="doRegAt()">🗓️ 신청</button>
   </div>
@@ -249,6 +259,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 <script>
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let workers = [];
+let fieldWorkers = [];
 let moldReports = [];
 let mrEditingId = null;
 let attendanceReqs = [];
@@ -281,15 +292,18 @@ function escHtml(s) {
 
 async function init() {
   const lw = localStorage.getItem('sr-workers');
+  const lfw = localStorage.getItem('sr-fieldworkers');
   const lmr = localStorage.getItem('sr-moldreport');
   const lat = localStorage.getItem('sr-attendance');
   if (lw) workers = JSON.parse(lw);
+  if (lfw) fieldWorkers = JSON.parse(lfw);
   if (lmr) moldReports = JSON.parse(lmr);
   if (lat) attendanceReqs = JSON.parse(lat);
 
   try {
-    const [rw, rmr, rat] = await Promise.all([fbGet('wk'), fbGet('moldreport'), fbGet('attendance')]);
+    const [rw, rfw, rmr, rat] = await Promise.all([fbGet('wk'), fbGet('fieldWorkers'), fbGet('moldreport'), fbGet('attendance')]);
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
+    if (Array.isArray(rfw)) { fieldWorkers = rfw; localStorage.setItem('sr-fieldworkers', JSON.stringify(fieldWorkers)); }
     if (Array.isArray(rmr)) { moldReports = rmr; localStorage.setItem('sr-moldreport', JSON.stringify(moldReports)); }
     if (Array.isArray(rat)) { attendanceReqs = rat; localStorage.setItem('sr-attendance', JSON.stringify(attendanceReqs)); }
   } catch(e) {}
@@ -324,13 +338,27 @@ function buildWriterSelect() {
 function buildAtNameSelect() {
   const sel = document.getElementById('at-name');
   while (sel.options.length > 1) sel.remove(1);
-  const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
-  list.forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w;
-    opt.textContent = w;
-    sel.appendChild(opt);
-  });
+  const wlist = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
+  if (wlist.length) {
+    const og = document.createElement('optgroup');
+    og.label = '생산자';
+    wlist.forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w; opt.textContent = w;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  }
+  if (fieldWorkers.length) {
+    const og2 = document.createElement('optgroup');
+    og2.label = '현장작업자';
+    fieldWorkers.forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w; opt.textContent = w;
+      og2.appendChild(opt);
+    });
+    sel.appendChild(og2);
+  }
 }
 
 async function saveAttendance() {
@@ -342,13 +370,17 @@ async function doRegAt() {
   const name = document.getElementById('at-name').value;
   const type = document.getElementById('at-type').value;
   const date = document.getElementById('at-date').value;
-  const reason = document.getElementById('at-reason').value.trim();
+  const time = document.getElementById('at-time').value;
+  const reasonSel = document.getElementById('at-reason-sel').value;
+  const reason = reasonSel === '직접입력' ? document.getElementById('at-reason-custom').value.trim() : reasonSel;
   if (!name) { tst('이름을 선택해주세요'); return; }
   if (!date) { tst('날짜를 선택해주세요'); return; }
-  attendanceReqs.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now(), name, type, date, reason });
+  attendanceReqs.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), ts: Date.now(), name, type, date, time, reason });
   await saveAttendance();
   tst('✅ 신청완료');
-  document.getElementById('at-reason').value = '';
+  document.getElementById('at-reason-sel').value = '개인사유';
+  document.getElementById('at-reason-custom').value = '';
+  document.getElementById('at-reason-custom-wrap').style.display = 'none';
   renderAtList();
 }
 
@@ -370,7 +402,7 @@ function renderAtList() {
   box.innerHTML = list.map(a => `
     <div class="at-item">
       <div>
-        <div><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}</span></div>
+        <div><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}${a.time ? ' ' + escHtml(a.time) : ''}</span></div>
         ${a.reason ? '<div class="at-reason">' + escHtml(a.reason) + '</div>' : ''}
       </div>
       <button class="at-del" onclick="delAtEntry('${a.id}')">삭제</button>
