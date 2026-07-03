@@ -828,6 +828,7 @@ let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 // 근태신청: 간단한 신청 목록 (연차/반차/조퇴 등). 핸드폰에서 간단히 작성.
 let attendanceReqs=JSON.parse(localStorage.getItem('sr-attendance')||'[]');
 function saveAttendance(){
+  _lastAttSave=Date.now();
   localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));
   cfSet('attendance',attendanceReqs).catch(()=>{});
 }
@@ -2113,6 +2114,7 @@ async function jbPullOrders(){
 let _productionPullBusy=false;
 let _lastProdSave=0; // 대시보드에서 생산현황을 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastMrSave=0; // 대시보드에서 성형일보를 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
+let _lastAttSave=0; // 근태신청을 직접 승인/거부/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
@@ -2206,7 +2208,7 @@ async function jbPull() {
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){moldReports=rmr;try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}}
-    if(Array.isArray(rat)){attendanceReqs=rat;try{localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));}catch(e){}}
+    if(Array.isArray(rat)&&Date.now()-_lastAttSave>=8000){attendanceReqs=rat;try{localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));}catch(e){}}
     if(Array.isArray(rfw)){fieldWorkers=rfw;try{localStorage.setItem('sr-fieldworkers',JSON.stringify(fieldWorkers));}catch(e){}}
     if(Array.isArray(rp)){purchases=rp;try{localStorage.setItem('sr-purchases',JSON.stringify(purchases));}catch(e){}}
     if(Array.isArray(rpv)&&rpv.length>0){purchaseVendors=rpv;try{localStorage.setItem('sr-purchase-vendors',JSON.stringify(purchaseVendors));}catch(e){}}
