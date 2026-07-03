@@ -6828,8 +6828,8 @@ function rPending(){
       ${p.__att?'':pendingDetailHtml(p)}
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
         ${isM?`
-          <button onclick="${p.__att?'approveAttendance('+p.id+')':"approvePending('"+p.id+"')"}" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
-          <button onclick="${p.__att?'rejectAttendance('+p.id+')':"rejectPending('"+p.id+"')"}" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
+          <button onclick="${p.__att?"approveAttendance('"+p.id+"')":"approvePending('"+p.id+"')"}" class="btn bbg" style="padding:8px 16px;font-size:13px">✓ 승인</button>
+          <button onclick="${p.__att?"rejectAttendance('"+p.id+"')":"rejectPending('"+p.id+"')"}" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">거부</button>
         `:`
           <span style="font-size:12px;color:var(--text3);align-self:center">⏳ 마스터 승인 대기 중</span>
           ${p.__att?'':`<button onclick="cancelPending('${p.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">요청 취소</button>`}
@@ -7960,10 +7960,10 @@ function rAttendance(){
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           ${isMaster()&&st==='pending'?`
-            <button onclick="approveAttendance(${a.id})" class="btn bbg" style="padding:6px 12px;font-size:12px">✓ 승인</button>
-            <button onclick="rejectAttendance(${a.id})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">거부</button>
+            <button onclick="approveAttendance('${a.id}')" class="btn bbg" style="padding:6px 12px;font-size:12px">✓ 승인</button>
+            <button onclick="rejectAttendance('${a.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">거부</button>
           `:''}
-          ${canEdit()?`<button onclick="delAttendanceReq(${a.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:0 4px" title="삭제">✕</button>`:''}
+          ${canEdit()?`<button onclick="delAttendanceReq('${a.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:0 4px" title="삭제">✕</button>`:''}
         </div>
       </div>
     </div>`;
@@ -7990,7 +7990,7 @@ function addAttendanceReq(){
 
 function approveAttendance(id){
   if(!isMaster()){tst('🔒 마스터만 승인할 수 있습니다');return;}
-  const a=attendanceReqs.find(x=>x.id===id);
+  const a=attendanceReqs.find(x=>String(x.id)===String(id));
   if(!a)return;
   a.status='approved';
   a.approvedBy=curUser.name;
@@ -8003,7 +8003,7 @@ function approveAttendance(id){
 
 function rejectAttendance(id){
   if(!isMaster()){tst('🔒 마스터만 거부할 수 있습니다');return;}
-  const a=attendanceReqs.find(x=>x.id===id);
+  const a=attendanceReqs.find(x=>String(x.id)===String(id));
   if(!a)return;
   if(!confirm('"'+(a.name||'')+'" 님의 근태신청을 거부하시겠습니까?'))return;
   a.status='rejected';
@@ -8018,7 +8018,7 @@ function rejectAttendance(id){
 function delAttendanceReq(id){
   if(!requireEdit())return;
   if(!confirm('이 근태신청을 삭제하시겠습니까?'))return;
-  attendanceReqs=attendanceReqs.filter(x=>x.id!==id);
+  attendanceReqs=attendanceReqs.filter(x=>String(x.id)!==String(id));
   saveAttendance();
   render();
 }
