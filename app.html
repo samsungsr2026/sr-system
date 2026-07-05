@@ -1787,6 +1787,7 @@ function cancelPending(pid){
 // ── Firebase Realtime Database ──────────────────────────────────
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let _lastSave = 0;
+let _invSaving = false; // 서버 저장 요청이 실제로 진행 중인 동안(재시도 포함)은 시간 가드와 무관하게 무조건 불러오기를 건너뜀
 
 // AbortSignal.timeout()은 비교적 최신 브라우저(2022년 이후)에서만 지원됨.
 // 구형 모바일 브라우저(일부 삼성 인터넷/구형 웹뷰 등)에서는 미지원이라 신호가 전달되지 않아
@@ -1919,18 +1920,34 @@ async function cfSetFileDeletedList(repoKey, deletedArr){
   return await cfPutPath(`srFiles/${repoKey}/_deleted`, deletedArr);
 }
 
-async function sv() {
+async function sv(retryCount) {
+  retryCount = retryCount || 0;
   _lastSave = Date.now(); // 저장 시작 시점에도 기록 - 저장 중에는 불러오기가 재고를 덮어쓰지 않도록 함
+  _invSaving = true;
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
   jbStat('💾 저장 중...');
   try {
-    await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
+    // cfSet은 실패 시 예외를 던지지 않고 false를 반환하므로, 반드시 반환값을 확인해야
+    // 실패한 저장을 "저장됨"으로 오인해 잠시 후 자동 동기화가 예전 서버 데이터로
+    // 덮어써버리는(위치/품명 등이 예전 값으로 되돌아가는) 문제를 막을 수 있음
+    const results = await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
+    const allOk = results.every(r=>r===true);
     _lastSave = Date.now();
-    localStorage.setItem('sr-inv-savedAt', String(_lastSave));
-    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
-  } catch(e) { jbStat('⚠️ 저장오류','#c07800'); }
+    if(allOk){
+      _invSaving = false;
+      localStorage.setItem('sr-inv-savedAt', String(_lastSave));
+      jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+    }else if(retryCount<3){
+      jbStat('⚠️ 저장 재시도 중...('+(retryCount+1)+'/3)','#c07800');
+      setTimeout(()=>sv(retryCount+1), 3000);
+    }else{
+      _invSaving = false;
+      jbStat('⚠️ 저장 실패','#d42048');
+      tst('⚠️ 서버 저장에 실패했습니다. 네트워크 확인 후 다시 저장해주세요',6000);
+    }
+  } catch(e) { _invSaving = false; jbStat('⚠️ 저장오류','#c07800'); }
 }
 
 
@@ -2063,11 +2080,11 @@ async function jbPullFiles(rim){
 let _invPullBusy=false;
 async function jbPullInv(){
   if(_invPullBusy)return;
-  if(Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
+  if(_invSaving||Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
   _invPullBusy=true;
   try{
     const ri=await fetchTimeout(`${FB}/sr/inv.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
-    if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){
+    if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){
       inv=ri;
       try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
       if(tab==='dash'||tab==='inv')render();
@@ -2206,7 +2223,7 @@ async function jbPull() {
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
           rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'];
 
-    if(Array.isArray(ri)&&ri.length>0&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
+    if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
