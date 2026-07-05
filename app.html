@@ -6918,6 +6918,9 @@ function addNewProduct(){
 
 
 let pstatRange='day'; // day | week | month
+let pstatMonthRef=Date.now(); // 월별 조회 시 기준 시점(월 이동용)
+function pstatSetRange(r){ pstatRange=r; if(r==='month')pstatMonthRef=Date.now(); render(); }
+function pstatMonthNav(dir){ const d=new Date(pstatMonthRef); d.setMonth(d.getMonth()+dir,1); pstatMonthRef=d.getTime(); render(); }
 
 // ── 통계 / 리포트 ─────────────────────────────────────────────
 let statsRange = '6'; // 최근 N개월
@@ -7386,23 +7389,29 @@ tr:nth-child(even) td{background:#f8f9ff;-webkit-print-color-adjust:exact;print-
 
 function rPstat(){
   const now=new Date();
-  let startTs,rangeLabel;
+  let startTs,endTs,rangeLabel,isCurMonth=true;
   if(pstatRange==='day'){
     startTs=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+    endTs=startTs+86400000;
     rangeLabel='오늘 ('+now.toLocaleDateString('ko',{month:'long',day:'numeric'})+')';
   }else if(pstatRange==='week'){
     // 최근 7일
     startTs=now.getTime()-6*86400000;
     startTs=new Date(new Date(startTs).getFullYear(),new Date(startTs).getMonth(),new Date(startTs).getDate()).getTime();
+    endTs=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()+86400000;
     rangeLabel='최근 7일';
   }else{
-    startTs=new Date(now.getFullYear(),now.getMonth(),1).getTime();
-    rangeLabel=now.toLocaleDateString('ko',{year:'numeric',month:'long'})+' (이번 달)';
+    const mref=new Date(pstatMonthRef);
+    const mstart=new Date(mref.getFullYear(),mref.getMonth(),1);
+    startTs=mstart.getTime();
+    endTs=new Date(mref.getFullYear(),mref.getMonth()+1,1).getTime();
+    isCurMonth=(mref.getFullYear()===now.getFullYear()&&mref.getMonth()===now.getMonth());
+    rangeLabel=mstart.toLocaleDateString('ko',{year:'numeric',month:'long'})+(isCurMonth?' (이번 달)':'');
   }
   // 기간 내 입고 거래만 필터 (생산자 목록(WK)에 있는 사람의 기록만 집계, 관리자 제외)
   const adminNames=getAdminNames(); // 관리자 이름 목록
   // 모든 입고 트랜잭션 (관리자 필터 없이)
-  const inTxs=txs.filter(t=>t.type==='in'&&t.ts>=startTs);
+  const inTxs=txs.filter(t=>t.type==='in'&&t.ts>=startTs&&t.ts<endTs);
   // 품목의 producer 기준으로 집계 (tx.w가 아닌 inv의 producer 사용)
   const byWorker={};
   inTxs.forEach(t=>{
@@ -7422,10 +7431,17 @@ function rPstat(){
   <div class="page-title">생산자별 입고 현황</div>
   <div class="page-sub">생산자(담당자)별 입고 실적을 일·주·월 단위로 확인합니다</div>
 
-  <div class="ftabs" style="margin-bottom:18px">
-    <div class="ftab${pstatRange==='day'?' on':''}" onclick="pstatRange='day';render()">📅 일별 (오늘)</div>
-    <div class="ftab${pstatRange==='week'?' on':''}" onclick="pstatRange='week';render()">🗓️ 주별 (최근 7일)</div>
-    <div class="ftab${pstatRange==='month'?' on':''}" onclick="pstatRange='month';render()">📆 월별 (이번 달)</div>
+  <div class="ftabs" style="margin-bottom:18px;flex-wrap:wrap;align-items:center">
+    <div class="ftab${pstatRange==='day'?' on':''}" onclick="pstatSetRange('day')">📅 일별 (오늘)</div>
+    <div class="ftab${pstatRange==='week'?' on':''}" onclick="pstatSetRange('week')">🗓️ 주별 (최근 7일)</div>
+    <div class="ftab${pstatRange==='month'?' on':''}" onclick="pstatSetRange('month')">📆 월별</div>
+    ${pstatRange==='month'?`
+    <div style="display:flex;align-items:center;gap:6px;margin-left:10px">
+      <button onclick="pstatMonthNav(-1)" class="btn bbl" style="padding:5px 12px;font-size:13px">◀</button>
+      <span style="font-weight:700;min-width:96px;text-align:center;font-family:monospace">${new Date(pstatMonthRef).toLocaleDateString('ko',{year:'numeric',month:'long'})}</span>
+      <button onclick="pstatMonthNav(1)" class="btn bbl" style="padding:5px 12px;font-size:13px">▶</button>
+      ${!isCurMonth?`<button onclick="pstatMonthRef=Date.now();render()" class="btn bbg" style="padding:5px 12px;font-size:12px">이번 달</button>`:''}
+    </div>`:''}
   </div>
 
   <div class="stat-row" style="grid-template-columns:repeat(3,1fr)">
@@ -8104,13 +8120,13 @@ function delTodayTx(id,type){
 // 생산자 클릭 시 해당 생산자의 입고 상세 모달
 function pstatDetail(w){
   const now=new Date();
-  let startTs;
-  if(pstatRange==='day')startTs=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
-  else if(pstatRange==='week'){const s=now.getTime()-6*86400000;startTs=new Date(new Date(s).getFullYear(),new Date(s).getMonth(),new Date(s).getDate()).getTime();}
-  else startTs=new Date(now.getFullYear(),now.getMonth(),1).getTime();
+  let startTs,endTs;
+  if(pstatRange==='day'){startTs=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();endTs=startTs+86400000;}
+  else if(pstatRange==='week'){const s=now.getTime()-6*86400000;startTs=new Date(new Date(s).getFullYear(),new Date(s).getMonth(),new Date(s).getDate()).getTime();endTs=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()+86400000;}
+  else{const mref=new Date(pstatMonthRef);startTs=new Date(mref.getFullYear(),mref.getMonth(),1).getTime();endTs=new Date(mref.getFullYear(),mref.getMonth()+1,1).getTime();}
   // producer 기준으로 필터
   const list=txs.filter(t=>{
-    if(t.type!=='in'||t.ts<startTs)return false;
+    if(t.type!=='in'||t.ts<startTs||t.ts>=endTs)return false;
     const it=inv.find(i=>i.id===t.iid);
     const prod=(it&&it.producer)||'-';
     return prod===w;
