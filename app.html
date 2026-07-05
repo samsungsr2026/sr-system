@@ -8834,6 +8834,8 @@ function applyItemEdit(id, payload, approvedFrom){
   const prevLoc=inv[idx].location;
   const prevProducer=inv[idx].producer;
   const prevClassNo=inv[idx].classNo;
+  const prevName=inv[idx].name;
+  const prevMoldLoc=inv[idx].moldLoc;
   const finalProducer=producer||inv[idx].producer||'';
   inv[idx].qty=qty;
   inv[idx].min=min;
@@ -8873,10 +8875,12 @@ function applyItemEdit(id, payload, approvedFrom){
   // 변경이력 기록 (반영 전 값과 비교해야 정확함)
   const changes=[];
   if(loc&&loc!==prevLoc) changes.push(`위치: ${prevLoc||'-'} → ${loc}`);
+  if(name&&name!==prevName) changes.push(`품명: ${prevName||'-'} → ${name}`);
   if(qty!==prevQty) changes.push(`재고: ${prevQty} → ${qty}`);
   if(producer&&producer!==prevProducer) changes.push(`생산자: ${prevProducer||'-'} → ${producer}`);
   if(moldNo&&moldNo!==id) changes.push(`금형번호: ${id} → ${moldNo}`);
   if(partNo&&partNo!==prevClassNo) changes.push(`부품번호: ${prevClassNo||'-'} → ${partNo}`);
+  if(moldLoc!==prevMoldLoc) changes.push(`금형위치: ${prevMoldLoc||'-'} → ${moldLoc||'-'}`);
   if(changes.length>0||approvedFrom){
     const detail=(changes.length>0?changes.join(' / '):'변경 내용 없음')+(approvedFrom?` (요청자: ${approvedFrom})`:'');
     addLog('stock',(approvedFrom?'품목 수정(승인) — ':'품목 수정 — ')+inv[idx].name, detail, inv[idx].id);
@@ -9195,7 +9199,7 @@ function printChangeLog(){
       <td style="white-space:nowrap">${new Date(l.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})} ${new Date(l.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td>
       <td style="text-align:center"><span style="background:${typeBg[l.type]||'#f3f4f6'};color:${typeColor[l.type]||'#374151'};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700">${typeMap[l.type]||l.type}</span></td>
       <td style="font-weight:600">${l.title}</td>
-      <td style="color:#555">${l.detail||'-'}</td>
+      <td style="color:#555">${l.itemId?`<b>[금형번호: ${l.itemId}]</b> `:''}${l.detail||'-'}</td>
       <td style="text-align:center">${l.user||'-'}</td>
     </tr>`).join('');
 
@@ -9248,8 +9252,8 @@ function dlChangeLog(){
   if(!changeLogs.length){tst('저장할 변경이력이 없습니다');return;}
   const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
   const B='\uFEFF';
-  const rows=changeLogs.map(l=>`${new Date(l.ts).toLocaleString('ko')},"${typeMap[l.type]||l.type}","${l.title}","${l.detail||''}","${l.user||''}"`);
-  const csv=B+'일시,구분,내용,상세,담당자\n'+rows.join('\n');
+  const rows=changeLogs.map(l=>`${new Date(l.ts).toLocaleString('ko')},"${typeMap[l.type]||l.type}","${l.title}","${l.itemId||''}","${l.detail||''}","${l.user||''}"`);
+  const csv=B+'일시,구분,내용,금형번호,상세,담당자\n'+rows.join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   a.download='변경이력_'+new Date().toISOString().slice(0,10)+'.csv';
@@ -9323,7 +9327,10 @@ function rChangeLog(){
           </td>
           <td><span class="badge ${typeBadge[l.type]||'bgr'}" style="font-size:11px">${typeMap[l.type]||l.type}</span></td>
           <td style="font-weight:600;font-size:13px">${l.title}</td>
-          <td style="font-size:12px;color:var(--text3)">${l.detail||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">
+            ${l.itemId?`<div style="color:var(--blue);font-family:monospace;font-weight:700;margin-bottom:2px">🔧 금형번호: ${l.itemId}</div>`:''}
+            ${l.detail||'-'}
+          </td>
           <td style="font-size:12px;color:var(--text2)">${l.user||'-'}</td>
           <td style="text-align:center">
             <button onclick="delChangeLog(${l.id})"
