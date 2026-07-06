@@ -7897,6 +7897,7 @@ function rMoldReport(){
     <div style="flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--text2);min-width:100px">${mrViewDate}</div>
     <button class="btn" style="padding:8px 14px" onclick="mrViewNav(1)">다음날 →</button>
     <button class="btn" style="padding:8px 14px;background:var(--blue-bg);color:var(--blue)" onclick="mrViewToday()">오늘</button>
+    <button class="btn bbp" style="padding:8px 14px" onclick="mrNewOpen()">📝 성형일보 작성</button>
     <button class="btn bbl" style="padding:8px 14px" onclick="printMoldReport('${mrViewDate}')">🖨️ 출력</button>
   </div>
 
@@ -8016,6 +8017,116 @@ function mrDelete(id){
   moldReports=(moldReports||[]).filter(p=>String(p.id)!==String(id));
   saveMoldReports();
   tst('🗑️ 삭제되었습니다');
+  render();
+}
+// ── 성형일보 작성 (PC에서 직접 작성) ────────────────────────────────
+// 금형번호를 입력하면 그 금형으로 가장 최근에 등록된 자료를 찾아
+// 생산수량/불량갯수를 제외한 나머지 항목을 자동으로 채워준다.
+function mrFindLatestByMold(moldVal){
+  const mv=(moldVal||'').trim();
+  if(!mv)return null;
+  const matches=(moldReports||[]).filter(p=>(p.mold||'').trim()===mv);
+  if(!matches.length)return null;
+  matches.sort((a,b)=>b.ts-a.ts);
+  return matches[0];
+}
+function mrAutoFillFromMold(){
+  const mv=document.getElementById('mr-new-mold')?.value?.trim();
+  if(!mv)return;
+  const p=mrFindLatestByMold(mv);
+  if(!p){return;}
+  const setVal=(id,val)=>{ const el=document.getElementById(id); if(el)el.value=(val==null?'':val); };
+  setVal('mr-new-writer', p.writer||'');
+  setVal('mr-new-machine', p.machine||'');
+  setVal('mr-new-material', p.material||'');
+  const wrap=document.getElementById('mr-new-material-custom-wrap');
+  if(wrap) wrap.style.display=(p.material==='직접입력')?'block':'none';
+  setVal('mr-new-material-custom', p.materialCustom||'');
+  setVal('mr-new-hardness', p.hardness||'');
+  setVal('mr-new-lotsrc', p.lotSrc||'');
+  setVal('mr-new-lotwork', p.lotWork||'');
+  setVal('mr-new-cut', p.cut||'');
+  setVal('mr-new-cav', p.cav||'');
+  setVal('mr-new-temptop', p.tempTop||'');
+  setVal('mr-new-tempbottom', p.tempBottom||'');
+  setVal('mr-new-pressure', p.pressure||'');
+  setVal('mr-new-vulcan', p.vulcan||'');
+  setVal('mr-new-note', p.note||'');
+  tst('📋 이전 등록 자료를 불러왔습니다 (생산수량/불량은 제외)');
+}
+function mrNewOpen(){
+  if(!requireEdit())return;
+  const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const today=new Date().toISOString().slice(0,10);
+  const matOpts=['CR','EPDM','NR','NBR','직접입력'];
+  document.getElementById('mo-title').textContent='📝 성형일보 작성';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작성일자</label><input type="date" class="fi" id="mr-new-date" value="${today}" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형번호</label><input type="text" class="fi" id="mr-new-mold" placeholder="금형번호 입력 후 다른 칸으로 이동하면 이전 자료가 자동으로 채워집니다" style="width:100%" onchange="mrAutoFillFromMold()"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작성자</label>
+      <select class="fi" id="mr-new-writer" style="width:100%">
+        <option value="">선택</option>
+        ${(WK||[]).map(w=>`<option value="${escP(w)}">${escP(w)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">호기</label><input type="text" class="fi" id="mr-new-machine" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">재질</label>
+      <select class="fi" id="mr-new-material" style="width:100%" onchange="document.getElementById('mr-new-material-custom-wrap').style.display=this.value==='직접입력'?'block':'none'">
+        <option value="">선택</option>
+        ${matOpts.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg" id="mr-new-material-custom-wrap" style="margin-bottom:12px;display:none">
+      <label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">재질 직접입력</label>
+      <input type="text" class="fi" id="mr-new-material-custom" style="width:100%">
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">경도</label><input type="text" class="fi" id="mr-new-hardness" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">산지 Lot No.</label><input type="text" class="fi" id="mr-new-lotsrc" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">작업 Lot No.</label><input type="text" class="fi" id="mr-new-lotwork" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">소재재단(g)</label><input type="number" class="fi" id="mr-new-cut" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">금형 CAV</label><input type="number" class="fi" id="mr-new-cav" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">온도 - 상(°C)</label><input type="number" class="fi" id="mr-new-temptop" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">온도 - 하(°C)</label><input type="number" class="fi" id="mr-new-tempbottom" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">압력(kg/㎠)</label><input type="number" class="fi" id="mr-new-pressure" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">가황시간</label><input type="text" class="fi" id="mr-new-vulcan" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">생산수량(EA)</label><input type="number" class="fi" id="mr-new-qtygood" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:12px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">불량갯수</label><input type="number" class="fi" id="mr-new-qtybad" style="width:100%"></div>
+    <div class="fg" style="margin-bottom:16px"><label class="label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--text2)">비고</label><input type="text" class="fi" id="mr-new-note" style="width:100%"></div>
+    <button class="btn bbp btn-full" onclick="mrCreateSave()">✅ 등록 완료</button>
+  `;
+  document.getElementById('ov').classList.add('on');
+}
+function mrCreateSave(){
+  if(!requireEdit())return;
+  const mold=document.getElementById('mr-new-mold')?.value?.trim();
+  if(!mold){tst('금형번호를 입력해주세요');return;}
+  const p={
+    id:gcNewId(),
+    date:document.getElementById('mr-new-date')?.value||new Date().toISOString().slice(0,10),
+    writer:document.getElementById('mr-new-writer')?.value||'',
+    machine:document.getElementById('mr-new-machine')?.value?.trim()||'',
+    mold,
+    material:document.getElementById('mr-new-material')?.value||'',
+    materialCustom:document.getElementById('mr-new-material-custom')?.value?.trim()||'',
+    hardness:document.getElementById('mr-new-hardness')?.value?.trim()||'',
+    lotSrc:document.getElementById('mr-new-lotsrc')?.value?.trim()||'',
+    lotWork:document.getElementById('mr-new-lotwork')?.value?.trim()||'',
+    cut:document.getElementById('mr-new-cut')?.value||'',
+    cav:document.getElementById('mr-new-cav')?.value||'',
+    tempTop:document.getElementById('mr-new-temptop')?.value||'',
+    tempBottom:document.getElementById('mr-new-tempbottom')?.value||'',
+    pressure:document.getElementById('mr-new-pressure')?.value||'',
+    vulcan:document.getElementById('mr-new-vulcan')?.value?.trim()||'',
+    qtyGood:document.getElementById('mr-new-qtygood')?.value||'',
+    qtyBad:document.getElementById('mr-new-qtybad')?.value||'',
+    note:document.getElementById('mr-new-note')?.value?.trim()||'',
+    ts:Date.now()
+  };
+  moldReports=moldReports||[];
+  moldReports.unshift(p);
+  saveMoldReports();
+  document.getElementById('ov').classList.remove('on');
+  tst('✅ 성형일보 등록 완료');
   render();
 }
 
