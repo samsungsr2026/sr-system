@@ -10114,7 +10114,13 @@ async function removeFacilityLedgerFile(id){
 // ── 품질관리: 관리계획서 (Control Plan) ─────────────────────────────
 let cpSq='';
 let cpEditRows=[]; // 모달에서 편집 중인 공정 관리항목 행들 (임시 상태)
+let cpOpenId=null; // 현재 상세보기로 열려있는 관리계획서의 id (null이면 목록 화면)
 function rControlPlan(){
+  const c=cpOpenId?controlPlans.find(x=>x.id===cpOpenId):null;
+  if(c) return rControlPlanDetail(c);
+  return rControlPlanList();
+}
+function rControlPlanList(){
   let list=controlPlans.filter(c=>!cpSq||ciInc(c.productName,cpSq)||ciInc(c.customer,cpSq)||ciInc(c.supplier,cpSq)).sort((a,b)=>b.ts-a.ts);
   return `
   <div class="page-title">📋 관리계획서 (Control Plan)</div>
@@ -10140,21 +10146,87 @@ function rControlPlan(){
       </tr></thead>
       <tbody>
         ${list.map(c=>{const idx=controlPlans.indexOf(c);return `<tr>
-          <td style="font-weight:700">${c.customer||'-'}</td>
-          <td style="font-weight:700;color:var(--blue)">${c.productName||'-'}</td>
-          <td style="font-size:12px;color:var(--text2)">${c.supplier||'-'}</td>
-          <td style="font-size:12px;color:var(--text3)">${c.spec||'-'}</td>
-          <td style="text-align:center;font-family:monospace">${c.revision||'-'}</td>
-          <td style="font-size:12px;color:var(--text3);white-space:nowrap">${c.writtenDate||'-'}</td>
+          <td style="font-weight:700;cursor:pointer" onclick="openControlPlan('${c.id}')">${c.customer||'-'}</td>
+          <td style="font-weight:700;color:var(--blue);cursor:pointer" onclick="openControlPlan('${c.id}')">${c.productName||'-'}</td>
+          <td style="font-size:12px;color:var(--text2);cursor:pointer" onclick="openControlPlan('${c.id}')">${c.supplier||'-'}</td>
+          <td style="font-size:12px;color:var(--text3);cursor:pointer" onclick="openControlPlan('${c.id}')">${c.spec||'-'}</td>
+          <td style="text-align:center;font-family:monospace;cursor:pointer" onclick="openControlPlan('${c.id}')">${c.revision||'-'}</td>
+          <td style="font-size:12px;color:var(--text3);white-space:nowrap;cursor:pointer" onclick="openControlPlan('${c.id}')">${c.writtenDate||'-'}</td>
           <td style="white-space:nowrap">
-            <button onclick="printControlPlan(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">출력</button>
-            <button onclick="openControlPlanModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">수정</button>
-            <button onclick="delControlPlan(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+            <button onclick="openControlPlan('${c.id}')" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:700">상세보기 →</button>
+            <button onclick="event.stopPropagation();delControlPlan(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
           </td>
         </tr>`;}).join('')}
       </tbody>
     </table>
   </div>`}`;
+}
+function openControlPlan(id){ cpOpenId=id; render(); }
+function closeControlPlanDetail(){ cpOpenId=null; render(); }
+function rControlPlanDetail(c){
+  const idx=controlPlans.indexOf(c);
+  const rows=c.rows||[];
+  const fileCnt=(attaches[c.id]||[]).length;
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    <button onclick="closeControlPlanDetail()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">← 목록으로</button>
+  </div>
+  <div class="page-title">📋 ${c.productName||''}</div>
+  <div class="page-sub">고객명: ${c.customer||'-'} · 협력사: ${c.supplier||'-'} · SPEC: ${c.spec||'-'} · 개정번호: ${c.revision||'-'}</div>
+
+  <div style="display:flex;gap:10px;margin:12px 0;flex-wrap:wrap">
+    <button class="btn bbl" style="width:auto;padding:8px 14px;font-size:12px" onclick="openControlPlanModal(${idx})">✏️ 수정</button>
+    <button class="btn bbg" style="width:auto;padding:8px 14px;font-size:12px" onclick="printControlPlan(${idx})">🖨️ 출력</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">기본 정보</div>
+    <table class="tbl" style="min-width:0">
+      <tbody>
+        <tr><td style="font-weight:600;background:var(--bg3);width:120px">고객명</td><td>${c.customer||'-'}</td><td style="font-weight:600;background:var(--bg3);width:120px">작성일</td><td>${c.writtenDate||'-'}</td></tr>
+        <tr><td style="font-weight:600;background:var(--bg3)">품명</td><td>${c.productName||'-'}</td><td style="font-weight:600;background:var(--bg3)">SPEC</td><td>${c.spec||'-'}</td></tr>
+        <tr><td style="font-weight:600;background:var(--bg3)">협력사</td><td>${c.supplier||'-'}</td><td style="font-weight:600;background:var(--bg3)">협력사 연락처</td><td>${c.supplierContact||'-'}</td></tr>
+        <tr><td style="font-weight:600;background:var(--bg3)">협력사 주소</td><td>${c.supplierAddress||'-'}</td><td style="font-weight:600;background:var(--bg3)">개정번호</td><td>${c.revision||'-'}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;padding:16px">
+    <div class="card-title">📎 첨부파일 <span style="color:var(--blue)">${fileCnt}개</span></div>
+    ${renderAttachSection(c.id)}
+  </div>
+
+  ${rows.length?`
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+    <div style="padding:14px 16px 0" class="card-title">공정별 관리항목</div>
+    <div style="overflow-x:auto">
+    <table class="tbl" style="min-width:900px">
+      <thead><tr>
+        <th style="width:36px">NO</th><th>공정</th><th>관리항목(특성)</th><th>규격/관리기준</th>
+        <th>측정/평가방법</th><th style="width:70px">시료 크기</th><th style="width:80px">검사 주기</th>
+        <th>관리방법(기록)</th><th>이상 발생시 조치</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i)=>`<tr>
+          <td style="text-align:center">${i+1}</td>
+          <td>${r.process||'-'}</td><td>${r.item||'-'}</td><td>${r.spec||'-'}</td>
+          <td>${r.method||'-'}</td><td style="text-align:center">${r.sample||'-'}</td>
+          <td style="text-align:center">${r.cycle||'-'}</td><td>${r.record||'-'}</td><td>${r.action||'-'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`:''}
+
+  <div class="card">
+    <div class="card-title">승인 정보</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+      <div><span style="color:var(--text3)">작성자</span> <b>${c.writer||'-'}</b></div>
+      <div><span style="color:var(--text3)">검토자</span> <b>${c.reviewer||'-'}</b></div>
+      <div><span style="color:var(--text3)">승인자</span> <b>${c.approver||'-'}</b></div>
+    </div>
+    ${c.note?`<div style="margin-top:10px;font-size:12px;color:var(--text3)">※ ${c.note}</div>`:''}
+  </div>`;
 }
 function cpBlankRow(){ return {process:'',item:'',spec:'',method:'',sample:'',cycle:'',record:'',action:''}; }
 // 모달의 rows 편집기(input 값 직접 DOM 조회 후 cpEditRows에 반영) - 재렌더 시 입력값 유실 방지를 위해
