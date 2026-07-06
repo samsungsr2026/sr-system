@@ -8036,8 +8036,6 @@ function mrAutoFillFromMold(){
   const p=mrFindLatestByMold(mv);
   if(!p){return;}
   const setVal=(id,val)=>{ const el=document.getElementById(id); if(el)el.value=(val==null?'':val); };
-  setVal('mr-new-writer', p.writer||'');
-  setVal('mr-new-machine', p.machine||'');
   setVal('mr-new-material', p.material||'');
   const wrap=document.getElementById('mr-new-material-custom-wrap');
   if(wrap) wrap.style.display=(p.material==='직접입력')?'block':'none';
@@ -8052,7 +8050,7 @@ function mrAutoFillFromMold(){
   setVal('mr-new-pressure', p.pressure||'');
   setVal('mr-new-vulcan', p.vulcan||'');
   setVal('mr-new-note', p.note||'');
-  tst('📋 이전 등록 자료를 불러왔습니다 (생산수량/불량은 제외)');
+  tst('📋 이전 등록 자료를 불러왔습니다 (작성자/호기/생산수량/불량은 제외)');
 }
 function mrNewOpen(){
   if(!requireEdit())return;
