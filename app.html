@@ -10751,12 +10751,25 @@ function locSaveDetail(id) {
   var min = parseInt(document.getElementById('loc-min-input') ? document.getElementById('loc-min-input').value : inv[idx].min);
   var classNo = document.getElementById('loc-classno-input') ? document.getElementById('loc-classno-input').value.trim() : inv[idx].classNo;
   var material = document.getElementById('loc-material-input') ? document.getElementById('loc-material-input').value.trim() : inv[idx].material;
+  var itName = inv[idx].name || id;
+  var beforeLoc = inv[idx].location || '';
+  var beforeQty = inv[idx].qty;
+  var beforeMin = inv[idx].min;
+  var beforeClassNo = inv[idx].classNo || '';
+  var beforeMaterial = inv[idx].material || '';
   if (loc) inv[idx].location = loc;
   if (!isNaN(qty)) inv[idx].qty = qty;
   if (!isNaN(min)) inv[idx].min = min;
   if (classNo) inv[idx].classNo = classNo;
   if (material) inv[idx].material = material;
   sv();
+  var changes = [];
+  if (loc && loc !== beforeLoc) changes.push('위치: ' + (beforeLoc || '-') + ' → ' + loc);
+  if (!isNaN(qty) && qty !== beforeQty) changes.push('재고: ' + beforeQty + ' → ' + qty);
+  if (!isNaN(min) && min !== beforeMin) changes.push('최소기준: ' + beforeMin + ' → ' + min);
+  if (classNo && classNo !== beforeClassNo) changes.push('부품번호: ' + (beforeClassNo || '-') + ' → ' + classNo);
+  if (material && material !== beforeMaterial) changes.push('재질: ' + (beforeMaterial || '-') + ' → ' + material);
+  if (changes.length > 0) addLog('location', '위치 상세수정 — ' + itName, changes.join(' / '), inv[idx].id);
   cmo();
   tst('✓ 저장 완료: ' + inv[idx].name);
   var q = document.getElementById('loc-search');
@@ -10768,8 +10781,12 @@ function locSaveProducer(id) {
   var prod = document.getElementById('loc-prod-input') ? document.getElementById('loc-prod-input').value.trim() : '';
   var idx = inv.findIndex(function(i) { return i.id === id; });
   if (idx < 0) return;
+  var itName = inv[idx].name || id;
+  var before = inv[idx].producer || '';
+  if (before === prod) { tst('변경 사항이 없습니다'); return; }
   inv[idx].producer = prod;
   sv();
+  addLog('stock', '생산자 변경 — ' + itName, (before || '-') + ' → ' + (prod || '-'), inv[idx].id);
   cmo();
   tst('🏭 생산자 저장: ' + (prod || '삭제됨'));
   var q = document.getElementById('loc-search');
