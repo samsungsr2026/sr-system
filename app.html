@@ -11061,7 +11061,9 @@ function dlBackupAll(){
       gauges:gauges.length,
       gaugeCerts:Object.keys(gaugeCerts).length,
       attaches:attachesFlatten(attaches).length,
-      facilityLedger:(facilityLedger['_repo']||[]).length
+      facilityLedger:(facilityLedger['_repo']||[]).length,
+      controlPlans:controlPlans.length,
+      inspSheets:inspSheets.length
     },
     data:{
       inv:inv,
@@ -11081,7 +11083,9 @@ function dlBackupAll(){
       dailyReports:dailyReports,
       moldReports:moldReports,
       attendanceReqs:attendanceReqs,
-      fieldWorkers:fieldWorkers
+      fieldWorkers:fieldWorkers,
+      controlPlans:controlPlans,
+      inspSheets:inspSheets
     }
   };
   const json=JSON.stringify(backup,null,2);
