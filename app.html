@@ -10559,8 +10559,9 @@ function siRowsTableHtml(){
     <button class="btn bbg" style="width:auto;padding:8px 14px;font-size:12px" onclick="saveInspSheetRows()">💾 저장</button>
   </div>`;
 }
-function addSIRow(){ syncSIRowsFromDOM(); siEditRows.push(siBlankRow()); renderSIRowsEditor(); }
+function addSIRow(){ if(!requireEdit())return; syncSIRowsFromDOM(); siEditRows.push(siBlankRow()); renderSIRowsEditor(); }
 function removeSIRow(i){
+  if(!requireEdit())return;
   syncSIRowsFromDOM();
   siEditRows.splice(i,1);
   renderSIRowsEditor();
