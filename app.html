@@ -8928,7 +8928,8 @@ function applyItemEdit(id, payload, approvedFrom){
     if(partNo&&partNo!==prevClassNo) labels.push('부품번호변경');
     if(moldLoc!==prevMoldLoc) labels.push('금형위치변경');
     const title=(approvedFrom?'품목수정(승인)':'품목수정')+' - '+inv[idx].name+(labels.length?' - '+labels.join(', '):'');
-    addLog('stock', title, detail, inv[idx].id);
+    const logType=(loc&&loc!==prevLoc)?'location':'stock';
+    addLog(logType, title, detail, inv[idx].id);
   }
 }
 function modalAddWorker(itemId){
