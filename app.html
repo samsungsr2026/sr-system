@@ -575,6 +575,23 @@ select.fi option{background:#fff;color:#111}
         측정기 관리
       </button>
     </div>
+    <button class="nav-item" style="justify-content:space-between" onclick="toggleQCMenu()">
+      <span style="display:flex;align-items:center;gap:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:20px;height:20px;flex-shrink:0"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="9"></circle></svg>
+        품질관리
+      </span>
+      <svg id="qc-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .2s;flex-shrink:0"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div id="qc-menu" style="display:none;padding-left:10px">
+      <button class="nav-item" onclick="go(&#39;controlplan&#39;)" id="nb-controlplan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+        관리계획서
+      </button>
+      <button class="nav-item" onclick="go(&#39;selfinsp&#39;)" id="nb-selfinsp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        자체검사기록
+      </button>
+    </div>
     <button class="nav-item" onclick="go(&#39;set&#39;)" id="nb-set">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
       설정 / 업로드
@@ -894,6 +911,14 @@ function goMaster(t){
 function toggleEquipMenu(){
   const menu = document.getElementById('equip-menu');
   const arrow = document.getElementById('equip-arrow');
+  if(!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+function toggleQCMenu(){
+  const menu = document.getElementById('qc-menu');
+  const arrow = document.getElementById('qc-arrow');
   if(!menu) return;
   const isOpen = menu.style.display !== 'none';
   menu.style.display = isOpen ? 'none' : 'block';
@@ -1307,6 +1332,44 @@ async function saveGauges(force){
   jbStat('💾 저장 중...');
   try{
     await cfSet('gauges',gauges);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+}
+// ── 품질관리: 관리계획서(Control Plan) / 자체검사기록 ──────────────────────
+// 삭제 동기화가 union 병합으로 되살아나지 않도록 tombstone(_deleted) 패턴 적용 (id 기준)
+let controlPlans=JSON.parse(localStorage.getItem('sr-control-plans')||'[]');
+let controlPlansDeleted=JSON.parse(localStorage.getItem('sr-control-plans-deleted')||'[]');
+async function saveControlPlans(force){
+  if(!force){
+    try{
+      const [remoteCP, remoteCPD]=await Promise.all([cfGet('controlPlans'), cfGet('controlPlansDeleted')]);
+      controlPlansDeleted=gcMergeDeleted(controlPlansDeleted, remoteCPD);
+      controlPlans=gcApplyTombstones(mergeByKey(controlPlans, remoteCP, x=>x.id), controlPlansDeleted);
+    }catch(e){}
+  }
+  localStorage.setItem('sr-control-plans',JSON.stringify(controlPlans));
+  localStorage.setItem('sr-control-plans-deleted',JSON.stringify(controlPlansDeleted));
+  jbStat('💾 저장 중...');
+  try{
+    await Promise.all([cfSet('controlPlans',controlPlans), cfSet('controlPlansDeleted',controlPlansDeleted)]);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+}
+let selfInspections=JSON.parse(localStorage.getItem('sr-self-insp')||'[]');
+let selfInspectionsDeleted=JSON.parse(localStorage.getItem('sr-self-insp-deleted')||'[]');
+async function saveSelfInsp(force){
+  if(!force){
+    try{
+      const [remoteSI, remoteSID]=await Promise.all([cfGet('selfInspections'), cfGet('selfInspectionsDeleted')]);
+      selfInspectionsDeleted=gcMergeDeleted(selfInspectionsDeleted, remoteSID);
+      selfInspections=gcApplyTombstones(mergeByKey(selfInspections, remoteSI, x=>x.id), selfInspectionsDeleted);
+    }catch(e){}
+  }
+  localStorage.setItem('sr-self-insp',JSON.stringify(selfInspections));
+  localStorage.setItem('sr-self-insp-deleted',JSON.stringify(selfInspectionsDeleted));
+  jbStat('💾 저장 중...');
+  try{
+    await Promise.all([cfSet('selfInspections',selfInspections), cfSet('selfInspectionsDeleted',selfInspectionsDeleted)]);
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
@@ -2235,7 +2298,8 @@ async function jbPull() {
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
-          production, moldreport: moldReports, attendance: attendanceReqs, fieldWorkers
+          production, moldreport: moldReports, attendance: attendanceReqs, fieldWorkers,
+          controlPlans, controlPlansDeleted, selfInspections, selfInspectionsDeleted
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -2257,7 +2321,9 @@ async function jbPull() {
           rsi=fbAll['supplierItems'],
           rv=fbAll['vendors'], rvo=fbAll['vendorOrders'], rvod=fbAll['vendorOrdersDeleted'],
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
-          rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'];
+          rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'],
+          rcp=fbAll['controlPlans'], rcpd=fbAll['controlPlansDeleted'],
+          rsins=fbAll['selfInspections'], rsinsd=fbAll['selfInspectionsDeleted'];
 
     if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;snapshotInvBaseline();try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
@@ -2313,6 +2379,32 @@ async function jbPull() {
       gauges=mergedG;
       localStorage.setItem('sr-gauges',JSON.stringify(gauges));
       if(gChanged)cfSet('gauges',gauges).catch(()=>{});
+    }
+    // 관리계획서(Control Plan): 병합 (다른 기기의 최신 수정을 반영) + tombstone으로 삭제 항목 부활 방지
+    {
+      const mergedCPD=gcMergeDeleted(controlPlansDeleted, rcpd);
+      const mergedCP=gcApplyTombstones(mergeByKeyRemoteWins(controlPlans, rcp, x=>x.id), mergedCPD);
+      const cpChanged=JSON.stringify(mergedCP)!==JSON.stringify(controlPlans)||JSON.stringify(mergedCP)!==JSON.stringify(rcp||[]);
+      const cpdChanged=JSON.stringify(mergedCPD.slice().sort())!==JSON.stringify((rcpd||[]).slice().sort());
+      controlPlans=mergedCP;
+      controlPlansDeleted=mergedCPD;
+      localStorage.setItem('sr-control-plans',JSON.stringify(controlPlans));
+      localStorage.setItem('sr-control-plans-deleted',JSON.stringify(controlPlansDeleted));
+      if(cpChanged)cfSet('controlPlans',controlPlans).catch(()=>{});
+      if(cpdChanged)cfSet('controlPlansDeleted',controlPlansDeleted).catch(()=>{});
+    }
+    // 자체검사기록: 병합 (PDA에서 입력한 내역 포함, 다른 기기의 최신 수정을 반영) + tombstone으로 삭제 항목 부활 방지
+    {
+      const mergedSID=gcMergeDeleted(selfInspectionsDeleted, rsinsd);
+      const mergedSI=gcApplyTombstones(mergeByKeyRemoteWins(selfInspections, rsins, x=>x.id), mergedSID);
+      const siChanged=JSON.stringify(mergedSI)!==JSON.stringify(selfInspections)||JSON.stringify(mergedSI)!==JSON.stringify(rsins||[]);
+      const sidChanged=JSON.stringify(mergedSID.slice().sort())!==JSON.stringify((rsinsd||[]).slice().sort());
+      selfInspections=mergedSI;
+      selfInspectionsDeleted=mergedSID;
+      localStorage.setItem('sr-self-insp',JSON.stringify(selfInspections));
+      localStorage.setItem('sr-self-insp-deleted',JSON.stringify(selfInspectionsDeleted));
+      if(siChanged)cfSet('selfInspections',selfInspections).catch(()=>{});
+      if(sidChanged)cfSet('selfInspectionsDeleted',selfInspectionsDeleted).catch(()=>{});
     }
     // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록) + tombstone으로 거부/승인/취소된 항목 부활 방지
     {
@@ -2683,6 +2775,8 @@ function render(){
   else if(tab==='changelog')m.innerHTML=rChangeLog();
   else if(tab==='repair')m.innerHTML=rRepair();
   else if(tab==='gauge')m.innerHTML=rGauge();
+  else if(tab==='controlplan')m.innerHTML=rControlPlan();
+  else if(tab==='selfinsp')m.innerHTML=rSelfInsp();
   else if(tab==='pending')m.innerHTML=rPending();
   dots();
 }
@@ -9235,7 +9329,7 @@ const CL_PAGE_SIZE=10;
 function setClPage(p){clPage=p;render();}
 function printChangeLog(){
   if(!changeLogs.length){tst('출력할 변경이력이 없습니다');return;}
-  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',other:'기타'};
   const typeBg={io:'#dbeafe',stock:'#fef3c7',location:'#ede9fe',addprod:'#d1fae5',delprod:'#fee2e2',order:'#f3f4f6',other:'#f3f4f6'};
   const typeColor={io:'#1d4ed8',stock:'#92400e',location:'#5b21b6',addprod:'#065f46',delprod:'#b91c1c',order:'#374151',other:'#374151'};
   const now = new Date();
@@ -9296,7 +9390,7 @@ tr:nth-child(even) td{background:#f8f9ff}
 
 function dlChangeLog(){
   if(!changeLogs.length){tst('저장할 변경이력이 없습니다');return;}
-  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',other:'기타'};
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',other:'기타'};
   const B='\uFEFF';
   const rows=changeLogs.map(l=>`${new Date(l.ts).toLocaleString('ko')},"${typeMap[l.type]||l.type}","${l.title}","${l.itemId||''}","${l.detail||''}","${l.user||''}"`);
   const csv=B+'일시,구분,내용,금형번호,상세,담당자\n'+rows.join('\n');
@@ -9310,11 +9404,11 @@ function dlChangeLog(){
 function rChangeLog(){
   const typeMap={
     '전체':'전체','io':'입출고','stock':'품목수정','location':'위치변경',
-    'addprod':'품목추가','delprod':'품목삭제','order':'발주','other':'기타'
+    'addprod':'품목추가','delprod':'품목삭제','order':'발주','qc':'품질관리','other':'기타'
   };
   const typeColor={io:'var(--blue)',stock:'var(--amber)',location:'var(--purple)',
-    addprod:'var(--green)',delprod:'var(--red)',order:'var(--text2)',other:'var(--text3)'};
-  const typeBadge={io:'bb',stock:'ba',location:'bb',addprod:'bg',delprod:'br',order:'bgr',other:'bgr'};
+    addprod:'var(--green)',delprod:'var(--red)',order:'var(--text2)',qc:'#0d9e72',other:'var(--text3)'};
+  const typeBadge={io:'bb',stock:'ba',location:'bb',addprod:'bg',delprod:'br',order:'bgr',qc:'bg',other:'bgr'};
 
   let list=changeLogs.filter(l=>{
     const typeOk=clFilter==='전체'||l.type===clFilter;
@@ -9991,6 +10085,351 @@ async function removeFacilityLedgerFile(id){
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
 
+
+// ── 품질관리: 관리계획서 (Control Plan) ─────────────────────────────
+let cpSq='';
+let cpEditRows=[]; // 모달에서 편집 중인 공정 관리항목 행들 (임시 상태)
+function rControlPlan(){
+  let list=controlPlans.filter(c=>!cpSq||ciInc(c.productName,cpSq)||ciInc(c.customer,cpSq)||ciInc(c.supplier,cpSq)).sort((a,b)=>b.ts-a.ts);
+  return `
+  <div class="page-title">📋 관리계획서 (Control Plan)</div>
+  <div class="page-sub">품목/공정별 관리계획서를 등록하고 관리합니다 · 총 ${controlPlans.length}건 · 조회 ${list.length}건</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+      <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="품명, 고객명, 협력사 검색..." value="${cpSq}"
+        oninput="cpSq=this.value;render()"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openControlPlanModal()">+ 관리계획서 등록</button>
+  </div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>등록된 관리계획서가 없습니다</div></div>`:`
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl" style="min-width:760px">
+      <thead><tr>
+        <th>고객명</th><th>품명</th><th>협력사</th><th>SPEC</th>
+        <th style="width:80px">개정번호</th><th style="width:100px">작성일</th>
+        <th style="width:150px">관리</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(c=>{const idx=controlPlans.indexOf(c);return `<tr>
+          <td style="font-weight:700">${c.customer||'-'}</td>
+          <td style="font-weight:700;color:var(--blue)">${c.productName||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${c.supplier||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${c.spec||'-'}</td>
+          <td style="text-align:center;font-family:monospace">${c.revision||'-'}</td>
+          <td style="font-size:12px;color:var(--text3);white-space:nowrap">${c.writtenDate||'-'}</td>
+          <td style="white-space:nowrap">
+            <button onclick="printControlPlan(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">출력</button>
+            <button onclick="openControlPlanModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">수정</button>
+            <button onclick="delControlPlan(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+          </td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>
+  </div>`}`;
+}
+function cpBlankRow(){ return {process:'',item:'',spec:'',method:'',sample:'',cycle:'',record:'',action:''}; }
+// 모달의 rows 편집기(input 값 직접 DOM 조회 후 cpEditRows에 반영) - 재렌더 시 입력값 유실 방지를 위해
+// 행 추가/삭제 직전에만 DOM 값을 cpEditRows로 동기화한다.
+function syncCPRowsFromDOM(){
+  cpEditRows=cpEditRows.map((r,i)=>({
+    process:document.getElementById(`cpr-${i}-process`)?.value?.trim()||'',
+    item:document.getElementById(`cpr-${i}-item`)?.value?.trim()||'',
+    spec:document.getElementById(`cpr-${i}-spec`)?.value?.trim()||'',
+    method:document.getElementById(`cpr-${i}-method`)?.value?.trim()||'',
+    sample:document.getElementById(`cpr-${i}-sample`)?.value?.trim()||'',
+    cycle:document.getElementById(`cpr-${i}-cycle`)?.value?.trim()||'',
+    record:document.getElementById(`cpr-${i}-record`)?.value?.trim()||'',
+    action:document.getElementById(`cpr-${i}-action`)?.value?.trim()||''
+  }));
+}
+function renderCPRowsEditor(){
+  const el=document.getElementById('cp-rows-editor');
+  if(!el)return;
+  el.innerHTML=`
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+    <table class="tbl" style="min-width:900px">
+      <thead><tr>
+        <th style="width:36px">NO</th><th style="width:110px">공정</th><th style="width:150px">관리항목(특성)</th>
+        <th style="width:150px">규격/관리기준</th><th style="width:130px">측정/평가방법</th>
+        <th style="width:80px">시료 크기</th><th style="width:90px">검사 주기</th>
+        <th style="width:130px">관리방법(기록)</th><th style="width:150px">이상 발생시 조치</th><th style="width:40px"></th>
+      </tr></thead>
+      <tbody>
+        ${cpEditRows.map((r,i)=>`<tr>
+          <td style="text-align:center;font-weight:700">${i+1}</td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-process" value="${r.process||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-item" value="${r.item||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-spec" value="${r.spec||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-method" value="${r.method||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-sample" value="${r.sample||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-cycle" value="${r.cycle||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-record" value="${r.record||''}"></td>
+          <td><input class="fi" style="margin-bottom:0" id="cpr-${i}-action" value="${r.action||''}"></td>
+          <td style="text-align:center"><button onclick="removeCPRow(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 6px;font-size:11px;cursor:pointer">✕</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+    <button class="btn bbl" style="margin-top:8px;padding:8px 14px;font-size:12px;width:auto" onclick="addCPRow()">+ 행 추가</button>`;
+}
+function addCPRow(){ syncCPRowsFromDOM(); cpEditRows.push(cpBlankRow()); renderCPRowsEditor(); }
+function removeCPRow(i){ syncCPRowsFromDOM(); cpEditRows.splice(i,1); renderCPRowsEditor(); }
+function openControlPlanModal(idx){
+  if(!requireEdit())return;
+  const c=idx!==undefined?controlPlans[idx]:null;
+  cpEditRows=c&&c.rows&&c.rows.length?JSON.parse(JSON.stringify(c.rows)):[cpBlankRow()];
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('mo-title').textContent=c?'📋 관리계획서 수정':'📋 관리계획서 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="grid2">
+      <div class="fg"><label class="fl">고객명 *</label><input type="text" class="fi" id="cp-customer" placeholder="예: 삼성 S.R" value="${c?.customer||''}"></div>
+      <div class="fg"><label class="fl">작성일</label><input type="date" class="fi" id="cp-writtendate" value="${c?.writtenDate||today}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">품명 *</label><input type="text" class="fi" id="cp-productname" placeholder="예: 삼성SR/CLIP" value="${c?.productName||''}"></div>
+      <div class="fg"><label class="fl">SPEC</label><input type="text" class="fi" id="cp-spec" placeholder="예: PFZn13㎛B" value="${c?.spec||''}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">협력사</label><input type="text" class="fi" id="cp-supplier" placeholder="예: SamSung PT" value="${c?.supplier||''}"></div>
+      <div class="fg"><label class="fl">협력사 연락처</label><input type="text" class="fi" id="cp-suppliercontact" placeholder="예: 051-313-6025" value="${c?.supplierContact||''}"></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">협력사 주소</label><input type="text" class="fi" id="cp-supplieraddr" value="${c?.supplierAddress||''}"></div>
+      <div class="fg"><label class="fl">개정번호</label><input type="text" class="fi" id="cp-revision" placeholder="예: Rev.0" value="${c?.revision||'Rev.0'}"></div>
+    </div>
+    <div class="fg" style="margin-top:6px"><label class="fl" style="font-size:14px;font-weight:700">공정별 관리항목</label></div>
+    <div id="cp-rows-editor"></div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="fg"><label class="fl">작성자</label><input type="text" class="fi" id="cp-writer" value="${c?.writer||(curUser?curUser.name:'')}"></div>
+      <div class="fg"><label class="fl">검토자</label><input type="text" class="fi" id="cp-reviewer" value="${c?.reviewer||''}"></div>
+    </div>
+    <div class="fg"><label class="fl">승인자</label><input type="text" class="fi" id="cp-approver" value="${c?.approver||''}"></div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="cp-note" value="${c?.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitControlPlan(${idx!==undefined?idx:'undefined'})">✓ ${c?'수정 완료':'등록'}</button>`;
+  renderCPRowsEditor();
+  document.getElementById('ov').classList.add('on');
+}
+function submitControlPlan(idx){
+  if(!requireEdit())return;
+  const customer=document.getElementById('cp-customer')?.value?.trim();
+  const productName=document.getElementById('cp-productname')?.value?.trim();
+  if(!customer){tst('고객명을 입력해주세요');return;}
+  if(!productName){tst('품명을 입력해주세요');return;}
+  syncCPRowsFromDOM();
+  const rows=cpEditRows.filter(r=>r.process||r.item||r.spec);
+  const payload={
+    customer, productName,
+    spec:document.getElementById('cp-spec')?.value?.trim()||'',
+    supplier:document.getElementById('cp-supplier')?.value?.trim()||'',
+    supplierContact:document.getElementById('cp-suppliercontact')?.value?.trim()||'',
+    supplierAddress:document.getElementById('cp-supplieraddr')?.value?.trim()||'',
+    revision:document.getElementById('cp-revision')?.value?.trim()||'',
+    writtenDate:document.getElementById('cp-writtendate')?.value||'',
+    writer:document.getElementById('cp-writer')?.value?.trim()||'',
+    reviewer:document.getElementById('cp-reviewer')?.value?.trim()||'',
+    approver:document.getElementById('cp-approver')?.value?.trim()||'',
+    note:document.getElementById('cp-note')?.value?.trim()||'',
+    rows
+  };
+  if(idx!==undefined&&controlPlans[idx]){
+    Object.assign(controlPlans[idx],payload);
+    addLog('qc','관리계획서 수정 — '+productName,`고객명: ${customer} / 협력사: ${payload.supplier||'-'}`, controlPlans[idx].id);
+  }else{
+    const id=gcNewId();
+    controlPlans.unshift(Object.assign({id,ts:Date.now()},payload));
+    addLog('qc','관리계획서 등록 — '+productName,`고객명: ${customer} / 협력사: ${payload.supplier||'-'}`, id);
+  }
+  saveControlPlans();cmo();tst('✓ 저장 완료');render();
+}
+function delControlPlan(idx){
+  if(!requireEdit())return;
+  const c=controlPlans[idx];
+  if(!c)return;
+  if(!confirm('"'+c.productName+'" 관리계획서를 삭제하시겠습니까?'))return;
+  controlPlans.splice(idx,1);
+  if(!controlPlansDeleted.includes(c.id))controlPlansDeleted.push(c.id);
+  addLog('qc','관리계획서 삭제 — '+c.productName,`고객명: ${c.customer||'-'}`, c.id);
+  saveControlPlans(true);tst('✓ 삭제 완료');render();
+}
+function printControlPlan(idx){
+  const c=controlPlans[idx];
+  if(!c)return;
+  const now=new Date();
+  const rows=(c.rows||[]).map((r,i)=>`<tr>
+    <td style="text-align:center">${i+1}</td>
+    <td>${r.process||''}</td><td>${r.item||''}</td><td>${r.spec||''}</td>
+    <td>${r.method||''}</td><td style="text-align:center">${r.sample||''}</td>
+    <td style="text-align:center">${r.cycle||''}</td><td>${r.record||''}</td><td>${r.action||''}</td>
+  </tr>`).join('');
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>Control Plan</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12px}
+h1{font-size:18px;font-weight:700;text-align:center;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#f0f0f0;color:#111;padding:7px 6px;font-size:11px;font-weight:600;text-align:center;border:1px solid #bbb}
+td{padding:6px;border:1px solid #ccc;font-size:11px;vertical-align:middle}
+.info td{font-weight:600;background:#fafafa;width:14%}
+@media print{@page{size:A4 landscape;margin:10mm}}
+</style></head><body>
+<h1>CONTROL PLAN (관리계획서) - ${c.productName||''}</h1>
+<table class="info">
+<tr><td>고객명</td><td>${c.customer||''}</td><td>작성일</td><td>${c.writtenDate||''}</td></tr>
+<tr><td>품명</td><td>${c.productName||''}</td><td>SPEC</td><td>${c.spec||''}</td></tr>
+<tr><td>협력사</td><td>${c.supplier||''}</td><td>협력사 연락처</td><td>${c.supplierContact||''}</td></tr>
+<tr><td>협력사 주소</td><td>${c.supplierAddress||''}</td><td>개정번호</td><td>${c.revision||''}</td></tr>
+</table>
+<table>
+<thead><tr><th>NO</th><th>공정</th><th>관리항목(특성)</th><th>규격/관리기준</th><th>측정/평가방법</th><th>시료 크기</th><th>검사 주기</th><th>관리방법(기록)</th><th>이상 발생시 조치</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+${c.note?`<div style="font-size:11px;color:#555;margin-bottom:10px">※ ${c.note}</div>`:''}
+<table class="info"><tr><td>작성자</td><td>${c.writer||''}</td><td>검토자</td><td>${c.reviewer||''}</td><td>승인자</td><td>${c.approver||''}</td></tr></table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const pw=window.open('','_blank','width=1100,height=750');
+  if(pw){pw.document.write(html);pw.document.close();}
+  else tst('팝업 허용 후 다시 시도해주세요');
+}
+
+// ── 품질관리: 자체검사기록 ────────────────────────────────────────
+let siFilterProduct='전체';
+let siSq='';
+function rSelfInsp(){
+  const products=['전체',...new Set(controlPlans.map(c=>c.productName).filter(Boolean))];
+  let list=selfInspections.filter(s=>{
+    const pOk=siFilterProduct==='전체'||s.productName===siFilterProduct;
+    const sqOk=!siSq||ciInc(s.lotNo,siSq)||ciInc(s.productName,siSq)||ciInc(s.inspector,siSq);
+    return pOk&&sqOk;
+  }).sort((a,b)=>b.ts-a.ts);
+  return `
+  <div class="page-title">✅ 자체검사기록</div>
+  <div class="page-sub">Lot별 외관/밀착성 자체검사 결과를 기록합니다 · 총 ${selfInspections.length}건 · 조회 ${list.length}건</div>
+
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+      <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="Lot No, 품명, 검사자 검색..." value="${siSq}"
+        oninput="siSq=this.value;render()"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
+    </div>
+    <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlSelfInsp()">📄 CSV 저장</button>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openSelfInspModal()">+ 검사 기록 등록</button>
+  </div>
+
+  <div class="ftabs" style="margin-bottom:14px">
+    ${products.map(p=>`<div class="ftab${siFilterProduct===p?' on':''}" onclick="siFilterProduct='${p.replace(/'/g,"\\'")}';render()">${p}</div>`).join('')}
+  </div>
+
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>검사 기록이 없습니다</div></div>`:`
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl" style="min-width:760px">
+      <thead><tr>
+        <th style="width:100px">검사일자</th><th>품명</th><th>Lot No.</th>
+        <th style="width:90px">외관</th><th style="width:90px">밀착성</th>
+        <th style="width:80px">검사자</th><th>비고</th><th style="width:80px">관리</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(s=>{const idx=selfInspections.indexOf(s);return `<tr>
+          <td style="font-size:12px;color:var(--text3);white-space:nowrap">${s.date||'-'}</td>
+          <td style="font-weight:600">${s.productName||'-'}</td>
+          <td style="font-family:monospace">${s.lotNo||'-'}</td>
+          <td><span class="badge ${s.appearance==='fail'?'br':'bg'}" style="font-size:11px">${s.appearance==='fail'?'불합격':'합격'}</span></td>
+          <td><span class="badge ${s.adhesion==='fail'?'br':'bg'}" style="font-size:11px">${s.adhesion==='fail'?'불합격':'합격'}</span></td>
+          <td style="font-size:12px">${s.inspector||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${s.note||'-'}</td>
+          <td style="white-space:nowrap">
+            <button onclick="openSelfInspModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
+            <button onclick="delSelfInsp(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+          </td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>
+  </div>`}`;
+}
+function openSelfInspModal(idx){
+  if(!requireEdit())return;
+  const s=idx!==undefined?selfInspections[idx]:null;
+  const today=new Date().toISOString().slice(0,10);
+  const products=[...new Set(controlPlans.map(c=>c.productName).filter(Boolean))];
+  document.getElementById('mo-title').textContent=s?'✅ 검사기록 수정':'✅ 검사기록 등록';
+  document.getElementById('mb').innerHTML=`
+    <div class="grid2">
+      <div class="fg"><label class="fl">검사일자</label><input type="date" class="fi" id="si-date" value="${s?.date||today}"></div>
+      <div class="fg"><label class="fl">Lot No. *</label><input type="text" class="fi" id="si-lotno" placeholder="예: 20260706-1" value="${s?.lotNo||''}"></div>
+    </div>
+    <div class="fg"><label class="fl">품명 *</label>
+      <input type="text" class="fi" id="si-productname" list="si-product-list" placeholder="예: 삼성SR/CLIP" value="${s?.productName||''}">
+      <datalist id="si-product-list">${products.map(p=>`<option value="${p}">`).join('')}</datalist>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">외관검사</label>
+        <select class="fi" id="si-appearance">
+          <option value="pass" ${(!s||s.appearance!=='fail')?'selected':''}>합격</option>
+          <option value="fail" ${s?.appearance==='fail'?'selected':''}>불합격</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">밀착성</label>
+        <select class="fi" id="si-adhesion">
+          <option value="pass" ${(!s||s.adhesion!=='fail')?'selected':''}>합격</option>
+          <option value="fail" ${s?.adhesion==='fail'?'selected':''}>불합격</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">검사자</label><input type="text" class="fi" id="si-inspector" value="${s?.inspector||(curUser?curUser.name:'')}"></div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="si-note" value="${s?.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitSelfInsp(${idx!==undefined?idx:'undefined'})">✓ ${s?'수정 완료':'등록'}</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+function submitSelfInsp(idx){
+  if(!requireEdit())return;
+  const productName=document.getElementById('si-productname')?.value?.trim();
+  const lotNo=document.getElementById('si-lotno')?.value?.trim();
+  if(!productName){tst('품명을 입력해주세요');return;}
+  if(!lotNo){tst('Lot No.를 입력해주세요');return;}
+  const payload={
+    date:document.getElementById('si-date')?.value||'',
+    lotNo, productName,
+    appearance:document.getElementById('si-appearance')?.value||'pass',
+    adhesion:document.getElementById('si-adhesion')?.value||'pass',
+    inspector:document.getElementById('si-inspector')?.value?.trim()||'',
+    note:document.getElementById('si-note')?.value?.trim()||''
+  };
+  if(idx!==undefined&&selfInspections[idx]){
+    Object.assign(selfInspections[idx],payload);
+    addLog('qc','자체검사기록 수정 — '+productName,`Lot: ${lotNo}`, selfInspections[idx].id);
+  }else{
+    const id=gcNewId();
+    selfInspections.unshift(Object.assign({id,ts:Date.now()},payload));
+    addLog('qc','자체검사기록 등록 — '+productName,`Lot: ${lotNo} / 외관:${payload.appearance==='fail'?'불합격':'합격'} / 밀착성:${payload.adhesion==='fail'?'불합격':'합격'}`, id);
+  }
+  saveSelfInsp();cmo();tst('✓ 저장 완료');render();
+}
+function delSelfInsp(idx){
+  if(!requireEdit())return;
+  const s=selfInspections[idx];
+  if(!s)return;
+  if(!confirm('이 검사기록(Lot: '+s.lotNo+')을 삭제하시겠습니까?'))return;
+  selfInspections.splice(idx,1);
+  if(!selfInspectionsDeleted.includes(s.id))selfInspectionsDeleted.push(s.id);
+  addLog('qc','자체검사기록 삭제 — '+s.productName,`Lot: ${s.lotNo}`, s.id);
+  saveSelfInsp(true);tst('✓ 삭제 완료');render();
+}
+function dlSelfInsp(){
+  if(!selfInspections.length){tst('저장할 검사기록이 없습니다');return;}
+  const B='\uFEFF';
+  const rows=selfInspections.slice().sort((a,b)=>b.ts-a.ts).map(s=>`${s.date||''},"${s.productName||''}","${s.lotNo||''}",${s.appearance==='fail'?'불합격':'합격'},${s.adhesion==='fail'?'불합격':'합격'},"${s.inspector||''}","${s.note||''}"`);
+  const csv=B+'검사일자,품명,Lot No,외관,밀착성,검사자,비고\n'+rows.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='자체검사기록_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  tst('📄 CSV 저장 완료');
+}
 
 let noticeFilter='전체';
 let drSelDate = (function(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
