@@ -10203,9 +10203,11 @@ function renderCPRowsEditor(){
 }
 function addCPRow(){ syncCPRowsFromDOM(); cpEditRows.push(cpBlankRow()); renderCPRowsEditor(); }
 function removeCPRow(i){ syncCPRowsFromDOM(); cpEditRows.splice(i,1); renderCPRowsEditor(); }
+let cpModalId=null; // 모달에서 편집/등록 중인 관리계획서의 id (신규 등록 시에도 미리 발급해 첨부파일을 바로 붙일 수 있게 함)
 function openControlPlanModal(idx){
   if(!requireEdit())return;
   const c=idx!==undefined?controlPlans[idx]:null;
+  cpModalId=c?c.id:gcNewId();
   cpEditRows=c&&c.rows&&c.rows.length?JSON.parse(JSON.stringify(c.rows)):[cpBlankRow()];
   const today=new Date().toISOString().slice(0,10);
   document.getElementById('mo-title').textContent=c?'📋 관리계획서 수정':'📋 관리계획서 등록';
@@ -10226,7 +10228,11 @@ function openControlPlanModal(idx){
       <div class="fg"><label class="fl">협력사 주소</label><input type="text" class="fi" id="cp-supplieraddr" value="${c?.supplierAddress||''}"></div>
       <div class="fg"><label class="fl">개정번호</label><input type="text" class="fi" id="cp-revision" placeholder="예: Rev.0" value="${c?.revision||'Rev.0'}"></div>
     </div>
-    <div class="fg" style="margin-top:6px"><label class="fl" style="font-size:14px;font-weight:700">공정별 관리항목</label></div>
+    <div class="fg" style="margin-top:10px;padding:12px;background:var(--bg3);border:1px dashed var(--border2);border-radius:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📎 원본 파일 첨부 (엑셀/PDF/사진 등 — 직접 입력 대신 원본 문서를 첨부해도 됩니다)</div>
+      ${renderAttachSection(cpModalId)}
+    </div>
+    <div class="fg" style="margin-top:14px"><label class="fl" style="font-size:14px;font-weight:700">공정별 관리항목 (선택 — 첨부파일로 대체 가능)</label></div>
     <div id="cp-rows-editor"></div>
     <div class="grid2" style="margin-top:14px">
       <div class="fg"><label class="fl">작성자</label><input type="text" class="fi" id="cp-writer" value="${c?.writer||(curUser?curUser.name:'')}"></div>
@@ -10237,6 +10243,7 @@ function openControlPlanModal(idx){
     <button class="btn bbl btn-full" onclick="submitControlPlan(${idx!==undefined?idx:'undefined'})">✓ ${c?'수정 완료':'등록'}</button>`;
   renderCPRowsEditor();
   document.getElementById('ov').classList.add('on');
+  setupAttachDrop(cpModalId);
 }
 function submitControlPlan(idx){
   if(!requireEdit())return;
@@ -10264,7 +10271,7 @@ function submitControlPlan(idx){
     Object.assign(controlPlans[idx],payload);
     addLog('qc','관리계획서 수정 — '+productName,`고객명: ${customer} / 협력사: ${payload.supplier||'-'}`, controlPlans[idx].id);
   }else{
-    const id=gcNewId();
+    const id=cpModalId||gcNewId();
     controlPlans.unshift(Object.assign({id,ts:Date.now()},payload));
     addLog('qc','관리계획서 등록 — '+productName,`고객명: ${customer} / 협력사: ${payload.supplier||'-'}`, id);
   }
