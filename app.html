@@ -8883,7 +8883,16 @@ function applyItemEdit(id, payload, approvedFrom){
   if(moldLoc!==prevMoldLoc) changes.push(`금형위치: ${prevMoldLoc||'-'} → ${moldLoc||'-'}`);
   if(changes.length>0||approvedFrom){
     const detail=(changes.length>0?changes.join(' / '):'변경 내용 없음')+(approvedFrom?` (요청자: ${approvedFrom})`:'');
-    addLog('stock',(approvedFrom?'품목 수정(승인) — ':'품목 수정 — ')+inv[idx].name, detail, inv[idx].id);
+    const labels=[];
+    if(loc&&loc!==prevLoc) labels.push('위치변경');
+    if(name&&name!==prevName) labels.push('품명변경');
+    if(qty!==prevQty) labels.push('재고변경');
+    if(producer&&producer!==prevProducer) labels.push('생산자변경');
+    if(moldNo&&moldNo!==id) labels.push('금형번호변경');
+    if(partNo&&partNo!==prevClassNo) labels.push('부품번호변경');
+    if(moldLoc!==prevMoldLoc) labels.push('금형위치변경');
+    const title=(approvedFrom?'품목수정(승인)':'품목수정')+' - '+inv[idx].name+(labels.length?' - '+labels.join(', '):'');
+    addLog('stock', title, detail, inv[idx].id);
   }
 }
 function modalAddWorker(itemId){
