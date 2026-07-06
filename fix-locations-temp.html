@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>위치 복구 (1회용)</title>
+<style>
+  body{font-family:-apple-system,sans-serif;max-width:600px;margin:40px auto;padding:0 20px;color:#222}
+  h2{margin-bottom:4px}
+  .sub{color:#666;font-size:14px;margin-bottom:24px}
+  table{width:100%;border-collapse:collapse;margin-bottom:24px}
+  th,td{border:1px solid #ddd;padding:8px 10px;font-size:14px;text-align:left}
+  th{background:#f5f5f5}
+  button{background:#1a73e8;color:#fff;border:none;padding:12px 24px;font-size:16px;border-radius:6px;cursor:pointer}
+  button:disabled{background:#aaa;cursor:default}
+  #log{margin-top:20px;white-space:pre-wrap;font-family:monospace;font-size:13px;background:#f8f8f8;padding:12px;border-radius:6px;min-height:40px}
+  .ok{color:#0d9e72;font-weight:600}
+  .err{color:#d42048;font-weight:600}
+</style>
+</head>
+<body>
+<h2>변경이력 기준 위치 복구</h2>
+<div class="sub">아래 6개 품목의 위치를 변경이력에 남은 최신 값으로 다시 맞춥니다. 버튼 한 번만 누르면 됩니다.</div>
+
+<table>
+  <tr><th>금형번호</th><th>품명</th><th>적용할 위치</th></tr>
+  <tr><td>776</td><td>GROMMET</td><td>A1.2.1</td></tr>
+  <tr><td>645</td><td>GROMMET</td><td>A2.1.2</td></tr>
+  <tr><td>814</td><td>BOOT-BTM</td><td>A1.UP.1</td></tr>
+  <tr><td>145</td><td>GROMMET</td><td>F9.2.1</td></tr>
+  <tr><td>249</td><td>BOOT</td><td>B-8벽 BOX보관</td></tr>
+  <tr><td>13-319</td><td>GROMMET</td><td>F.9.2.2</td></tr>
+</table>
+
+<button id="btn" onclick="run()">위치 적용하기</button>
+<div id="log"></div>
+
+<script>
+const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIXES = [
+  {id:'776', location:'A1.2.1'},
+  {id:'645', location:'A2.1.2'},
+  {id:'814', location:'A1.UP.1'},
+  {id:'145', location:'F9.2.1'},
+  {id:'249', location:'B-8벽 BOX보관'},
+  {id:'13-319', location:'F.9.2.2'}
+];
+
+function log(msg, cls){
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+}
+
+async function run(){
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  document.getElementById('log').innerHTML = '';
+  log('서버에서 최신 재고 데이터 불러오는 중...');
+  try{
+    const r = await fetch(`${FB}/sr/inv.json`);
+    if(!r.ok){ log('❌ 재고 데이터를 불러오지 못했습니다 (네트워크 확인)', 'err'); btn.disabled=false; return; }
+    const inv = await r.json();
+    if(!Array.isArray(inv) || inv.length===0){
+      log('❌ 서버 재고가 비어있거나 이상합니다. 안전을 위해 중단합니다.', 'err');
+      btn.disabled = false; return;
+    }
+    log(`✓ 재고 ${inv.length}건 불러옴`);
+
+    let changedCount = 0;
+    const results = [];
+    FIXES.forEach(fix=>{
+      const idx = inv.findIndex(it=>it && String(it.id)===String(fix.id));
+      if(idx<0){
+        results.push(`⚠️ 금형번호 ${fix.id} 를 재고에서 찾지 못함 (건너뜀)`);
+        return;
+      }
+      const before = inv[idx].location || '(없음)';
+      if(before === fix.location){
+        results.push(`- ${fix.id}: 이미 ${fix.location} 로 되어있음 (변경 없음)`);
+        return;
+      }
+      inv[idx].location = fix.location;
+      changedCount++;
+      results.push(`✓ ${fix.id}: ${before} → ${fix.location}`);
+    });
+
+    results.forEach(l=>log(l));
+
+    if(changedCount===0){
+      log('변경할 항목이 없습니다. (이미 모두 최신 상태)', 'ok');
+      btn.disabled = false;
+      return;
+    }
+
+    log(`서버에 ${changedCount}건 저장 중...`);
+    const putRes = await fetch(`${FB}/sr/inv.json`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(inv)
+    });
+    if(putRes.ok){
+      log(`✅ 완료! ${changedCount}건 위치가 적용되었습니다. 앱을 새로고침해서 확인하세요.`, 'ok');
+    } else {
+      log('❌ 저장 실패. 다시 시도해주세요.', 'err');
+      btn.disabled = false;
+    }
+  }catch(e){
+    log('❌ 오류: ' + (e && e.message || e), 'err');
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
