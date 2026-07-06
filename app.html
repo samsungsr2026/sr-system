@@ -813,6 +813,13 @@ if(localStorage.getItem('sr-data-ver')!==DATA_VER){
   localStorage.setItem('sr-data-ver',DATA_VER);
 }
 let inv=JSON.parse(localStorage.getItem('sr-inv')||JSON.stringify(S));
+// inv를 서버로부터 새로 받아올 때마다(최초 로드 포함) 그 시점의 스냅샷을 저장해 두고,
+// sv() 저장 시 이 스냅샷과 비교해 "이 세션에서 실제로 바뀐 항목"만 가려낸다.
+// (PDA 등 다른 기기가 그 사이에 바꾼 항목을 이 세션의 오래된 inv로 덮어써 위치 등이
+//  이전 값으로 되돌아가 버리는 사고를 방지하기 위함 - 2026-07 실제 발생)
+let _invBaseline=null;
+function snapshotInvBaseline(){ try{_invBaseline=JSON.parse(JSON.stringify(inv));}catch(e){_invBaseline=null;} }
+snapshotInvBaseline();
 let txs=JSON.parse(localStorage.getItem('sr-tx')||'[]');
 let orders=JSON.parse(localStorage.getItem('sr-orders')||'[]');
 // 금일 생산 현황: 작업자별로 여러 건 등록 가능 (이력 배열). PDA 단말기에서 작업자가 직접 수기로 입력/수정/삭제.
@@ -1920,10 +1927,38 @@ async function cfSetFileDeletedList(repoKey, deletedArr){
   return await cfPutPath(`srFiles/${repoKey}/_deleted`, deletedArr);
 }
 
+// 저장 직전, 서버의 최신 inv를 다시 받아온 뒤 "이 세션에서 실제로 바뀐 항목"만
+// 그 위에 반영한다 (건드리지 않은 항목은 서버 최신값을 그대로 유지).
+// PDA 등 다른 기기가 그 사이에 바꾼 항목을, PC의 오래된 로컬 inv 전체 재전송으로
+// 덮어써 위치 등이 이전 값으로 되돌아가 버리는 사고를 막기 위함 (2026-07 실제 발생).
+async function buildInvToSend(){
+  try{
+    const serverInv = await cfGet('inv');
+    if(!Array.isArray(serverInv)||serverInv.length===0) return inv; // 서버 조회 실패/비정상 시 안전하게 로컬 그대로 전송
+    const baseMap={}; (_invBaseline||[]).forEach(it=>{ if(it&&it.id!==undefined) baseMap[it.id]=it; });
+    const localMap={}; inv.forEach(it=>{ if(it&&it.id!==undefined) localMap[it.id]=it; });
+    const merged=[]; const seen=new Set();
+    serverInv.forEach(sIt=>{
+      if(!sIt||sIt.id===undefined) return;
+      seen.add(sIt.id);
+      const lIt=localMap[sIt.id];
+      if(lIt===undefined){ merged.push(sIt); return; } // 이 세션에는 없는(다른 곳에서 새로 추가된) 항목 -> 서버 값 유지
+      const bIt=baseMap[sIt.id];
+      const locallyChanged = JSON.stringify(lIt)!==JSON.stringify(bIt);
+      merged.push(locallyChanged?lIt:sIt);
+    });
+    inv.forEach(lIt=>{ if(lIt&&lIt.id!==undefined&&!seen.has(lIt.id)) merged.push(lIt); }); // 이 세션에서 새로 추가한 항목
+    inv=merged; // 병합 결과를 화면에도 반영 (다른 기기 변경사항이 사라져 보이지 않도록)
+    snapshotInvBaseline();
+    return merged;
+  }catch(e){ return inv; }
+}
+
 async function sv(retryCount) {
   retryCount = retryCount || 0;
   _lastSave = Date.now(); // 저장 시작 시점에도 기록 - 저장 중에는 불러오기가 재고를 덮어쓰지 않도록 함
   _invSaving = true;
+  const invToSend = await buildInvToSend();
   localStorage.setItem('sr-inv', JSON.stringify(inv));
   localStorage.setItem('sr-tx', JSON.stringify(txs));
   localStorage.setItem('sr-orders', JSON.stringify(orders));
@@ -1932,7 +1967,7 @@ async function sv(retryCount) {
     // cfSet은 실패 시 예외를 던지지 않고 false를 반환하므로, 반드시 반환값을 확인해야
     // 실패한 저장을 "저장됨"으로 오인해 잠시 후 자동 동기화가 예전 서버 데이터로
     // 덮어써버리는(위치/품명 등이 예전 값으로 되돌아가는) 문제를 막을 수 있음
-    const results = await Promise.all([cfSet('inv',inv), cfSet('tx',txs), cfSet('orders',orders)]);
+    const results = await Promise.all([cfSet('inv',invToSend), cfSet('tx',txs), cfSet('orders',orders)]);
     const allOk = results.every(r=>r===true);
     _lastSave = Date.now();
     if(allOk){
@@ -2086,6 +2121,7 @@ async function jbPullInv(){
     const ri=await fetchTimeout(`${FB}/sr/inv.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){
       inv=ri;
+      snapshotInvBaseline();
       try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}
       if(tab==='dash'||tab==='inv')render();
     }
@@ -2223,7 +2259,7 @@ async function jbPull() {
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
           rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'];
 
-    if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
+    if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;snapshotInvBaseline();try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
     if(Array.isArray(ro)){orders=ro;try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
