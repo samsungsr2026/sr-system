@@ -1355,21 +1355,41 @@ async function saveControlPlans(force){
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
-let selfInspections=JSON.parse(localStorage.getItem('sr-self-insp')||'[]');
-let selfInspectionsDeleted=JSON.parse(localStorage.getItem('sr-self-insp-deleted')||'[]');
-async function saveSelfInsp(force){
+let inspSheets=JSON.parse(localStorage.getItem('sr-insp-sheets')||'[]');
+let inspSheetsDeleted=JSON.parse(localStorage.getItem('sr-insp-sheets-deleted')||'[]');
+// 예전 버전(자체검사기록 항목을 낱개로 저장하던 방식)에서 남은 데이터가 있으면
+// 품명 기준으로 묶어서 새 구조(종류별 시트 + 행)로 1회 이전한다 (데이터 유실 방지)
+function migrateLegacySelfInsp(legacyArr){
+  if(!Array.isArray(legacyArr)||!legacyArr.length)return;
+  const byProduct={};
+  legacyArr.forEach(s=>{
+    const key=s.productName||'미분류';
+    if(!byProduct[key])byProduct[key]=[];
+    byProduct[key].push({id:s.id||gcNewId(),date:s.date||'',lotNo:s.lotNo||'',appearance:s.appearance||'pass',adhesion:s.adhesion||'pass',inspector:s.inspector||'',note:s.note||''});
+  });
+  Object.keys(byProduct).forEach(productName=>{
+    let sheet=inspSheets.find(x=>x.productName===productName);
+    if(!sheet){
+      sheet={id:gcNewId(),productName,supplier:'',spec:'',dept:'',note:'',ts:Date.now(),rows:[]};
+      inspSheets.push(sheet);
+    }
+    const existIds=new Set((sheet.rows||[]).map(r=>r.id));
+    byProduct[productName].forEach(r=>{ if(!existIds.has(r.id)){ sheet.rows.push(r); existIds.add(r.id); } });
+  });
+}
+async function saveInspSheets(force){
   if(!force){
     try{
-      const [remoteSI, remoteSID]=await Promise.all([cfGet('selfInspections'), cfGet('selfInspectionsDeleted')]);
-      selfInspectionsDeleted=gcMergeDeleted(selfInspectionsDeleted, remoteSID);
-      selfInspections=gcApplyTombstones(mergeByKey(selfInspections, remoteSI, x=>x.id), selfInspectionsDeleted);
+      const [remoteIS, remoteISD]=await Promise.all([cfGet('inspSheets'), cfGet('inspSheetsDeleted')]);
+      inspSheetsDeleted=gcMergeDeleted(inspSheetsDeleted, remoteISD);
+      inspSheets=gcApplyTombstones(mergeByKey(inspSheets, remoteIS, x=>x.id), inspSheetsDeleted);
     }catch(e){}
   }
-  localStorage.setItem('sr-self-insp',JSON.stringify(selfInspections));
-  localStorage.setItem('sr-self-insp-deleted',JSON.stringify(selfInspectionsDeleted));
+  localStorage.setItem('sr-insp-sheets',JSON.stringify(inspSheets));
+  localStorage.setItem('sr-insp-sheets-deleted',JSON.stringify(inspSheetsDeleted));
   jbStat('💾 저장 중...');
   try{
-    await Promise.all([cfSet('selfInspections',selfInspections), cfSet('selfInspectionsDeleted',selfInspectionsDeleted)]);
+    await Promise.all([cfSet('inspSheets',inspSheets), cfSet('inspSheetsDeleted',inspSheetsDeleted)]);
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
@@ -2299,7 +2319,7 @@ async function jbPull() {
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
           production, moldreport: moldReports, attendance: attendanceReqs, fieldWorkers,
-          controlPlans, controlPlansDeleted, selfInspections, selfInspectionsDeleted
+          controlPlans, controlPlansDeleted, inspSheets, inspSheetsDeleted
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -2323,7 +2343,8 @@ async function jbPull() {
           rrep=fbAll['repairs'], rgau=fbAll['gauges'], rpend=fbAll['pending'],
           rpr=fbAll['production'], rmr=fbAll['moldreport'], rat=fbAll['attendance'], rfw=fbAll['fieldWorkers'],
           rcp=fbAll['controlPlans'], rcpd=fbAll['controlPlansDeleted'],
-          rsins=fbAll['selfInspections'], rsinsd=fbAll['selfInspectionsDeleted'];
+          risns=fbAll['inspSheets'], risnsd=fbAll['inspSheetsDeleted'],
+          rLegacySI=fbAll['selfInspections']; // 예전 버전 데이터 (있으면 1회 이전용)
 
     if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;snapshotInvBaseline();try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
     if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
@@ -2393,18 +2414,22 @@ async function jbPull() {
       if(cpChanged)cfSet('controlPlans',controlPlans).catch(()=>{});
       if(cpdChanged)cfSet('controlPlansDeleted',controlPlansDeleted).catch(()=>{});
     }
-    // 자체검사기록: 병합 (PDA에서 입력한 내역 포함, 다른 기기의 최신 수정을 반영) + tombstone으로 삭제 항목 부활 방지
+    // 자체검사기록(종류별 시트): 병합 (다른 기기의 최신 수정을 반영) + tombstone으로 삭제 항목 부활 방지
     {
-      const mergedSID=gcMergeDeleted(selfInspectionsDeleted, rsinsd);
-      const mergedSI=gcApplyTombstones(mergeByKeyRemoteWins(selfInspections, rsins, x=>x.id), mergedSID);
-      const siChanged=JSON.stringify(mergedSI)!==JSON.stringify(selfInspections)||JSON.stringify(mergedSI)!==JSON.stringify(rsins||[]);
-      const sidChanged=JSON.stringify(mergedSID.slice().sort())!==JSON.stringify((rsinsd||[]).slice().sort());
-      selfInspections=mergedSI;
-      selfInspectionsDeleted=mergedSID;
-      localStorage.setItem('sr-self-insp',JSON.stringify(selfInspections));
-      localStorage.setItem('sr-self-insp-deleted',JSON.stringify(selfInspectionsDeleted));
-      if(siChanged)cfSet('selfInspections',selfInspections).catch(()=>{});
-      if(sidChanged)cfSet('selfInspectionsDeleted',selfInspectionsDeleted).catch(()=>{});
+      const mergedISD=gcMergeDeleted(inspSheetsDeleted, risnsd);
+      let mergedIS=gcApplyTombstones(mergeByKeyRemoteWins(inspSheets, risns, x=>x.id), mergedISD);
+      inspSheets=mergedIS;
+      inspSheetsDeleted=mergedISD;
+      // 예전 버전(낱개 저장 방식) 데이터가 남아있으면 품명 기준으로 묶어 1회 이전
+      if(Array.isArray(rLegacySI)&&rLegacySI.length){
+        migrateLegacySelfInsp(rLegacySI);
+      }
+      const isChanged=JSON.stringify(inspSheets)!==JSON.stringify(mergedIS)||JSON.stringify(inspSheets)!==JSON.stringify(risns||[]);
+      const isdChanged=JSON.stringify(inspSheetsDeleted.slice().sort())!==JSON.stringify((risnsd||[]).slice().sort());
+      localStorage.setItem('sr-insp-sheets',JSON.stringify(inspSheets));
+      localStorage.setItem('sr-insp-sheets-deleted',JSON.stringify(inspSheetsDeleted));
+      if(isChanged)cfSet('inspSheets',inspSheets).catch(()=>{});
+      if(isdChanged)cfSet('inspSheetsDeleted',inspSheetsDeleted).catch(()=>{});
     }
     // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록) + tombstone으로 거부/승인/취소된 항목 부활 방지
     {
@@ -10296,139 +10321,256 @@ ${c.note?`<div style="font-size:11px;color:#555;margin-bottom:10px">※ ${c.note
   else tst('팝업 허용 후 다시 시도해주세요');
 }
 
-// ── 품질관리: 자체검사기록 ────────────────────────────────────────
-let siFilterProduct='전체';
+// ── 품질관리: 자체검사기록 (종류별 등록 → 엑셀처럼 직접 입력) ─────────────
 let siSq='';
+let siOpenId=null; // 현재 열려있는 종류(시트)의 id (null이면 목록 화면)
+let siEditRows=[]; // 시트 상세화면에서 편집 중인 행들 (임시 상태, DOM에서 읽어와 동기화)
+function siBlankRow(){ return {id:gcNewId(),date:new Date().toISOString().slice(0,10),lotNo:'',appearance:'pass',adhesion:'pass',inspector:(curUser?curUser.name:''),note:''}; }
 function rSelfInsp(){
-  const products=['전체',...new Set(controlPlans.map(c=>c.productName).filter(Boolean))];
-  let list=selfInspections.filter(s=>{
-    const pOk=siFilterProduct==='전체'||s.productName===siFilterProduct;
-    const sqOk=!siSq||ciInc(s.lotNo,siSq)||ciInc(s.productName,siSq)||ciInc(s.inspector,siSq);
-    return pOk&&sqOk;
-  }).sort((a,b)=>b.ts-a.ts);
+  const sheet=siOpenId?inspSheets.find(s=>s.id===siOpenId):null;
+  if(sheet) return rInspSheetDetail(sheet);
+  return rInspSheetList();
+}
+function rInspSheetList(){
+  let list=inspSheets.filter(s=>!siSq||ciInc(s.productName,siSq)||ciInc(s.supplier,siSq)).sort((a,b)=>b.ts-a.ts);
   return `
   <div class="page-title">✅ 자체검사기록</div>
-  <div class="page-sub">Lot별 외관/밀착성 자체검사 결과를 기록합니다 · 총 ${selfInspections.length}건 · 조회 ${list.length}건</div>
+  <div class="page-sub">품목/종류별로 등록 후, 각 종류 안에서 엑셀처럼 직접 입력합니다 · 총 ${inspSheets.length}종류</div>
 
-  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" placeholder="Lot No, 품명, 검사자 검색..." value="${siSq}"
+      <input type="text" placeholder="품명, 협력사 검색..." value="${siSq}"
         oninput="siSq=this.value;render()"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px 10px 37px;color:var(--text);font-size:14px;outline:none">
     </div>
-    <button class="btn bbg" style="padding:10px 16px;font-size:13px" onclick="dlSelfInsp()">📄 CSV 저장</button>
-    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openSelfInspModal()">+ 검사 기록 등록</button>
+    <button class="btn bbl" style="padding:10px 16px;font-size:13px" onclick="openInspSheetModal()">+ 종류 등록</button>
   </div>
 
-  <div class="ftabs" style="margin-bottom:14px">
-    ${products.map(p=>`<div class="ftab${siFilterProduct===p?' on':''}" onclick="siFilterProduct='${p.replace(/'/g,"\\'")}';render()">${p}</div>`).join('')}
-  </div>
-
-  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>검사 기록이 없습니다</div></div>`:`
+  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">✅</div><div>등록된 검사기록 종류가 없습니다. "+ 종류 등록"으로 먼저 만들어주세요</div></div>`:`
   <div class="card" style="padding:0;overflow:hidden">
-    <table class="tbl" style="min-width:760px">
+    <table class="tbl" style="min-width:640px">
       <thead><tr>
-        <th style="width:100px">검사일자</th><th>품명</th><th>Lot No.</th>
-        <th style="width:90px">외관</th><th style="width:90px">밀착성</th>
-        <th style="width:80px">검사자</th><th>비고</th><th style="width:80px">관리</th>
+        <th>품명</th><th>협력사</th><th>SPEC</th>
+        <th style="width:70px">기록건수</th><th style="width:170px">관리</th>
       </tr></thead>
       <tbody>
-        ${list.map(s=>{const idx=selfInspections.indexOf(s);return `<tr>
-          <td style="font-size:12px;color:var(--text3);white-space:nowrap">${s.date||'-'}</td>
-          <td style="font-weight:600">${s.productName||'-'}</td>
-          <td style="font-family:monospace">${s.lotNo||'-'}</td>
-          <td><span class="badge ${s.appearance==='fail'?'br':'bg'}" style="font-size:11px">${s.appearance==='fail'?'불합격':'합격'}</span></td>
-          <td><span class="badge ${s.adhesion==='fail'?'br':'bg'}" style="font-size:11px">${s.adhesion==='fail'?'불합격':'합격'}</span></td>
-          <td style="font-size:12px">${s.inspector||'-'}</td>
-          <td style="font-size:12px;color:var(--text3)">${s.note||'-'}</td>
+        ${list.map(s=>{const idx=inspSheets.indexOf(s);const cnt=(s.rows||[]).length;return `<tr>
+          <td style="font-weight:700;color:var(--blue);cursor:pointer" onclick="openInspSheet('${s.id}')">${s.productName||'-'}</td>
+          <td style="font-size:12px;color:var(--text2)">${s.supplier||'-'}</td>
+          <td style="font-size:12px;color:var(--text3)">${s.spec||'-'}</td>
+          <td style="text-align:center;font-family:monospace">${cnt}</td>
           <td style="white-space:nowrap">
-            <button onclick="openSelfInspModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">수정</button>
-            <button onclick="delSelfInsp(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
+            <button onclick="openInspSheet('${s.id}')" style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);color:var(--blue);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:700">입력하기 →</button>
+            <button onclick="openInspSheetModal(${idx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">수정</button>
+            <button onclick="delInspSheet(${idx})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:4px">삭제</button>
           </td>
         </tr>`;}).join('')}
       </tbody>
     </table>
   </div>`}`;
 }
-function openSelfInspModal(idx){
+function openInspSheetModal(idx){
   if(!requireEdit())return;
-  const s=idx!==undefined?selfInspections[idx]:null;
-  const today=new Date().toISOString().slice(0,10);
+  const s=idx!==undefined?inspSheets[idx]:null;
   const products=[...new Set(controlPlans.map(c=>c.productName).filter(Boolean))];
-  document.getElementById('mo-title').textContent=s?'✅ 검사기록 수정':'✅ 검사기록 등록';
+  document.getElementById('mo-title').textContent=s?'✅ 종류 정보 수정':'✅ 자체검사기록 종류 등록';
   document.getElementById('mb').innerHTML=`
-    <div class="grid2">
-      <div class="fg"><label class="fl">검사일자</label><input type="date" class="fi" id="si-date" value="${s?.date||today}"></div>
-      <div class="fg"><label class="fl">Lot No. *</label><input type="text" class="fi" id="si-lotno" placeholder="예: 20260706-1" value="${s?.lotNo||''}"></div>
-    </div>
     <div class="fg"><label class="fl">품명 *</label>
-      <input type="text" class="fi" id="si-productname" list="si-product-list" placeholder="예: 삼성SR/CLIP" value="${s?.productName||''}">
-      <datalist id="si-product-list">${products.map(p=>`<option value="${p}">`).join('')}</datalist>
+      <input type="text" class="fi" id="is-productname" list="is-product-list" placeholder="예: 삼성SR/CLIP" value="${s?.productName||''}">
+      <datalist id="is-product-list">${products.map(p=>`<option value="${p}">`).join('')}</datalist>
     </div>
     <div class="grid2">
-      <div class="fg"><label class="fl">외관검사</label>
-        <select class="fi" id="si-appearance">
-          <option value="pass" ${(!s||s.appearance!=='fail')?'selected':''}>합격</option>
-          <option value="fail" ${s?.appearance==='fail'?'selected':''}>불합격</option>
-        </select>
-      </div>
-      <div class="fg"><label class="fl">밀착성</label>
-        <select class="fi" id="si-adhesion">
-          <option value="pass" ${(!s||s.adhesion!=='fail')?'selected':''}>합격</option>
-          <option value="fail" ${s?.adhesion==='fail'?'selected':''}>불합격</option>
-        </select>
-      </div>
+      <div class="fg"><label class="fl">협력사</label><input type="text" class="fi" id="is-supplier" placeholder="예: SamSung PT" value="${s?.supplier||''}"></div>
+      <div class="fg"><label class="fl">SPEC</label><input type="text" class="fi" id="is-spec" placeholder="예: PFZn13㎛B" value="${s?.spec||''}"></div>
     </div>
-    <div class="fg"><label class="fl">검사자</label><input type="text" class="fi" id="si-inspector" value="${s?.inspector||(curUser?curUser.name:'')}"></div>
-    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="si-note" value="${s?.note||''}"></div>
-    <button class="btn bbl btn-full" onclick="submitSelfInsp(${idx!==undefined?idx:'undefined'})">✓ ${s?'수정 완료':'등록'}</button>`;
+    <div class="fg"><label class="fl">작성 부서</label><input type="text" class="fi" id="is-dept" placeholder="예: 품질관리부" value="${s?.dept||''}"></div>
+    <div class="fg"><label class="fl">비고</label><input type="text" class="fi" id="is-note" value="${s?.note||''}"></div>
+    <button class="btn bbl btn-full" onclick="submitInspSheet(${idx!==undefined?idx:'undefined'})">✓ ${s?'수정 완료':'등록'}</button>`;
   document.getElementById('ov').classList.add('on');
 }
-function submitSelfInsp(idx){
+function submitInspSheet(idx){
   if(!requireEdit())return;
-  const productName=document.getElementById('si-productname')?.value?.trim();
-  const lotNo=document.getElementById('si-lotno')?.value?.trim();
+  const productName=document.getElementById('is-productname')?.value?.trim();
   if(!productName){tst('품명을 입력해주세요');return;}
-  if(!lotNo){tst('Lot No.를 입력해주세요');return;}
   const payload={
-    date:document.getElementById('si-date')?.value||'',
-    lotNo, productName,
-    appearance:document.getElementById('si-appearance')?.value||'pass',
-    adhesion:document.getElementById('si-adhesion')?.value||'pass',
-    inspector:document.getElementById('si-inspector')?.value?.trim()||'',
-    note:document.getElementById('si-note')?.value?.trim()||''
+    productName,
+    supplier:document.getElementById('is-supplier')?.value?.trim()||'',
+    spec:document.getElementById('is-spec')?.value?.trim()||'',
+    dept:document.getElementById('is-dept')?.value?.trim()||'',
+    note:document.getElementById('is-note')?.value?.trim()||''
   };
-  if(idx!==undefined&&selfInspections[idx]){
-    Object.assign(selfInspections[idx],payload);
-    addLog('qc','자체검사기록 수정 — '+productName,`Lot: ${lotNo}`, selfInspections[idx].id);
+  if(idx!==undefined&&inspSheets[idx]){
+    Object.assign(inspSheets[idx],payload);
+    addLog('qc','자체검사기록 종류 수정 — '+productName,`협력사: ${payload.supplier||'-'}`, inspSheets[idx].id);
   }else{
     const id=gcNewId();
-    selfInspections.unshift(Object.assign({id,ts:Date.now()},payload));
-    addLog('qc','자체검사기록 등록 — '+productName,`Lot: ${lotNo} / 외관:${payload.appearance==='fail'?'불합격':'합격'} / 밀착성:${payload.adhesion==='fail'?'불합격':'합격'}`, id);
+    inspSheets.unshift(Object.assign({id,ts:Date.now(),rows:[]},payload));
+    addLog('qc','자체검사기록 종류 등록 — '+productName,`협력사: ${payload.supplier||'-'}`, id);
   }
-  saveSelfInsp();cmo();tst('✓ 저장 완료');render();
+  saveInspSheets();cmo();tst('✓ 저장 완료');render();
 }
-function delSelfInsp(idx){
+function delInspSheet(idx){
   if(!requireEdit())return;
-  const s=selfInspections[idx];
+  const s=inspSheets[idx];
   if(!s)return;
-  if(!confirm('이 검사기록(Lot: '+s.lotNo+')을 삭제하시겠습니까?'))return;
-  selfInspections.splice(idx,1);
-  if(!selfInspectionsDeleted.includes(s.id))selfInspectionsDeleted.push(s.id);
-  addLog('qc','자체검사기록 삭제 — '+s.productName,`Lot: ${s.lotNo}`, s.id);
-  saveSelfInsp(true);tst('✓ 삭제 완료');render();
+  if(!confirm('"'+s.productName+'" 검사기록(등록된 '+(s.rows||[]).length+'건 포함)을 삭제하시겠습니까?'))return;
+  inspSheets.splice(idx,1);
+  if(!inspSheetsDeleted.includes(s.id))inspSheetsDeleted.push(s.id);
+  addLog('qc','자체검사기록 종류 삭제 — '+s.productName,'', s.id);
+  if(siOpenId===s.id)siOpenId=null;
+  saveInspSheets(true);tst('✓ 삭제 완료');render();
 }
-function dlSelfInsp(){
-  if(!selfInspections.length){tst('저장할 검사기록이 없습니다');return;}
+function openInspSheet(id){
+  const s=inspSheets.find(x=>x.id===id);
+  if(!s)return;
+  siOpenId=id;
+  siEditRows=(s.rows&&s.rows.length)?JSON.parse(JSON.stringify(s.rows)):[];
+  render();
+}
+function closeInspSheet(){ siOpenId=null; render(); }
+// 상세화면(엑셀처럼 직접 입력) - input 값은 DOM에서 직접 읽고, 행 추가/삭제/저장 시점에만 siEditRows에 반영
+function syncSIRowsFromDOM(){
+  siEditRows=siEditRows.map((r,i)=>({
+    id:r.id,
+    date:document.getElementById(`sir-${i}-date`)?.value||'',
+    lotNo:document.getElementById(`sir-${i}-lotno`)?.value?.trim()||'',
+    appearance:document.getElementById(`sir-${i}-appearance`)?.value||'pass',
+    adhesion:document.getElementById(`sir-${i}-adhesion`)?.value||'pass',
+    inspector:document.getElementById(`sir-${i}-inspector`)?.value?.trim()||'',
+    note:document.getElementById(`sir-${i}-note`)?.value?.trim()||''
+  }));
+}
+function renderSIRowsEditor(){
+  const el=document.getElementById('si-rows-editor');
+  if(!el)return;
+  el.innerHTML=siRowsTableHtml();
+}
+function siRowsTableHtml(){
+  return `
+  <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px">
+  <table class="tbl" style="min-width:820px">
+    <thead><tr>
+      <th style="width:36px">NO</th><th style="width:130px">검사일자</th><th style="width:140px">Lot No.</th>
+      <th style="width:100px">외관</th><th style="width:100px">밀착성</th>
+      <th style="width:100px">검사자</th><th>비고</th><th style="width:40px"></th>
+    </tr></thead>
+    <tbody>
+      ${siEditRows.map((r,i)=>`<tr>
+        <td style="text-align:center;font-weight:700">${i+1}</td>
+        <td><input type="date" class="fi" style="margin-bottom:0" id="sir-${i}-date" value="${r.date||''}"></td>
+        <td><input class="fi" style="margin-bottom:0" id="sir-${i}-lotno" placeholder="Lot No." value="${r.lotNo||''}"></td>
+        <td><select class="fi" style="margin-bottom:0" id="sir-${i}-appearance">
+          <option value="pass" ${r.appearance!=='fail'?'selected':''}>합격</option>
+          <option value="fail" ${r.appearance==='fail'?'selected':''}>불합격</option>
+        </select></td>
+        <td><select class="fi" style="margin-bottom:0" id="sir-${i}-adhesion">
+          <option value="pass" ${r.adhesion!=='fail'?'selected':''}>합격</option>
+          <option value="fail" ${r.adhesion==='fail'?'selected':''}>불합격</option>
+        </select></td>
+        <td><input class="fi" style="margin-bottom:0" id="sir-${i}-inspector" value="${r.inspector||''}"></td>
+        <td><input class="fi" style="margin-bottom:0" id="sir-${i}-note" value="${r.note||''}"></td>
+        <td style="text-align:center"><button onclick="removeSIRow(${i})" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:4px 6px;font-size:11px;cursor:pointer">✕</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <button class="btn bbl" style="width:auto;padding:8px 14px;font-size:12px" onclick="addSIRow()">+ 행 추가</button>
+    <button class="btn bbg" style="width:auto;padding:8px 14px;font-size:12px" onclick="saveInspSheetRows()">💾 저장</button>
+  </div>`;
+}
+function addSIRow(){ syncSIRowsFromDOM(); siEditRows.push(siBlankRow()); renderSIRowsEditor(); }
+function removeSIRow(i){
+  syncSIRowsFromDOM();
+  siEditRows.splice(i,1);
+  renderSIRowsEditor();
+  saveInspSheetRows(true); // 행 삭제는 즉시 저장 (다른 기기에서도 바로 반영)
+}
+function saveInspSheetRows(silent){
+  if(!requireEdit())return;
+  syncSIRowsFromDOM();
+  const sheet=inspSheets.find(s=>s.id===siOpenId);
+  if(!sheet)return;
+  const filled=siEditRows.filter(r=>r.lotNo);
+  sheet.rows=siEditRows;
+  saveInspSheets();
+  const subEl=document.getElementById('si-detail-sub');
+  if(subEl){
+    const failCnt=siEditRows.filter(r=>r.appearance==='fail'||r.adhesion==='fail').length;
+    subEl.innerHTML=`협력사: ${sheet.supplier||'-'} · SPEC: ${sheet.spec||'-'} · 총 ${siEditRows.length}건${failCnt?` · <span style="color:var(--red);font-weight:700">불합격 ${failCnt}건</span>`:''}`;
+  }
+  if(!silent){
+    addLog('qc','자체검사기록 입력 — '+sheet.productName,`총 ${filled.length}건 (불합격 ${filled.filter(r=>r.appearance==='fail'||r.adhesion==='fail').length}건)`, sheet.id);
+    tst('✓ 저장 완료');
+  }
+  // 목록에 건수 반영을 위해 상세화면은 다시 그리지 않고 그대로 유지 (입력 중 포커스 유지)
+}
+function rInspSheetDetail(sheet){
+  const rowsForStats=sheet.rows||[];
+  const failCnt=rowsForStats.filter(r=>r.appearance==='fail'||r.adhesion==='fail').length;
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    <button onclick="closeInspSheet()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">← 목록으로</button>
+  </div>
+  <div class="page-title">✅ ${sheet.productName||''} 자체검사기록</div>
+  <div class="page-sub" id="si-detail-sub">협력사: ${sheet.supplier||'-'} · SPEC: ${sheet.spec||'-'} · 총 ${rowsForStats.length}건${failCnt?` · <span style="color:var(--red);font-weight:700">불합격 ${failCnt}건</span>`:''}</div>
+
+  <div style="display:flex;gap:10px;margin:12px 0;flex-wrap:wrap">
+    <button class="btn bbg" style="width:auto;padding:8px 14px;font-size:12px" onclick="dlInspSheet('${sheet.id}')">📄 CSV 저장</button>
+    <button class="btn bbl" style="width:auto;padding:8px 14px;font-size:12px" onclick="printInspSheet('${sheet.id}')">🖨️ 출력</button>
+  </div>
+
+  <div class="card" style="padding:16px">
+    <div id="si-rows-editor">${siRowsTableHtml()}</div>
+  </div>`;
+}
+function dlInspSheet(id){
+  const s=inspSheets.find(x=>x.id===id);
+  if(!s||!(s.rows||[]).length){tst('저장할 검사기록이 없습니다');return;}
   const B='\uFEFF';
-  const rows=selfInspections.slice().sort((a,b)=>b.ts-a.ts).map(s=>`${s.date||''},"${s.productName||''}","${s.lotNo||''}",${s.appearance==='fail'?'불합격':'합격'},${s.adhesion==='fail'?'불합격':'합격'},"${s.inspector||''}","${s.note||''}"`);
-  const csv=B+'검사일자,품명,Lot No,외관,밀착성,검사자,비고\n'+rows.join('\n');
+  const rows=s.rows.map(r=>`${r.date||''},"${r.lotNo||''}",${r.appearance==='fail'?'불합격':'합격'},${r.adhesion==='fail'?'불합격':'합격'},"${r.inspector||''}","${r.note||''}"`);
+  const csv=B+'검사일자,Lot No,외관,밀착성,검사자,비고\n'+rows.join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download='자체검사기록_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='자체검사기록_'+(s.productName||'')+'_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
   tst('📄 CSV 저장 완료');
+}
+function printInspSheet(id){
+  const s=inspSheets.find(x=>x.id===id);
+  if(!s)return;
+  const rows=(s.rows||[]).map((r,i)=>`<tr>
+    <td style="text-align:center">${i+1}</td><td>${r.date||''}</td><td>${r.lotNo||''}</td>
+    <td style="text-align:center">${r.appearance==='fail'?'불합격':'합격'}</td>
+    <td style="text-align:center">${r.adhesion==='fail'?'불합격':'합격'}</td>
+    <td>${r.inspector||''}</td><td>${r.note||''}</td>
+  </tr>`).join('');
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>자체검사기록부</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;color:#111;padding:16px;font-size:12px}
+h1{font-size:18px;font-weight:700;text-align:center;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#f0f0f0;color:#111;padding:7px 6px;font-size:11px;font-weight:600;text-align:center;border:1px solid #bbb}
+td{padding:6px;border:1px solid #ccc;font-size:11px;vertical-align:middle}
+.info td{font-weight:600;background:#fafafa;width:14%}
+@media print{@page{size:A4;margin:10mm}}
+</style></head><body>
+<h1>자체 검사기록부 (외관 / 밀착성) - ${s.productName||''}</h1>
+<table class="info">
+<tr><td>품명</td><td>${s.productName||''}</td><td>SPEC</td><td>${s.spec||''}</td></tr>
+<tr><td>협력사</td><td>${s.supplier||''}</td><td>작성 부서</td><td>${s.dept||''}</td></tr>
+</table>
+<table>
+<thead><tr><th>NO</th><th>검사일자</th><th>Lot No.</th><th>외관</th><th>밀착성</th><th>검사자</th><th>비고</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const pw=window.open('','_blank','width=1000,height=750');
+  if(pw){pw.document.write(html);pw.document.close();}
+  else tst('팝업 허용 후 다시 시도해주세요');
 }
 
 let noticeFilter='전체';
