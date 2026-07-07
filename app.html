@@ -9155,6 +9155,14 @@ function opD(id){
       </div>
     </div>
 
+    <div style="margin-bottom:14px">
+      <div style="background:var(--bg3);border-radius:8px;padding:12px 14px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">비고</div>
+        <textarea id="edit-note" placeholder="기타 참고사항을 입력하세요"
+          style="width:100%;min-height:60px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-weight:500;outline:none;resize:vertical;font-family:inherit">${it.note||''}</textarea>
+      </div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div style="background:var(--green-bg);border:1px solid rgba(45,212,160,.25);border-radius:8px;padding:12px 14px">
         <div style="font-size:11px;color:var(--green);margin-bottom:4px">최근 입고일</div>
@@ -9491,12 +9499,13 @@ function saveItemEdit(id){
   const cavity=parseInt(document.getElementById('edit-cavity')?.value)||0;
   const prodStatus=document.getElementById('edit-prodstatus')?.value||'';
   const prodStop=document.getElementById('edit-prodstop')?.value||'';
+  const note=document.getElementById('edit-note')?.value?.trim()||'';
   if(isNaN(qty)){tst('재고 수량을 확인해주세요');return;}
   if(isNaN(min)||min<0){tst('최소기준을 확인해주세요');return;}
-  const payload={qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop};
+  const payload={qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop,note};
   if(isAdminPendingRequired()){
     const cur=inv[idx];
-    const before={qty:cur.qty,min:cur.min,avg:cur.avgOut,producer:cur.producer,loc:cur.location,name:cur.name,moldNo:cur.id,moldLoc:cur.moldLoc,partNo:cur.classNo,mat:cur.material,packUnit:cur.packUnit,rubberWeight:cur.rubberWeight,steelWeight:cur.steelWeight,cavity:cur.cavity,prodStatus:cur.prodStatus,prodStop:cur.prodStop};
+    const before={qty:cur.qty,min:cur.min,avg:cur.avgOut,producer:cur.producer,loc:cur.location,name:cur.name,moldNo:cur.id,moldLoc:cur.moldLoc,partNo:cur.classNo,mat:cur.material,packUnit:cur.packUnit,rubberWeight:cur.rubberWeight,steelWeight:cur.steelWeight,cavity:cur.cavity,prodStatus:cur.prodStatus,prodStop:cur.prodStop,note:cur.note};
     queuePendingChange('edit', id, payload, '품목 수정 — '+inv[idx].name, before);
     cmo();tst('📨 마스터 승인 대기 중으로 등록되었습니다');render();
     return;
@@ -9508,13 +9517,14 @@ function saveItemEdit(id){
 // approvedFrom: 관리자 요청을 마스터가 승인하여 반영하는 경우 요청자 이름을 넘겨 이력에 함께 표기
 function applyItemEdit(id, payload, approvedFrom){
   const idx=inv.findIndex(i=>i.id===id);if(idx<0)return;
-  const {qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop}=payload;
+  const {qty,min,avg,producer,loc,name,moldNo,moldLoc,partNo,mat,packUnit,rubberWeight,steelWeight,cavity,prodStatus,prodStop,note}=payload;
   const prevQty=inv[idx].qty;
   const prevLoc=inv[idx].location;
   const prevProducer=inv[idx].producer;
   const prevClassNo=inv[idx].classNo;
   const prevName=inv[idx].name;
   const prevMoldLoc=inv[idx].moldLoc;
+  const prevNote=inv[idx].note;
   const finalProducer=producer||inv[idx].producer||'';
   inv[idx].qty=qty;
   inv[idx].min=min;
@@ -9543,6 +9553,7 @@ function applyItemEdit(id, payload, approvedFrom){
   if(prodStatus)inv[idx].prodStatus=prodStatus;
   else inv[idx].prodStatus='active';
   inv[idx].prodStop=prodStatus==='stop'?prodStop:'';
+  inv[idx].note=note||'';
   // 재고 수량이 달라진 경우 → 생산자별 현황에 즉시 반영되도록 트랜잭션 자동 생성
   const qDiff=qty-prevQty;
   if(qDiff!==0){
@@ -9560,6 +9571,7 @@ function applyItemEdit(id, payload, approvedFrom){
   if(moldNo&&moldNo!==id) changes.push(`금형번호: ${id} → ${moldNo}`);
   if(partNo&&partNo!==prevClassNo) changes.push(`부품번호: ${prevClassNo||'-'} → ${partNo}`);
   if(moldLoc!==prevMoldLoc) changes.push(`금형위치: ${prevMoldLoc||'-'} → ${moldLoc||'-'}`);
+  if((note||'')!==(prevNote||'')) changes.push(`비고: ${prevNote||'-'} → ${note||'-'}`);
   if(changes.length>0||approvedFrom){
     const detail=(changes.length>0?changes.join(' / '):'변경 내용 없음')+(approvedFrom?` (요청자: ${approvedFrom})`:'');
     const labels=[];
@@ -9570,6 +9582,7 @@ function applyItemEdit(id, payload, approvedFrom){
     if(moldNo&&moldNo!==id) labels.push('금형번호변경');
     if(partNo&&partNo!==prevClassNo) labels.push('부품번호변경');
     if(moldLoc!==prevMoldLoc) labels.push('금형위치변경');
+    if((note||'')!==(prevNote||'')) labels.push('비고변경');
     const title=(approvedFrom?'품목수정(승인)':'품목수정')+' - '+inv[idx].name+(labels.length?' - '+labels.join(', '):'');
     const logType=(loc&&loc!==prevLoc)?'location':'stock';
     addLog(logType, title, detail, inv[idx].id);
