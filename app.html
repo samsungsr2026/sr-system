@@ -546,6 +546,10 @@ select.fi option{background:#fff;color:#111}
       통계 / 리포트
     </button>
     <div class="nav-section">관리</div>
+    <button class="nav-item" onclick="go(&#39;moldreg&#39;)" id="nb-moldreg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="3" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="21"></line></svg>
+      신규 금형 등록
+    </button>
     <button class="nav-item" onclick="go(&#39;addprod&#39;)" id="nb-addprod">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
       제품추가
@@ -1396,6 +1400,28 @@ async function saveInspSheets(force){
   jbStat('💾 저장 중...');
   try{
     await Promise.all([cfSet('inspSheets',inspSheets), cfSet('inspSheetsDeleted',inspSheetsDeleted)]);
+    jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
+  }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
+}
+// ── 신규 금형 등록 (기존 재고/제품 목록과 별개의 금형 전용 대장) ──────────────
+// 삭제 동기화가 union 병합으로 되살아나지 않도록 tombstone(_deleted) 패턴 적용 (id 기준)
+// 첨부파일(도면/자료)은 기존 추가 첨부파일 시스템(attaches, /srFiles/attaches 개별 경로)을
+// moldReg-{id}를 itemId로 재사용하여 저장 - 별도의 파일 저장 경로를 새로 만들지 않는다.
+let molds=JSON.parse(localStorage.getItem('sr-molds')||'[]');
+let moldsDeleted=JSON.parse(localStorage.getItem('sr-molds-deleted')||'[]');
+async function saveMolds(force){
+  if(!force){
+    try{
+      const [remoteM, remoteMD]=await Promise.all([cfGet('molds'), cfGet('moldsDeleted')]);
+      moldsDeleted=gcMergeDeleted(moldsDeleted, remoteMD);
+      molds=gcApplyTombstones(mergeByKey(molds, remoteM, x=>x.id), moldsDeleted);
+    }catch(e){}
+  }
+  localStorage.setItem('sr-molds',JSON.stringify(molds));
+  localStorage.setItem('sr-molds-deleted',JSON.stringify(moldsDeleted));
+  jbStat('💾 저장 중...');
+  try{
+    await Promise.all([cfSet('molds',molds), cfSet('moldsDeleted',moldsDeleted)]);
     jbStat('✅ '+new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})+' 저장됨','#0d9e72');
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
@@ -2361,7 +2387,8 @@ async function jbPull() {
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
           production, moldreport: moldReports, attendance: attendanceReqs, fieldWorkers,
-          controlPlans, controlPlansDeleted, inspSheets, inspSheetsDeleted
+          controlPlans, controlPlansDeleted, inspSheets, inspSheetsDeleted,
+          molds, moldsDeleted
         })
       });
       jbStat('✅ 초기 업로드 완료','#0d9e72');
@@ -2472,6 +2499,20 @@ async function jbPull() {
       localStorage.setItem('sr-insp-sheets-deleted',JSON.stringify(inspSheetsDeleted));
       if(isChanged)cfSet('inspSheets',inspSheets).catch(()=>{});
       if(isdChanged)cfSet('inspSheetsDeleted',inspSheetsDeleted).catch(()=>{});
+    }
+    // 신규 금형 등록 대장: 병합 (다른 기기의 최신 등록/수정을 반영) + tombstone으로 삭제 항목 부활 방지
+    {
+      const rm=fbAll['molds'], rmd=fbAll['moldsDeleted'];
+      const mergedMD=gcMergeDeleted(moldsDeleted, rmd);
+      const mergedM=gcApplyTombstones(mergeByKeyRemoteWins(molds, rm, x=>x.id), mergedMD);
+      const mChanged=JSON.stringify(mergedM)!==JSON.stringify(molds)||JSON.stringify(mergedM)!==JSON.stringify(rm||[]);
+      const mdChanged=JSON.stringify(mergedMD.slice().sort())!==JSON.stringify((rmd||[]).slice().sort());
+      molds=mergedM;
+      moldsDeleted=mergedMD;
+      localStorage.setItem('sr-molds',JSON.stringify(molds));
+      localStorage.setItem('sr-molds-deleted',JSON.stringify(moldsDeleted));
+      if(mChanged)cfSet('molds',molds).catch(()=>{});
+      if(mdChanged)cfSet('moldsDeleted',moldsDeleted).catch(()=>{});
     }
     // 승인 대기 목록: 병합 (다른 기기에서 요청/승인/거부한 내용이 반영되도록) + tombstone으로 거부/승인/취소된 항목 부활 방지
     {
@@ -2837,6 +2878,7 @@ function render(){
   else if(tab==='stats')m.innerHTML=rStats();
   else if(tab==='notice')m.innerHTML=rNotice();
   else if(tab==='dailyreport')m.innerHTML=rDailyReport();
+  else if(tab==='moldreg')m.innerHTML=rMoldReg();
   else if(tab==='addprod')m.innerHTML=rAddProd();
   else if(tab==='delprod')m.innerHTML=rDelProd();
   else if(tab==='changelog')m.innerHTML=rChangeLog();
@@ -6666,6 +6708,196 @@ function npDrawPreview(input){
   p.innerHTML='📎 <strong>'+file.name+'</strong> ('+Math.round(file.size/1024)+'KB)';
 }
 
+// ── 신규 금형 등록 ────────────────────────────────────────────────
+// 기존 재고(inv)와 완전히 별개인 금형 전용 목록. 첨부파일(도면/자료)은
+// 기존 추가 첨부파일 시스템(attaches)을 moldReg-{id}를 itemId로 재사용한다.
+let moldRegSq='';
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function rMoldReg(){
+  const list=(molds||[]).filter(m=>!moldRegSq||(m.moldNo||'').includes(moldRegSq)||(m.material||'').includes(moldRegSq)).slice().sort((a,b)=>b.ts-a.ts);
+  return `
+  <div class="page-title">신규 금형 등록</div>
+  <div class="page-sub">기존 재고 목록과 별개로 금형 자체를 관리하는 전용 대장입니다. 도면이나 관련 자료를 첨부할 수 있습니다.</div>
+
+  <div class="card" style="border-color:rgba(109,79,207,.3);margin-bottom:16px">
+    <div class="card-title" style="color:var(--purple)">🔩 신규 금형 정보</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">금형번호 <span style="color:var(--red)">*</span></label>
+        <input type="text" class="fi" id="mr-no" placeholder="예: 75" style="font-family:monospace;color:var(--blue);font-weight:700">
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">재질</label>
+        <input type="text" class="fi" id="mr-material" placeholder="예: CR, NBR, EPDM">
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">C/V (Cavity)</label>
+        <input type="number" class="fi" id="mr-cavity" placeholder="예: 4" min="0" style="font-family:monospace">
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">입고일</label>
+        <input type="date" class="fi" id="mr-indate" value="${todayStr()}">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">📎 도면 / 자료 첨부 <span style="font-size:10px;color:var(--text3)">(여러 개 선택 가능)</span></label>
+      <div id="mr-file-preview" style="display:none;background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:var(--text2)"></div>
+      <label style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;width:fit-content">
+        <span style="font-size:18px">📎</span>
+        <span style="font-size:13px;color:var(--text2)">도면 / PDF / 문서 파일 선택</span>
+        <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf" style="display:none" id="mr-file" onchange="mrFilePreview(this)">
+      </label>
+    </div>
+    <button class="btn bbg" style="margin-top:12px;padding:12px 24px;font-size:15px" onclick="addNewMold()">✓ 금형 등록</button>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)">
+      <div class="card-title" style="margin:0">등록된 금형 (총 ${molds.length}건)</div>
+      <div class="search-wrap" style="margin-bottom:0;width:220px">
+        <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="금형번호, 재질 검색..." value="${moldRegSq}"
+          oninput="moldRegSq=this.value;render()" style="padding-left:37px;width:100%">
+      </div>
+    </div>
+    ${!list.length?`<div style="text-align:center;padding:40px;color:var(--text3)">등록된 금형이 없습니다</div>`:`
+    <div style="overflow-x:auto">
+      <table class="tbl" style="min-width:700px">
+        <thead><tr><th>금형번호</th><th>재질</th><th>C/V</th><th>입고일</th><th>첨부파일</th><th style="width:70px">삭제</th></tr></thead>
+        <tbody>
+          ${list.map(m=>`<tr>
+            <td style="font-family:monospace;font-weight:700;color:var(--blue)">${m.moldNo}</td>
+            <td style="color:var(--text2)">${m.material||'-'}</td>
+            <td style="font-family:monospace">${(m.cavity||m.cavity===0)?m.cavity:'-'}</td>
+            <td style="font-family:monospace;color:var(--text3);font-size:12px">${m.inDate||'-'}</td>
+            <td>${renderMoldAttachList(m.id)}</td>
+            <td style="text-align:center">
+              <button onclick="delMoldEntry('${m.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`}
+  </div>`;
+}
+
+function mrFilePreview(input){
+  const files=input.files;
+  const p=document.getElementById('mr-file-preview');
+  if(!files||!files.length){p.style.display='none';return;}
+  p.style.display='block';
+  p.innerHTML=Array.from(files).map(f=>'📎 <strong>'+f.name+'</strong> ('+Math.round(f.size/1024)+'KB)').join('<br>');
+}
+
+// 첨부파일 목록을 간단히 표시 (목록 페이지 전용 - 상세 모달의 renderAttachSection과 별개)
+function renderMoldAttachList(moldId){
+  const list=attaches[moldId]||[];
+  if(!list.length)return '<span style="font-size:12px;color:var(--text3)">-</span>';
+  return list.map((f,i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;white-space:nowrap">
+    <span style="font-size:12px">${fileIcon(f.type,f.name)}</span>
+    <span style="font-size:12px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis">${f.name}</span>
+    <button onclick="openAttach('${moldId}',${i})" style="background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer;padding:0 3px">열기</button>
+    <button onclick="dlAttach('${moldId}',${i})" style="background:none;border:none;color:var(--green);font-size:11px;cursor:pointer;padding:0 3px">다운</button>
+    <button onclick="rmMoldAttach('${moldId}',${i})" style="background:none;border:none;color:var(--red);font-size:11px;cursor:pointer;padding:0 3px">삭제</button>
+  </div>`).join('');
+}
+
+// addAttach()와 동일한 저장 방식이지만, 상세 모달(#ov)이 아닌 전체 페이지(render())를 새로고침한다
+function addMoldAttach(moldId, inputEl){
+  if(!requireEdit())return;
+  const files=inputEl.files;
+  if(!files||!files.length)return;
+  const MAX=10*1024*1024;
+  let cnt=0;
+  const newFiles=[];
+  const load=(i)=>{
+    if(i>=files.length){
+      if(cnt)tst('✓ 첨부파일 '+cnt+'개 추가됨');
+      svImgs();
+      Promise.all(newFiles.map(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId:moldId}))))
+        .then(results=>{
+          const failed=newFiles.filter((f,i2)=>!(results[i2]&&results[i2].ok));
+          if(failed.length){
+            tst('⚠️ '+failed.map(f=>f.name).join(', ')+' — 서버 저장 실패(다른 기기에는 보이지 않음). 파일 용량을 줄여 다시 시도해주세요',5000);
+          }
+        }).catch(()=>{});
+      render();
+      return;
+    }
+    const file=files[i];
+    if(file.size>MAX)tst('⚠️ '+file.name+' — 10MB 초과, 큰 파일은 저장공간을 많이 사용합니다',2500);
+    const reader=new FileReader();
+    reader.onload=function(e){
+      if(!attaches[moldId])attaches[moldId]=[];
+      const f={id:gcNewId(),name:file.name,type:file.type,size:file.size,data:e.target.result,ts:Date.now()};
+      attaches[moldId].push(f);
+      newFiles.push(f);
+      cnt++;
+      load(i+1);
+    };
+    reader.onerror=function(){tst('읽기 실패: '+file.name);load(i+1);};
+    reader.readAsDataURL(file);
+  };
+  load(0);
+}
+
+function rmMoldAttach(moldId, idx){
+  rmAttach(moldId, idx);
+  render();
+}
+
+function addNewMold(){
+  if(!requireEdit())return;
+  const v=id=>document.getElementById(id)?.value?.trim()||'';
+  const moldNo=v('mr-no');
+  if(!moldNo){tst('금형번호를 입력해주세요');return;}
+  if(molds.find(m=>m.moldNo===moldNo)){tst('❌ 이미 등록된 금형번호입니다');return;}
+  const material=v('mr-material');
+  const cavity=v('mr-cavity')?parseInt(v('mr-cavity')):null;
+  const inDate=v('mr-indate')||todayStr();
+  const id='moldReg-'+gcNewId();
+  const item={id,moldNo,material,cavity,inDate,ts:Date.now()};
+  molds.push(item);
+  saveMolds();
+  addLog('moldreg','신규 금형 등록 — '+moldNo, `재질: ${material||'-'} / C/V: ${(cavity||cavity===0)?cavity:'-'} / 입고일: ${inDate}`, moldNo);
+  const fileInput=document.getElementById('mr-file');
+  if(fileInput&&fileInput.files&&fileInput.files.length){
+    addMoldAttach(id, fileInput);
+  }
+  // 입력값 초기화
+  ['mr-no','mr-material','mr-cavity'].forEach(fid=>{const el=document.getElementById(fid);if(el)el.value='';});
+  const dateEl=document.getElementById('mr-indate');if(dateEl)dateEl.value=todayStr();
+  const fp=document.getElementById('mr-file-preview');if(fp)fp.style.display='none';
+  if(fileInput)fileInput.value='';
+  tst('✓ 금형 '+moldNo+' 등록 완료');
+  render();
+}
+
+function delMoldEntry(id){
+  if(!requireEdit())return;
+  const m=molds.find(x=>x.id===id);
+  if(!m)return;
+  if(!confirm('금형번호 '+m.moldNo+' 등록 정보를 삭제하시겠습니까?\n첨부된 파일도 함께 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다.'))return;
+  molds=molds.filter(x=>x.id!==id);
+  if(!moldsDeleted.includes(id))moldsDeleted.push(id);
+  saveMolds();
+  // 첨부파일도 함께 정리
+  const files=(attaches[id]||[]).slice();
+  files.forEach(f=>{
+    if(!attachesDeleted.includes(String(f.id)))attachesDeleted.push(String(f.id));
+    cfRemoveFileItem('attaches', f.id).catch(()=>{});
+  });
+  delete attaches[id];
+  svImgs();
+  cfSetFileDeletedList('attaches', attachesDeleted).catch(()=>{});
+  addLog('moldreg','금형 등록 삭제 — '+m.moldNo, '', m.moldNo);
+  tst('🗑️ '+m.moldNo+' 삭제 완료');
+  render();
+}
+
 function rAddProd(){
   const cats=[...new Set(inv.map(i=>i.cat).filter(Boolean))];
   const catOpts=cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -9505,9 +9737,9 @@ const CL_PAGE_SIZE=10;
 function setClPage(p){clPage=p;render();}
 function printChangeLog(){
   if(!changeLogs.length){tst('출력할 변경이력이 없습니다');return;}
-  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',other:'기타'};
-  const typeBg={io:'#dbeafe',stock:'#fef3c7',location:'#ede9fe',addprod:'#d1fae5',delprod:'#fee2e2',order:'#f3f4f6',other:'#f3f4f6'};
-  const typeColor={io:'#1d4ed8',stock:'#92400e',location:'#5b21b6',addprod:'#065f46',delprod:'#b91c1c',order:'#374151',other:'#374151'};
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',moldreg:'금형등록',other:'기타'};
+  const typeBg={io:'#dbeafe',stock:'#fef3c7',location:'#ede9fe',addprod:'#d1fae5',delprod:'#fee2e2',order:'#f3f4f6',moldreg:'#ede9fe',other:'#f3f4f6'};
+  const typeColor={io:'#1d4ed8',stock:'#92400e',location:'#5b21b6',addprod:'#065f46',delprod:'#b91c1c',order:'#374151',moldreg:'#5b21b6',other:'#374151'};
   const now = new Date();
   const rows = changeLogs.map((l,i)=>`
     <tr>
@@ -9566,7 +9798,7 @@ tr:nth-child(even) td{background:#f8f9ff}
 
 function dlChangeLog(){
   if(!changeLogs.length){tst('저장할 변경이력이 없습니다');return;}
-  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',other:'기타'};
+  const typeMap={io:'입출고',stock:'품목수정',location:'위치변경',addprod:'품목추가',delprod:'품목삭제',order:'발주',qc:'품질관리',moldreg:'금형등록',other:'기타'};
   const B='\uFEFF';
   const rows=changeLogs.map(l=>`${new Date(l.ts).toLocaleString('ko')},"${typeMap[l.type]||l.type}","${l.title}","${l.itemId||''}","${l.detail||''}","${l.user||''}"`);
   const csv=B+'일시,구분,내용,금형번호,상세,담당자\n'+rows.join('\n');
@@ -9580,11 +9812,11 @@ function dlChangeLog(){
 function rChangeLog(){
   const typeMap={
     '전체':'전체','io':'입출고','stock':'품목수정','location':'위치변경',
-    'addprod':'품목추가','delprod':'품목삭제','order':'발주','qc':'품질관리','other':'기타'
+    'addprod':'품목추가','delprod':'품목삭제','order':'발주','qc':'품질관리','moldreg':'금형등록','other':'기타'
   };
   const typeColor={io:'var(--blue)',stock:'var(--amber)',location:'var(--purple)',
-    addprod:'var(--green)',delprod:'var(--red)',order:'var(--text2)',qc:'#0d9e72',other:'var(--text3)'};
-  const typeBadge={io:'bb',stock:'ba',location:'bb',addprod:'bg',delprod:'br',order:'bgr',qc:'bg',other:'bgr'};
+    addprod:'var(--green)',delprod:'var(--red)',order:'var(--text2)',qc:'#0d9e72',moldreg:'var(--purple)',other:'var(--text3)'};
+  const typeBadge={io:'bb',stock:'ba',location:'bb',addprod:'bg',delprod:'br',order:'bgr',qc:'bg',moldreg:'bb',other:'bgr'};
 
   let list=changeLogs.filter(l=>{
     const typeOk=clFilter==='전체'||l.type===clFilter;
@@ -11772,6 +12004,10 @@ document.addEventListener('click',function(e){
     <button onclick="go(&#39;attendance&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M9 16l2 2 4-4"></path></svg>
       근태신청
+    </button>
+    <button onclick="go(&#39;moldreg&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="3" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="21"></line></svg>
+      금형등록
     </button>
     <button onclick="go(&#39;addprod&#39;);toggleMobileMenu()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--text2);font-size:12px;font-weight:600">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
