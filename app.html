@@ -6877,6 +6877,72 @@ function addNewMold(){
   render();
 }
 
+function moldModalAttachHTML(moldId){
+  const list=attaches[moldId]||[];
+  return `<div id="mm-attach-box" style="margin-top:6px">
+    <label class="fl">📎 첨부파일 <span style="color:var(--blue)">${list.length}개</span></label>
+    <div style="margin-bottom:8px">${list.length?list.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
+      <span style="font-size:16px">${fileIcon(f.type,f.name)}</span>
+      <span style="flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+      <button onclick="openAttach('${moldId}',${i})" style="background:var(--blue-bg);border:1px solid var(--blue);color:var(--blue);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer">열기</button>
+      <button onclick="dlAttach('${moldId}',${i})" style="background:var(--green-bg);border:1px solid var(--green);color:var(--green);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer">다운</button>
+      <button onclick="rmMoldAttachModal('${moldId}',${i})" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer">삭제</button>
+    </div>`).join(''):'<div style="font-size:12px;color:var(--text3);padding:6px 0">첨부된 파일이 없습니다</div>'}</div>
+    <label style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;cursor:pointer;width:fit-content">
+      <span style="font-size:16px">📎</span>
+      <span style="font-size:12px;color:var(--text2)">파일 추가</span>
+      <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf" style="display:none" onchange="addMoldAttachModal('${moldId}',this)">
+    </label>
+  </div>`;
+}
+function refreshMoldModalAttach(moldId){
+  const box=document.getElementById('mm-attach-box');
+  if(box)box.outerHTML=moldModalAttachHTML(moldId);
+}
+function addMoldAttachModal(moldId, inputEl){
+  if(!requireEdit())return;
+  const files=inputEl.files;
+  if(!files||!files.length)return;
+  const MAX=10*1024*1024;
+  let cnt=0;
+  const newFiles=[];
+  const load=(i)=>{
+    if(i>=files.length){
+      if(cnt)tst('✓ 첨부파일 '+cnt+'개 추가됨');
+      svImgs();
+      Promise.all(newFiles.map(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId:moldId}))))
+        .then(results=>{
+          const failed=newFiles.filter((f,i2)=>!(results[i2]&&results[i2].ok));
+          if(failed.length){
+            tst('⚠️ '+failed.map(f=>f.name).join(', ')+' — 서버 저장 실패(다른 기기에는 보이지 않음). 파일 용량을 줄여 다시 시도해주세요',5000);
+          }
+        }).catch(()=>{});
+      refreshMoldModalAttach(moldId);
+      render();
+      return;
+    }
+    const file=files[i];
+    if(file.size>MAX)tst('⚠️ '+file.name+' — 10MB 초과, 큰 파일은 저장공간을 많이 사용합니다',2500);
+    const reader=new FileReader();
+    reader.onload=function(e){
+      if(!attaches[moldId])attaches[moldId]=[];
+      const f={id:gcNewId(),name:file.name,type:file.type,size:file.size,data:e.target.result,ts:Date.now()};
+      attaches[moldId].push(f);
+      newFiles.push(f);
+      cnt++;
+      load(i+1);
+    };
+    reader.onerror=function(){tst('읽기 실패: '+file.name);load(i+1);};
+    reader.readAsDataURL(file);
+  };
+  load(0);
+}
+function rmMoldAttachModal(moldId, idx){
+  rmAttach(moldId, idx);
+  refreshMoldModalAttach(moldId);
+  render();
+}
+
 function openMoldModal(id){
   if(!requireEdit())return;
   const m=molds.find(x=>x.id===id);
@@ -6889,6 +6955,7 @@ function openMoldModal(id){
       <div class="fg"><label class="fl">C/V (Cavity)</label><input type="number" class="fi" id="mm-cavity" min="0" value="${(m.cavity||m.cavity===0)?m.cavity:''}"></div>
     </div>
     <div class="fg"><label class="fl">입고일</label><input type="date" class="fi" id="mm-indate" value="${m.inDate||todayStr()}"></div>
+    <div class="fg">${moldModalAttachHTML(id)}</div>
     <button class="btn bbl btn-full" onclick="submitMoldEdit('${id}')">✓ 수정 완료</button>`;
   document.getElementById('ov').classList.add('on');
 }
