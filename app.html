@@ -6766,7 +6766,7 @@ function rMoldReg(){
     ${!list.length?`<div style="text-align:center;padding:40px;color:var(--text3)">등록된 금형이 없습니다</div>`:`
     <div style="overflow-x:auto">
       <table class="tbl" style="min-width:700px">
-        <thead><tr><th>금형번호</th><th>재질</th><th>C/V</th><th>입고일</th><th>첨부파일</th><th style="width:70px">삭제</th></tr></thead>
+        <thead><tr><th>금형번호</th><th>재질</th><th>C/V</th><th>입고일</th><th>첨부파일</th><th style="width:130px">작업</th></tr></thead>
         <tbody>
           ${list.map(m=>`<tr>
             <td style="font-family:monospace;font-weight:700;color:var(--blue)">${m.moldNo}</td>
@@ -6774,7 +6774,8 @@ function rMoldReg(){
             <td style="font-family:monospace">${(m.cavity||m.cavity===0)?m.cavity:'-'}</td>
             <td style="font-family:monospace;color:var(--text3);font-size:12px">${m.inDate||'-'}</td>
             <td>${renderMoldAttachList(m.id)}</td>
-            <td style="text-align:center">
+            <td style="text-align:center;white-space:nowrap">
+              <button onclick="openMoldModal('${m.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px">수정</button>
               <button onclick="delMoldEntry('${m.id}')" style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">삭제</button>
             </td>
           </tr>`).join('')}
@@ -6873,6 +6874,42 @@ function addNewMold(){
   const fp=document.getElementById('mr-file-preview');if(fp)fp.style.display='none';
   if(fileInput)fileInput.value='';
   tst('✓ 금형 '+moldNo+' 등록 완료');
+  render();
+}
+
+function openMoldModal(id){
+  if(!requireEdit())return;
+  const m=molds.find(x=>x.id===id);
+  if(!m)return;
+  document.getElementById('mo-title').textContent='🔩 금형 정보 수정';
+  document.getElementById('mb').innerHTML=`
+    <div class="fg"><label class="fl">금형번호 *</label><input type="text" class="fi" id="mm-no" style="font-family:monospace;color:var(--blue);font-weight:700" value="${m.moldNo||''}"></div>
+    <div class="grid2">
+      <div class="fg"><label class="fl">재질</label><input type="text" class="fi" id="mm-material" placeholder="예: CR, NBR, EPDM" value="${m.material||''}"></div>
+      <div class="fg"><label class="fl">C/V (Cavity)</label><input type="number" class="fi" id="mm-cavity" min="0" value="${(m.cavity||m.cavity===0)?m.cavity:''}"></div>
+    </div>
+    <div class="fg"><label class="fl">입고일</label><input type="date" class="fi" id="mm-indate" value="${m.inDate||todayStr()}"></div>
+    <button class="btn bbl btn-full" onclick="submitMoldEdit('${id}')">✓ 수정 완료</button>`;
+  document.getElementById('ov').classList.add('on');
+}
+
+function submitMoldEdit(id){
+  if(!requireEdit())return;
+  const m=molds.find(x=>x.id===id);
+  if(!m)return;
+  const moldNo=document.getElementById('mm-no')?.value?.trim();
+  const material=document.getElementById('mm-material')?.value?.trim()||'';
+  const cavityRaw=document.getElementById('mm-cavity')?.value;
+  const cavity=cavityRaw?parseInt(cavityRaw):null;
+  const inDate=document.getElementById('mm-indate')?.value||todayStr();
+  if(!moldNo){tst('금형번호를 입력해주세요');return;}
+  if(molds.find(x=>x.id!==id&&x.moldNo===moldNo)){tst('❌ 이미 등록된 금형번호입니다');return;}
+  const before=`${m.moldNo} / ${m.material||'-'} / C-V ${(m.cavity||m.cavity===0)?m.cavity:'-'} / ${m.inDate||'-'}`;
+  Object.assign(m,{moldNo,material,cavity,inDate});
+  saveMolds();
+  addLog('moldreg','금형 정보 수정 — '+moldNo, `변경 전: ${before}`, moldNo);
+  cmo();
+  tst('✓ '+moldNo+' 수정 완료');
   render();
 }
 
