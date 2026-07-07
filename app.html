@@ -7043,7 +7043,8 @@ function rAddProd(){
       <div class="card-title" style="color:var(--purple)">🔩 금형 / 부품 정보</div>
       <div class="fg">
         <label class="fl">금형번호 <span style="color:var(--red)">*</span></label>
-        <input type="text" class="fi" id="np-id" placeholder="예: 75" style="font-family:monospace;color:var(--blue);font-weight:700">
+        <input type="text" class="fi" id="np-id" placeholder="예: 75" style="font-family:monospace;color:var(--blue);font-weight:700" oninput="checkMoldMatch()">
+        <div id="np-mold-match-info" style="display:none;margin-top:6px;font-size:11px;padding:6px 10px;border-radius:6px;line-height:1.5"></div>
       </div>
       <div class="fg">
         <label class="fl">금형위치</label>
@@ -7420,6 +7421,26 @@ function confirmDelProd(){
 }
 
 
+// 제품 추가 화면에서 금형번호를 입력하면 '신규 금형 등록'에 등록된 동일 금형번호가 있는지 찾아
+// 재질/C-V/입고일 정보를 공유(자동 입력)하고, 첨부파일이 있으면 등록 시 함께 복사된다는 것을 안내한다.
+function checkMoldMatch(){
+  const val=document.getElementById('np-id')?.value?.trim();
+  const info=document.getElementById('np-mold-match-info');
+  if(!info)return;
+  if(!val){info.style.display='none';return;}
+  const m=molds.find(x=>x.moldNo===val);
+  if(!m){info.style.display='none';return;}
+  const matEl=document.getElementById('np-material');
+  const cavEl=document.getElementById('np-cavity');
+  if(matEl&&!matEl.value&&m.material)matEl.value=m.material;
+  if(cavEl&&!cavEl.value&&(m.cavity||m.cavity===0))cavEl.value=m.cavity;
+  const fileCnt=(attaches[m.id]||[]).length;
+  info.style.display='block';
+  info.style.background='var(--green-bg)';
+  info.style.color='var(--green)';
+  info.innerHTML=`✓ 신규 금형 등록에 일치하는 정보가 있습니다 — 재질: <strong>${m.material||'-'}</strong> / C-V: <strong>${(m.cavity||m.cavity===0)?m.cavity:'-'}</strong> / 입고일: ${m.inDate||'-'}${fileCnt?` · 첨부파일 ${fileCnt}개도 등록 시 함께 공유됩니다`:''}`;
+}
+
 function addNewProduct(){
   if(!requireEdit())return;
   const v=id=>document.getElementById(id)?.value?.trim()||'';
@@ -7462,7 +7483,23 @@ function addNewProduct(){
   var drawFile=document.getElementById('np-draw-file');
   if(picFile&&picFile.files[0]) handleImgUpload(moldNo,'pic',picFile);
   if(drawFile&&drawFile.files[0]) handleImgUpload(moldNo,'draw',drawFile);
-  tst('✓ '+name+' 등록 완료');
+  // 신규 금형 등록에 동일한 금형번호가 있으면 첨부파일(도면/자료)도 함께 공유(복사)
+  const matchedMold=molds.find(x=>x.moldNo===moldNo);
+  if(matchedMold){
+    const srcFiles=attaches[matchedMold.id]||[];
+    if(srcFiles.length){
+      if(!attaches[moldNo])attaches[moldNo]=[];
+      const copied=srcFiles.map(f=>({id:gcNewId(),name:f.name,type:f.type,size:f.size,data:f.data,ts:Date.now()}));
+      attaches[moldNo].push(...copied);
+      svImgs();
+      Promise.all(copied.map(f=>cfAddFileItem('attaches', Object.assign({}, f, {itemId:moldNo})))).catch(()=>{});
+      tst('✓ '+name+' 등록 완료 (금형등록 첨부파일 '+copied.length+'개 공유됨)');
+    }else{
+      tst('✓ '+name+' 등록 완료');
+    }
+  }else{
+    tst('✓ '+name+' 등록 완료');
+  }
   render();
 }
 
