@@ -6334,15 +6334,21 @@ function rOrder(){
         <div id="ord-list">
           ${orderItems.map((o,i)=>{
             const it=o.id?inv.find(x=>x.id===o.id):null;
+            const curUnit=o.unit||(it?it.unit:'')||'EA';
+            const uBase=['EA','직접입력'];
             return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:600">${it?it.name:(o.name||o.id)}</div>
                 <div style="font-size:11px;color:var(--text3)">${o.id?`금형 ${o.id} · 부품 ${it?(it.classNo||'-'):'-'}`:'재고 미등록 품목'}</div>
+                <input type="text" class="fi" placeholder="비고" value="${(o.memo||'').replace(/"/g,'&quot;')}" oninput="orderItems[${i}].memo=this.value" style="margin-top:6px;font-size:12px;padding:6px 8px">
               </div>
               <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
                 <label style="font-size:11px;color:var(--text3)">수량</label>
-                <input type="number" min="0" value="${o.qty}" class="qi" style="width:74px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
-                <span style="font-size:11px;color:var(--text3)">${it?it.unit:'EA'}</span>
+                <input type="number" min="0" value="${o.qty}" class="qi" style="width:70px" oninput="orderItems[${i}].qty=parseInt(this.value)||0">
+                <select class="fi" style="width:84px;font-size:12px;padding:6px 6px" onchange="if(this.value==='직접입력'){var v=prompt('단위 입력',orderItems[${i}].unit||'');if(v){orderItems[${i}].unit=v;render();}else{this.value=orderItems[${i}].unit||'EA';}}else{orderItems[${i}].unit=this.value;}">
+                  ${uBase.map(u=>`<option value="${u}" ${curUnit===u?'selected':''}>${u}</option>`).join('')}
+                  ${!uBase.includes(curUnit)?`<option value="${curUnit}" selected>${curUnit}</option>`:''}
+                </select>
                 <button onclick="orderItems.splice(${i},1);render()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:0 3px;line-height:1">✕</button>
               </div>
             </div>`;
@@ -6410,7 +6416,7 @@ function rOrder(){
                 <button class="btn" style="padding:5px 11px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="event.stopPropagation();previewOrder(${i})">👁️ 미리보기</button>
                 <button class="btn bbl" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();printOrder(${i})">🖨️ 출력</button>
                 <button style="background:${o.delivered?'rgba(34,197,94,.12)':'var(--bg3)'};border:1px solid ${o.delivered?'rgba(34,197,94,.35)':'var(--border)'};color:${o.delivered?'#16a34a':'var(--text2)'};cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();toggleOrderDelivered(${i})">${o.delivered?'☑':'☐'} 납품완료</button>
-                ${canEdit()&&!o.printedAt?`<button class="btn bba" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();editOrder(${i})">✏️ 수정</button>`:''}
+                ${isMaster()&&!o.printedAt?`<button class="btn bba" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();editOrder(${i})">✏️ 수정</button>`:''}
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
               </td>
             </tr>`).join('');
@@ -6645,7 +6651,8 @@ function ordSearch(v){
 
 function addOrderItem(id){
   if(orderItems.find(o=>o.id===id)){tst('이미 추가된 품목입니다');return;}
-  orderItems.push({id,qty:0});
+  const it=inv.find(i=>i.id===id);
+  orderItems.push({id,qty:0,unit:(it&&it.unit)||'EA',memo:''});
   render();
   tst('✓ 발주 품목에 추가됐습니다 (수량을 입력하세요)');
 }
@@ -6653,7 +6660,7 @@ function addOrderItemFree(name){
   name=(name||'').trim();
   if(!name){tst('품목명을 입력해주세요');return;}
   if(orderItems.find(o=>!o.id&&o.name===name)){tst('이미 추가된 품목입니다');return;}
-  orderItems.push({id:'',name,qty:0});
+  orderItems.push({id:'',name,qty:0,unit:'EA',memo:''});
   render();
   tst('✓ 발주 품목에 추가됐습니다 (수량을 입력하세요)');
 }
@@ -6672,28 +6679,22 @@ function saveOrder(){
   const delivery=orderForm.delivery||'';
   const items=orderItems.map(o=>{
     const it=o.id?(inv.find(i=>i.id===o.id)||{}):{};
-    return {id:o.id||'',name:it.name||o.name||o.id||'',classNo:it.classNo||'',unit:it.unit||'EA',qty:o.qty,curQty:it.qty||0,producer:it.producer||'',location:it.location||''};
+    return {id:o.id||'',name:it.name||o.name||o.id||'',classNo:it.classNo||'',unit:o.unit||it.unit||'EA',qty:o.qty,curQty:it.qty||0,producer:it.producer||'',location:it.location||'',memo:o.memo||''};
   });
 
-  // ── 발주서 수정 모드 ──────────────────────────────────────
+  // ── 발주서 수정 모드 (마스터 전용) ──────────────────────────
   if(editingOrderId){
+    const resetEditState=()=>{editingOrderId=null;orderItems=[];orderSq='';orderForm={vendor:'',w:'',due:'',memo:'',delivery:''};};
+    if(!isMaster()){tst('🔒 마스터만 발주서를 수정할 수 있습니다');resetEditState();render();return;}
     // 인덱스 캐싱 금지 — id로 최신 위치 재조회 (백그라운드 동기화로 배열이 바뀌었을 수 있음)
     const idx=orders.findIndex(o=>o.id===editingOrderId);
-    const resetEditState=()=>{editingOrderId=null;orderItems=[];orderSq='';orderForm={vendor:'',w:'',due:'',memo:'',delivery:''};};
     if(idx<0){tst('❌ 원본 발주서를 찾을 수 없습니다 (이미 삭제되었거나 변경됨)');resetEditState();render();return;}
     if(orders[idx].printedAt){tst('❌ 이미 출력완료된 발주서는 수정할 수 없습니다');resetEditState();render();return;}
     const docNo=orders[idx].docNo;
-    const before={vendor:orders[idx].vendor,w:orders[idx].w,due:orders[idx].due,memo:orders[idx].memo,delivery:orders[idx].delivery,items:orders[idx].items};
-    const changes={vendor,w,due,memo,delivery,items};
-    if(isAdminPendingRequired()){
-      queuePendingChange('recedit', String(orders[idx].id), {module:'order', moduleLabel:'발주서', id:orders[idx].id, docNo, changes}, '발주서 수정 — '+docNo+' ('+vendor+')', before);
-      tst('📨 마스터 승인 대기 중으로 등록되었습니다');
-    }else{
-      orders[idx]=Object.assign({},orders[idx],changes);
-      sv();
-      addLog('order','발주서 수정 — '+vendor, `문서번호: ${docNo} / 품목 ${items.length}건 / 담당: ${w}`);
-      tst('✓ 발주서 수정 완료 ('+docNo+')');
-    }
+    orders[idx]=Object.assign({},orders[idx],{vendor,w,due,memo,delivery,items});
+    sv();
+    addLog('order','발주서 수정 — '+vendor, `문서번호: ${docNo} / 품목 ${items.length}건 / 담당: ${w}`);
+    tst('✓ 발주서 수정 완료 ('+docNo+')');
     resetEditState();
     render();
     return;
@@ -6715,14 +6716,14 @@ function saveOrder(){
   setTimeout(()=>previewOrder(0),300);
 }
 
-// 발주서 수정 모드 진입 (관리자만, 출력 전 발주서만 가능)
+// 발주서 수정 모드 진입 (마스터 전용, 출력 전 발주서만 가능)
 function editOrder(i){
-  if(!requireEdit())return;
+  if(!isMaster()){tst('🔒 마스터만 발주서를 수정할 수 있습니다');return;}
   const o=orders[i];
   if(!o)return;
   if(o.printedAt){tst('출력완료된 발주서는 수정할 수 없습니다. 삭제 후 다시 작성해주세요');return;}
   editingOrderId=o.id;
-  orderItems=o.items.map(it=>({id:it.id||'',name:it.name||'',qty:it.qty}));
+  orderItems=o.items.map(it=>({id:it.id||'',name:it.name||'',qty:it.qty,unit:it.unit||'EA',memo:it.memo||''}));
   orderForm={vendor:o.vendor||'',w:o.w||'',due:o.due||'',memo:o.memo||'',delivery:o.delivery||''};
   orderSq='';
   render();
