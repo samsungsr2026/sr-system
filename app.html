@@ -4233,7 +4233,7 @@ function rDash(){
         ${orders.length?`<table class="tbl">
           <thead><tr><th>문서번호</th><th>공급업체</th><th>품목</th><th>발행일</th><th>출력</th></tr></thead>
           <tbody>
-            ${orders.slice(0,5).map(o=>`<tr onclick="go('order')">
+            ${orders.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,5).map(o=>`<tr onclick="go('order')">
               <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${o.docNo}</td>
               <td style="color:var(--text2)">${o.vendor||'-'}</td>
               <td><span style="color:var(--text2)">${o.items.length}종</span> <span style="font-family:monospace;font-size:11px;color:var(--text3)">/ ${o.items.reduce((s,it)=>s+(it.qty||0),0).toLocaleString()}EA</span></td>
@@ -6348,7 +6348,7 @@ function rOrder(){
 
       <div class="card">
         ${(()=>{
-          const withIdx=orders.map((o,i)=>({o,i}));
+          const withIdx=orders.map((o,i)=>({o,i})).sort((a,b)=>(b.o.ts||0)-(a.o.ts||0));
           let weekKeys=[],monthKeys=[],filtered=withIdx;
           if(ordFilterType==='week'){
             weekKeys=[...new Set(orders.map(o=>ordWeekKey(o.ts)))].sort().reverse();
