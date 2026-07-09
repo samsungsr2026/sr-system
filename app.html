@@ -1873,6 +1873,17 @@ function approvePending(pid){
     if(fp.module==='notice'){
       const i=notices.findIndex(n=>String(n.id)===String(fp.id));
       if(i>=0){notices[i]=Object.assign({},notices[i],fp.changes);saveNotices();}
+    }else if(fp.module==='order'){
+      const i=orders.findIndex(o=>String(o.id)===String(fp.id));
+      if(i>=0){
+        if(orders[i].printedAt){
+          tst('❌ 그 사이 출력완료되어 반영할 수 없습니다 - 거부해주세요',3500);
+          pendingChanges.splice(idx,1);
+          if(!pendingDeleted.includes(pid))pendingDeleted.push(pid);
+          savePending();render();return;
+        }
+        orders[i]=Object.assign({},orders[i],fp.changes);sv();
+      }
     }
     addLog('other',(fp.moduleLabel||'데이터')+' 수정(승인) — '+p.label, `요청자: ${p.requestedBy}`);
   }
@@ -6240,6 +6251,7 @@ window.onload=function(){
 
 // ── 발주서 ────────────────────────────────────────────────────────
 let orderSq='';
+let editingOrderId=null; // 발주서 수정 모드 (orders 항목의 id/docNo 저장 — 인덱스 캐싱 금지)
 let ordFilterType='all'; // all | week | month
 let ordFilterKey='';
 let ordPage=1;
@@ -6271,7 +6283,7 @@ function rOrder(){
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
     <div>
       <div class="card" style="border-color:rgba(26,107,255,.3)">
-        <div class="card-title" style="color:var(--blue)">📝 새 발주서 작성</div>
+        <div class="card-title" style="color:var(--blue)">${editingOrderId?'✏️ 발주서 수정 — '+(orders.find(o=>o.id===editingOrderId)?.docNo||''):'📝 새 발주서 작성'}</div>
         <div class="fg">
           <label class="fl">공급업체 (수신처)</label>
           <div style="display:flex;gap:8px">
@@ -6340,10 +6352,18 @@ function rOrder(){
           <span style="font-size:13px;color:var(--text2)">총 발주 수량</span>
           <span style="font-size:15px;font-weight:700;font-family:monospace;color:var(--blue)">${orderItems.reduce((s,o)=>s+(o.qty||0),0).toLocaleString()}</span>
         </div>
+        ${editingOrderId?`
+        <div style="background:var(--amber-bg,rgba(245,158,11,.1));border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--amber)">
+          ✏️ 발주서를 수정 중입니다. <strong>수정 저장</strong>을 누르면 바로 반영됩니다.
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" style="flex:1;justify-content:center;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="cancelEditOrder()">취소</button>
+          <button class="btn bba" style="flex:2;justify-content:center" onclick="saveOrder()">💾 수정 저장</button>
+        </div>`:`
         <div style="background:var(--blue-bg);border:1px solid rgba(26,107,255,.3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">
           💡 <strong>발주서 발행</strong>을 누르면 <strong>미리보기</strong>가 표시됩니다. 미리보기에서 <strong>출력</strong>해야만 재고에 반영되고 출력완료로 기록됩니다.
         </div>
-        <button class="btn bbl btn-full" onclick="saveOrder()">📝 발주서 발행 (미리보기)</button>`}
+        <button class="btn bbl btn-full" onclick="saveOrder()">📝 발주서 발행 (미리보기)</button>`}`}
       </div>
 
       <div class="card">
@@ -6390,6 +6410,7 @@ function rOrder(){
                 <button class="btn" style="padding:5px 11px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="event.stopPropagation();previewOrder(${i})">👁️ 미리보기</button>
                 <button class="btn bbl" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();printOrder(${i})">🖨️ 출력</button>
                 <button style="background:${o.delivered?'rgba(34,197,94,.12)':'var(--bg3)'};border:1px solid ${o.delivered?'rgba(34,197,94,.35)':'var(--border)'};color:${o.delivered?'#16a34a':'var(--text2)'};cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();toggleOrderDelivered(${i})">${o.delivered?'☑':'☐'} 납품완료</button>
+                ${canEdit()&&!o.printedAt?`<button class="btn bba" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();editOrder(${i})">✏️ 수정</button>`:''}
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
               </td>
             </tr>`).join('');
@@ -6649,12 +6670,38 @@ function saveOrder(){
   const due=document.getElementById('ord-due')?.value||'';
   const memo=document.getElementById('ord-memo')?.value||'';
   const delivery=orderForm.delivery||'';
-  const now=new Date();
-  const docNo='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   const items=orderItems.map(o=>{
     const it=o.id?(inv.find(i=>i.id===o.id)||{}):{};
     return {id:o.id||'',name:it.name||o.name||o.id||'',classNo:it.classNo||'',unit:it.unit||'EA',qty:o.qty,curQty:it.qty||0,producer:it.producer||'',location:it.location||''};
   });
+
+  // ── 발주서 수정 모드 ──────────────────────────────────────
+  if(editingOrderId){
+    // 인덱스 캐싱 금지 — id로 최신 위치 재조회 (백그라운드 동기화로 배열이 바뀌었을 수 있음)
+    const idx=orders.findIndex(o=>o.id===editingOrderId);
+    const resetEditState=()=>{editingOrderId=null;orderItems=[];orderSq='';orderForm={vendor:'',w:'',due:'',memo:'',delivery:''};};
+    if(idx<0){tst('❌ 원본 발주서를 찾을 수 없습니다 (이미 삭제되었거나 변경됨)');resetEditState();render();return;}
+    if(orders[idx].printedAt){tst('❌ 이미 출력완료된 발주서는 수정할 수 없습니다');resetEditState();render();return;}
+    const docNo=orders[idx].docNo;
+    const before={vendor:orders[idx].vendor,w:orders[idx].w,due:orders[idx].due,memo:orders[idx].memo,delivery:orders[idx].delivery,items:orders[idx].items};
+    const changes={vendor,w,due,memo,delivery,items};
+    if(isAdminPendingRequired()){
+      queuePendingChange('recedit', String(orders[idx].id), {module:'order', moduleLabel:'발주서', id:orders[idx].id, docNo, changes}, '발주서 수정 — '+docNo+' ('+vendor+')', before);
+      tst('📨 마스터 승인 대기 중으로 등록되었습니다');
+    }else{
+      orders[idx]=Object.assign({},orders[idx],changes);
+      sv();
+      addLog('order','발주서 수정 — '+vendor, `문서번호: ${docNo} / 품목 ${items.length}건 / 담당: ${w}`);
+      tst('✓ 발주서 수정 완료 ('+docNo+')');
+    }
+    resetEditState();
+    render();
+    return;
+  }
+
+  // ── 신규 발주서 발행 ──────────────────────────────────────
+  const now=new Date();
+  const docNo='PO-'+now.getFullYear().toString().slice(2)+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'-'+String(Math.floor(Math.random()*900)+100);
   // 발주서 발행 단계에서는 재고 차감하지 않음 (출력 시점에 차감됨)
   // appliedStock: 출력 시 재고 반영 여부 (false = 아직 미반영)
   orders.unshift({id:docNo,docNo,vendor,w,due,memo,delivery,ts:Date.now(),items,printedAt:null,appliedStock:false});
@@ -6666,6 +6713,28 @@ function saveOrder(){
   render();
   // 발행 직후 미리보기만 표시 (출력 버튼을 눌러야 재고 반영 + 출력완료 기록)
   setTimeout(()=>previewOrder(0),300);
+}
+
+// 발주서 수정 모드 진입 (관리자만, 출력 전 발주서만 가능)
+function editOrder(i){
+  if(!requireEdit())return;
+  const o=orders[i];
+  if(!o)return;
+  if(o.printedAt){tst('출력완료된 발주서는 수정할 수 없습니다. 삭제 후 다시 작성해주세요');return;}
+  editingOrderId=o.id;
+  orderItems=o.items.map(it=>({id:it.id||'',name:it.name||'',qty:it.qty}));
+  orderForm={vendor:o.vendor||'',w:o.w||'',due:o.due||'',memo:o.memo||'',delivery:o.delivery||''};
+  orderSq='';
+  render();
+  tst('✏️ 발주서 수정 모드입니다',2200);
+  setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),50);
+}
+
+function cancelEditOrder(){
+  editingOrderId=null;
+  orderItems=[];orderSq='';
+  orderForm={vendor:'',w:'',due:'',memo:'',delivery:''};
+  render();
 }
 
 function delOrder(i){
