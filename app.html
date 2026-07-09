@@ -8810,16 +8810,27 @@ function delAttendanceReq(id){
   render();
 }
 
-function dashTodayIO(type){
-  const d0=new Date().setHours(0,0,0,0);
-  const list=txs.filter(t=>t.type===type&&t.ts>=d0).sort((a,b)=>b.ts-a.ts);
+let ioViewDate=null; // 입/출고 내역 조회 모달에서 선택된 날짜 (YYYY-MM-DD), null이면 오늘로 초기화
+function dashTodayIO(type,keepDate){
+  if(!keepDate) ioViewDate=new Date().toISOString().slice(0,10);
+  const dateStr=ioViewDate;
+  const d0=new Date(dateStr+'T00:00:00').getTime();
+  const d1=d0+86400000;
+  const list=txs.filter(t=>t.type===type&&t.ts>=d0&&t.ts<d1).sort((a,b)=>b.ts-a.ts);
   const totQty=list.reduce((s,t)=>s+t.qty,0);
   const col=type==='in'?'var(--green)':'var(--amber)';
   const bg=type==='in'?'var(--green-bg)':'var(--amber-bg)';
   const sign=type==='in'?'+':'-';
-  document.getElementById('mo-title').textContent=(type==='in'?'📥 오늘 입고 내역':'📤 오늘 출고 내역');
+  const isToday=dateStr===new Date().toISOString().slice(0,10);
+  const dateLabel=isToday?'오늘':new Date(dateStr+'T00:00:00').toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('mo-title').textContent=(type==='in'?'📥 ':'📤 ')+dateLabel+(type==='in'?' 입고 내역':' 출고 내역');
   const moEl0=document.querySelector('.mo');if(moEl0)moEl0.style.width='720px';
   document.getElementById('mb').innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <label class="fl" style="margin-bottom:0;white-space:nowrap">조회 날짜</label>
+      <input type="date" class="fi" value="${dateStr}" style="flex:1" onchange="changeIODate(this.value,'${type}')">
+      <button class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:8px 12px;font-size:12px;white-space:nowrap" onclick="changeIODate(new Date().toISOString().slice(0,10),'${type}')">오늘</button>
+    </div>
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <div style="flex:1;background:var(--bg3);border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">${type==='in'?'입고':'출고'} 건수</div><div style="font-size:20px;font-weight:700;font-family:monospace">${list.length}건</div></div>
       <div style="flex:1;background:${bg};border-radius:8px;padding:12px 14px;text-align:center"><div style="font-size:11px;color:${col};margin-bottom:4px">${type==='in'?'입고':'출고'} 수량</div><div style="font-size:20px;font-weight:700;font-family:monospace;color:${col}">${sign}${totQty.toLocaleString()}</div></div>
@@ -8827,8 +8838,14 @@ function dashTodayIO(type){
     ${list.length?`<table class="tbl" style="font-size:12px">
       <thead><tr><th>품명</th><th>금형번호</th><th>수량</th><th>담당자</th><th>일시</th><th></th></tr></thead>
       <tbody>${list.map(t=>{const it=inv.find(i=>i.id===t.iid);return`<tr onclick="opD('${t.iid}')" style="cursor:pointer"><td>${it?it.name:t.iid}</td><td style="font-family:monospace;color:var(--blue)">${t.iid}</td><td style="font-family:monospace;font-weight:700;color:${col}">${sign}${t.qty}${it?it.unit:''}</td><td style="color:var(--text2);white-space:nowrap">${t.w||'-'}</td><td style="color:var(--text3);white-space:nowrap">${new Date(t.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})} ${new Date(t.ts).toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'})}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button onclick="editTodayTx(${t.id},'${type}')" class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:3px 8px;font-size:11px">수정</button> <button onclick="delTodayTx(${t.id},'${type}')" class="btn bbr" style="padding:3px 8px;font-size:11px">삭제</button></td></tr>`;}).join('')}</tbody>
-    </table>`:'<div style="text-align:center;padding:20px;color:var(--text3)">오늘 '+(type==='in'?'입고':'출고')+' 내역 없음</div>'}`;
+    </table>`:'<div style="text-align:center;padding:20px;color:var(--text3)">'+dateLabel+' '+(type==='in'?'입고':'출고')+' 내역 없음</div>'}`;
   document.getElementById('ov').classList.add('on');
+}
+
+function changeIODate(v,type){
+  if(!v)return;
+  ioViewDate=v;
+  dashTodayIO(type,true);
 }
 
 // 오늘 입/출고 내역 수정 - 수량/담당자/메모를 고치고 재고에 차액만큼 반영
@@ -8864,7 +8881,7 @@ function saveTodayTxEdit(id,type){
   sv();
   cmo();
   tst('✅ 수정 완료');
-  dashTodayIO(type);
+  dashTodayIO(type,true);
 }
 
 function delTodayTx(id,type){
@@ -8880,7 +8897,7 @@ function delTodayTx(id,type){
   txs=txs.filter(x=>String(x.id)!==String(id));
   sv();
   tst('삭제되었습니다');
-  dashTodayIO(type);
+  dashTodayIO(type,true);
 }
 
 // 생산자 클릭 시 해당 생산자의 입고 상세 모달
