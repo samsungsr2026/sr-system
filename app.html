@@ -905,6 +905,7 @@ function delNotice(id){
   saveNotices();render();
 }
 function saveDR(){
+  _lastDrSave=Date.now(); // 저장 시작 시점에 기록 - 저장 직후 폴링이 되돌리지 않도록 함
   localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));
   cfSet('dailyreport',dailyReports).catch(()=>{});
 }
@@ -2333,6 +2334,7 @@ let _productionPullBusy=false;
 let _lastProdSave=0; // 대시보드에서 생산현황을 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastMrSave=0; // 대시보드에서 성형일보를 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastAttSave=0; // 근태신청을 직접 승인/거부/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
+let _lastDrSave=0; // 업무일지를 직접 저장한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
@@ -2438,7 +2440,7 @@ async function jbPull() {
     if(Array.isArray(rw)&&rw.length>0){WK=rw;try{localStorage.setItem('sr-workers',JSON.stringify(WK));}catch(e){}}
     if(Array.isArray(ra)&&ra.length>0){accounts=ra;try{localStorage.setItem('sr-accounts',JSON.stringify(accounts));}catch(e){}}
     if(Array.isArray(rn)){notices=rn;try{localStorage.setItem('sr-notices',JSON.stringify(notices));}catch(e){}}
-    if(Array.isArray(rdr)){dailyReports=rdr;try{localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}catch(e){}}
+    if(Array.isArray(rdr)&&Date.now()-_lastDrSave>=8000){dailyReports=rdr;try{localStorage.setItem('sr-dailyreport',JSON.stringify(dailyReports));}catch(e){}}
     if(Array.isArray(rcl)){
       const cleaned=rcl.filter(x=>!(x.title&&x.title.indexOf('업무 보고서 저장')===0));
       changeLogs=cleaned;
