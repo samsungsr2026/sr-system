@@ -1600,7 +1600,7 @@ async function gdDeleteFile(itemId, fileId){
 }
 // ── Google Drive 연동 끝 ────────────────────────────────────────
 
-function svImgs(){
+async function svImgs(){
   _lastImgsSave=Date.now(); // 저장 시작 시점에 기록 - 저장 직후 폴링(jbPullFiles)이 되돌리지 않도록 함
   _lastDrawsSave=Date.now();
   try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){tst('⚠️ 저장공간 부족 - 사진 용량을 줄여주세요',3000);}
@@ -1610,29 +1610,34 @@ function svImgs(){
   try{localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));}catch(e){}
   // 제품 사진은 핵심 데이터(/sr.json)에 넣지 않고 개별 경로로만 저장 (변경된 품목만 전송 - 누적되어도 핵심 동기화 속도에 영향 없음)
   // 서버 전송 실패 시(용량 초과 등) dirty 표시를 지우지 않아 다음 저장/폴링 때 재시도되도록 함
-  imgsDirty.forEach(itemId=>{
+  // 호출자가 실제 서버 저장 완료를 기다릴 수 있도록 결과를 반환한다(실패한 itemId 목록 포함)
+  const imgsFailed=[], drawsFailed=[];
+  const imgsPromises=Array.from(imgsDirty).map(itemId=>{
     if(imgs[itemId]){
-      cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).then(r=>{
+      return cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).then(r=>{
         if(r&&r.ok)imgsDirty.delete(itemId);
-        else tst('⚠️ 사진 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다',4000);
-      }).catch(()=>{ tst('⚠️ 사진 서버 저장 실패 - 네트워크를 확인해주세요',4000); });
+        else{ imgsFailed.push(itemId); tst('⚠️ 사진 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다',4000); }
+      }).catch(()=>{ imgsFailed.push(itemId); tst('⚠️ 사진 서버 저장 실패 - 네트워크를 확인해주세요',4000); });
     }else{
-      cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
+      return cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
     }
   });
   if(imgsDeleted.length)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
   // 도면은 변경된(dirty) 품목만 개별 경로로 전송 - 도면이 많이 쌓여도 한 번의 요청은 변경분만 전송됨
-  drawsDirty.forEach(itemId=>{
+  const drawsPromises=Array.from(drawsDirty).map(itemId=>{
     if(draws[itemId]){
-      cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).then(r=>{
+      return cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).then(r=>{
         if(r&&r.ok)drawsDirty.delete(itemId);
-        else tst('⚠️ 도면 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다 ('+(r&&(r.status||r.detail)||'')+')',4500);
-      }).catch(()=>{ tst('⚠️ 도면 서버 저장 실패 - 네트워크를 확인해주세요',4500); });
+        else{ drawsFailed.push(itemId); tst('⚠️ 도면 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다 ('+(r&&(r.status||r.detail)||'')+')',4500); }
+      }).catch(()=>{ drawsFailed.push(itemId); tst('⚠️ 도면 서버 저장 실패 - 네트워크를 확인해주세요',4500); });
     }
+    return Promise.resolve();
   });
   if(drawsDeleted.length)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
   // 추가 첨부파일: 파일 1건당 개별 경로로 저장(아래 addAttach/rmAttach 등에서 직접 전송)하므로
   // 여기서는 로컬 캐시와 삭제 tombstone만 갱신한다 (개수 제한 없이 안정적으로 동작)
+  await Promise.all([...imgsPromises, ...drawsPromises]);
+  return {imgsFailed, drawsFailed};
 }
 function getImg(id){return imgs[id]||'';}
 // 도면 데이터를 {type,name,data,isImage} 형태로 정규화하여 반환
@@ -2668,7 +2673,11 @@ function handleImgUpload(itemId,kind,inputEl){
         cv.getContext('2d').drawImage(img,0,0,w,h);
         imgs[itemId]=cv.toDataURL('image/jpeg',0.82);
         imgsDirty.add(itemId);
-        svImgs();tst('✓ 제품 사진이 저장되었습니다');opD(itemId);
+        tst('💾 저장 중...',1200);
+        svImgs().then(res=>{
+          if(!res||!res.imgsFailed||!res.imgsFailed.includes(itemId))tst('✓ 제품 사진이 저장되었습니다 (서버 저장 확인됨)');
+          opD(itemId);
+        });
       };
       img.onerror=function(){tst('이미지를 불러올 수 없습니다');};
       img.src=e.target.result;
@@ -2696,8 +2705,11 @@ function handleImgUpload(itemId,kind,inputEl){
         cv.getContext('2d').drawImage(img,0,0,w,h);
         draws[itemId]={type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true};
         drawsDirty.add(itemId);
-        try{svImgs();}catch(err){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);return;}
-        tst('✓ 도면이 저장되었습니다');opD(itemId);
+        tst('💾 저장 중...',1200);
+        svImgs().then(res=>{
+          if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면이 저장되었습니다 (서버 저장 확인됨)');
+          opD(itemId);
+        }).catch(()=>{ tst('⚠️ 저장 중 오류가 발생했습니다',3000); opD(itemId); });
       };
       img.onerror=function(){tst('이미지를 불러올 수 없습니다');};
       img.src=e.target.result;
@@ -2705,8 +2717,11 @@ function handleImgUpload(itemId,kind,inputEl){
       // PDF·문서 등은 원본 그대로 base64 저장
       draws[itemId]={type:file.type,name:file.name,data:e.target.result,isImage:false};
       drawsDirty.add(itemId);
-      try{svImgs();}catch(err){tst('⚠️ 저장공간 부족 - 더 작은 파일을 사용해주세요',3000);return;}
-      tst('✓ 도면 ('+file.name+') 저장되었습니다');opD(itemId);
+      tst('💾 저장 중...',1200);
+      svImgs().then(res=>{
+        if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면 ('+file.name+') 저장되었습니다 (서버 저장 확인됨)');
+        opD(itemId);
+      }).catch(()=>{ tst('⚠️ 저장 중 오류가 발생했습니다',3000); opD(itemId); });
     }
   };
   reader.onerror=function(){tst('파일을 읽을 수 없습니다');};
