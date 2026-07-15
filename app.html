@@ -1585,6 +1585,8 @@ async function gdDeleteFile(itemId, fileId){
 // ── Google Drive 연동 끝 ────────────────────────────────────────
 
 function svImgs(){
+  _lastImgsSave=Date.now(); // 저장 시작 시점에 기록 - 저장 직후 폴링(jbPullFiles)이 되돌리지 않도록 함
+  _lastDrawsSave=Date.now();
   try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){tst('⚠️ 저장공간 부족 - 사진 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-draws',JSON.stringify(draws));}catch(e){tst('⚠️ 저장공간 부족 - 도면 파일 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));}catch(e){}
@@ -2160,6 +2162,7 @@ async function jbPullFiles(rim){
     // 도면(draws)과 동일하게 /srFiles/imgs 개별 경로로 분리. 기존에 /sr/imgs에 남아있던 사진은 이전 후 정리(삭제)한다.
     window._filesStage='before-imgs';
     try{
+      if(Date.now()-_lastImgsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
       const remoteImgsRoot=await cfGetPath('srFiles/imgs');
       const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
       const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
@@ -2191,6 +2194,7 @@ async function jbPullFiles(rim){
     window._filesStage='before-draws';
     // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
     try{
+      if(Date.now()-_lastDrawsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
       const remoteDrawsRoot=await cfGetPath('srFiles/draws');
       const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
       const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
@@ -2335,6 +2339,8 @@ let _lastProdSave=0; // 대시보드에서 생산현황을 직접 수정/삭제�
 let _lastMrSave=0; // 대시보드에서 성형일보를 직접 수정/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastAttSave=0; // 근태신청을 직접 승인/거부/삭제한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastDrSave=0; // 업무일지를 직접 저장한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
+let _lastImgsSave=0; // 제품 사진을 직접 저장한 직후엔 백그라운드 폴링(jbPullFiles)이 되돌리지 않도록 함
+let _lastDrawsSave=0; // 제품 도면을 직접 저장한 직후엔 백그라운드 폴링(jbPullFiles)이 되돌리지 않도록 함
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
