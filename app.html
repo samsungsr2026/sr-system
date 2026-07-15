@@ -2732,6 +2732,7 @@ function picThumb(it){
   return `<div onclick="event.stopPropagation();opD('${it.id}')" title="사진 없음 - 클릭하여 등록"
     style="width:64px;height:64px;border-radius:8px;border:1px dashed var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0">${it.e||'📷'}</div>`;
 }
+function lastInTx(id){return txs.filter(function(t){return t.iid===id&&t.type==='in';}).sort(function(a,b){return b.ts-a.ts;})[0];}
 function st(i){return i.qty<=i.min*.3?'low':i.qty<=i.min?'med':'ok';}
 function sb(i){const s=st(i);return s==='low'?'<span class="badge br">부족</span>':s==='med'?'<span class="badge ba">주의</span>':'<span class="badge bg">정상</span>';}
 function prodBadge(it){
@@ -4335,13 +4336,14 @@ function rInv(){
     ${['전체','정상','주의','부족','생산중단'].map(s=>`<div class="ftab${fcat===s?' on':''}" onclick="fcat='${s}';render()">${s}</div>`).join('')}
   </div>
   <div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
-    <table class="tbl" style="min-width:1060px">
+    <table class="tbl" style="min-width:1160px">
       <thead><tr>
         <th>품명</th>
         <th>부품번호</th>
         <th>금형번호</th>
         <th>제품위치</th>
         <th>현재 재고</th>
+        <th>최근 입고</th>
         <th>최소 기준</th>
         <th>월평균 출하</th>
         <th>고무무게</th>
@@ -4365,6 +4367,7 @@ function rInv(){
           <td style="font-family:monospace;font-weight:700;font-size:15px;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
             ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
           </td>
+          <td style="font-family:monospace;font-size:12px">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+'<br><span style="color:var(--text3);font-size:11px">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
           <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.rubberWeight||'-'}</td>
