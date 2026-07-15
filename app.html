@@ -4343,13 +4343,13 @@ function rInv(){
         <th>금형번호</th>
         <th>제품위치</th>
         <th>현재 재고</th>
-        <th>최근 입고</th>
+        <th style="white-space:nowrap">최근 입고</th>
         <th>최소 기준</th>
         <th>월평균 출하</th>
-        <th>고무무게</th>
+        <th style="width:56px">고무무게</th>
         <th>스틸무게</th>
         <th>재질</th>
-        <th>생산자</th>
+        <th style="width:64px">생산자</th>
         <th>생산 여부</th>
         <th>재고 상태</th>
       </tr></thead>
@@ -4367,13 +4367,13 @@ function rInv(){
           <td style="font-family:monospace;font-weight:700;font-size:15px;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
             ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
           </td>
-          <td style="font-family:monospace;font-size:12px">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+'<br><span style="color:var(--text3);font-size:11px">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
+          <td style="font-family:monospace;font-size:12px;white-space:nowrap">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+' <span style="color:var(--text3);font-size:11px">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
           <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.rubberWeight||'-'}</td>
+          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px">${it.rubberWeight||'-'}</td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.steelWeight||'-'}</td>
           <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-          <td><span style="background:var(--purple-bg);color:var(--purple);padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
+          <td><span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
           <td style="text-align:center">${prodBadge(it)}</td>
           <td>${sb(it)}</td>
         </tr>`).join('')}
