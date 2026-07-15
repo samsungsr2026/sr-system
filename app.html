@@ -2223,22 +2223,39 @@ async function jbPullFiles(rim){
     try{
       if(Date.now()-_lastDrawsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
       const {ok:drawsFetchOk, data:remoteDrawsRoot}=await cfGetPathChecked('srFiles/draws');
-      if(!drawsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
+      window._filesStage='draws-fetched:'+(drawsFetchOk?(remoteDrawsRoot?'ok':'ok-empty'):'FAILED');
+      if(!drawsFetchOk){
+        tst('⚠️ 도면 서버 상태 확인 실패 - 다음 동기화에서 재시도',3000);
+        throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
+      }
       const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
       const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
+      // [진단용] 서버에 실제로 몇 건이 있고 그중 데이터가 실제로 있는 게 몇 건인지 전역 변수에 저장 (도면 화면에 표시됨)
+      window._drawsServerTotal=Object.keys(remoteDraws).length;
+      window._drawsServerWithData=Object.values(remoteDraws).filter(v=>v&&(typeof v==='string'||(typeof v==='object'&&v.data))).length;
       drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
       const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
       drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
       const delChanged=JSON.stringify(drawsDeleted.slice().sort())!==JSON.stringify((remoteDrawsDel||[]).slice().sort());
-      // 원격에 아직 없는(로컬 전용, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
-      Object.keys(mergedDraws).forEach(id=>{
-        if(!remoteDraws[id])cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(id)}`, mergedDraws[id]).catch(()=>{});
-      });
       draws=mergedDraws;
       localStorage.setItem('sr-draws',drawsForStorage(draws));
       localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));
       if(delChanged)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
-    }catch(e){}
+      // 원격에 아직 없는(로컬 전용, 미동기화) 항목만 개별 재전송 - 결과를 확인해서 실패 시 사용자에게 알림
+      // (기존엔 fire-and-forget으로 실패해도 조용히 무시되어, 저장이 실제로는 안 됐는데도 알 수 없었음)
+      const delSetD=new Set(drawsDeleted.map(String));
+      const toSendD=Object.keys(mergedDraws).filter(id=>!remoteDraws[id]&&!delSetD.has(String(id)));
+      if(toSendD.length){
+        const resultsD=await Promise.all(toSendD.map(id=>cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(id)}`, mergedDraws[id])));
+        const failD=toSendD.filter((id,i2)=>!(resultsD[i2]&&resultsD[i2].ok));
+        if(failD.length){
+          const names=failD.map(id=>{const it=inv.find(x=>x.id===id);return it?it.name:id;});
+          const errD=resultsD.find(r=>r&&!r.ok);
+          tst('⚠️ 도면 서버 저장 실패: '+names.join(', ')+' ('+((errD&&(errD.status||errD.detail))||'')+') - 파일 용량을 줄여서 다시 시도해주세요',6000);
+        }
+      }
+    }catch(e){ if(window._filesStage==='before-draws')window._filesStage='draws-error:'+((e&&e.message)||e); }
+    window._filesStage='after-draws';
     window._filesStage='before-attaches';
     // 추가 첨부파일(attaches): 교정성적서/설비대장과 동일하게 파일 1건당 개별 경로(/srFiles/attaches/_repo/{fileId})로 저장,
     // tombstone(_deleted)으로 삭제 동기화 (파일이 많이 누적돼도 한 번에 보내는 양이 적어 용량 한도에 걸리지 않음)
@@ -9333,6 +9350,7 @@ function opD(id){
     </div>
 
     <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 10px">제품 사진 / 도면</div>
+    <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:8px;display:inline-block">🔧 진단: 이 품목 도면 데이터 ${(drw&&(typeof drw==='string'||drw.data))?'있음':(drw?'메타만있음(데이터없음)':'없음')} / 서버 도면 전체 ${window._drawsServerTotal!=null?window._drawsServerTotal:'확인중'}건(데이터있음 ${window._drawsServerWithData!=null?window._drawsServerWithData:'확인중'}건) / 단계: ${window._filesStage||'(동기화 시작전)'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:5px;font-weight:600">📷 제품 사진</div>
