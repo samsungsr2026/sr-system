@@ -2673,6 +2673,11 @@ function handleImgUpload(itemId,kind,inputEl){
         cv.getContext('2d').drawImage(img,0,0,w,h);
         imgs[itemId]=cv.toDataURL('image/jpeg',0.82);
         imgsDirty.add(itemId);
+        // 예전에 이 품목의 사진을 삭제한 적이 있다면 삭제 tombstone에 itemId가 남아있어,
+        // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
+        // 새로 등록하는 순간 tombstone에서 제거한다.
+        const _imgDelIdx=imgsDeleted.indexOf(itemId);
+        if(_imgDelIdx!==-1){ imgsDeleted.splice(_imgDelIdx,1); cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{}); }
         tst('💾 저장 중...',1200);
         svImgs().then(res=>{
           if(!res||!res.imgsFailed||!res.imgsFailed.includes(itemId))tst('✓ 제품 사진이 저장되었습니다 (서버 저장 확인됨)');
@@ -2705,6 +2710,11 @@ function handleImgUpload(itemId,kind,inputEl){
         cv.getContext('2d').drawImage(img,0,0,w,h);
         draws[itemId]={type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true};
         drawsDirty.add(itemId);
+        // 예전에 이 품목의 도면을 삭제한 적이 있다면 삭제 tombstone에 itemId가 남아있어,
+        // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
+        // 새로 등록하는 순간 tombstone에서 제거한다.
+        const _drawDelIdx1=drawsDeleted.indexOf(itemId);
+        if(_drawDelIdx1!==-1){ drawsDeleted.splice(_drawDelIdx1,1); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
         tst('💾 저장 중...',1200);
         svImgs().then(res=>{
           if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면이 저장되었습니다 (서버 저장 확인됨)');
@@ -2717,6 +2727,8 @@ function handleImgUpload(itemId,kind,inputEl){
       // PDF·문서 등은 원본 그대로 base64 저장
       draws[itemId]={type:file.type,name:file.name,data:e.target.result,isImage:false};
       drawsDirty.add(itemId);
+      const _drawDelIdx2=drawsDeleted.indexOf(itemId);
+      if(_drawDelIdx2!==-1){ drawsDeleted.splice(_drawDelIdx2,1); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
       tst('💾 저장 중...',1200);
       svImgs().then(res=>{
         if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면 ('+file.name+') 저장되었습니다 (서버 저장 확인됨)');
