@@ -1593,17 +1593,27 @@ function svImgs(){
   try{localStorage.setItem('sr-attaches',acForStorage(attaches));}catch(e){tst('⚠️ 저장공간 부족 - 첨부파일 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-attaches-deleted',JSON.stringify(attachesDeleted));}catch(e){}
   // 제품 사진은 핵심 데이터(/sr.json)에 넣지 않고 개별 경로로만 저장 (변경된 품목만 전송 - 누적되어도 핵심 동기화 속도에 영향 없음)
+  // 서버 전송 실패 시(용량 초과 등) dirty 표시를 지우지 않아 다음 저장/폴링 때 재시도되도록 함
   imgsDirty.forEach(itemId=>{
-    if(imgs[itemId])cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).catch(()=>{});
-    else cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
+    if(imgs[itemId]){
+      cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).then(r=>{
+        if(r&&r.ok)imgsDirty.delete(itemId);
+        else tst('⚠️ 사진 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다',4000);
+      }).catch(()=>{ tst('⚠️ 사진 서버 저장 실패 - 네트워크를 확인해주세요',4000); });
+    }else{
+      cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
+    }
   });
-  imgsDirty.clear();
   if(imgsDeleted.length)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
   // 도면은 변경된(dirty) 품목만 개별 경로로 전송 - 도면이 많이 쌓여도 한 번의 요청은 변경분만 전송됨
   drawsDirty.forEach(itemId=>{
-    if(draws[itemId])cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).catch(()=>{});
+    if(draws[itemId]){
+      cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).then(r=>{
+        if(r&&r.ok)drawsDirty.delete(itemId);
+        else tst('⚠️ 도면 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다 ('+(r&&(r.status||r.detail)||'')+')',4500);
+      }).catch(()=>{ tst('⚠️ 도면 서버 저장 실패 - 네트워크를 확인해주세요',4500); });
+    }
   });
-  drawsDirty.clear();
   if(drawsDeleted.length)cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{});
   // 추가 첨부파일: 파일 1건당 개별 경로로 저장(아래 addAttach/rmAttach 등에서 직접 전송)하므로
   // 여기서는 로컬 캐시와 삭제 tombstone만 갱신한다 (개수 제한 없이 안정적으로 동작)
@@ -2163,7 +2173,8 @@ async function jbPullFiles(rim){
     window._filesStage='before-imgs';
     try{
       if(Date.now()-_lastImgsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
-      const remoteImgsRoot=await cfGetPath('srFiles/imgs');
+      const {ok:imgsFetchOk, data:remoteImgsRoot}=await cfGetPathChecked('srFiles/imgs');
+      if(!imgsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
       const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
       const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
       imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
@@ -2195,7 +2206,8 @@ async function jbPullFiles(rim){
     // 제품 도면(draws): 핵심 데이터와 분리된 별도 경로(/srFiles)에서 가져와 병합 (원격 우선 + tombstone 삭제 동기화)
     try{
       if(Date.now()-_lastDrawsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
-      const remoteDrawsRoot=await cfGetPath('srFiles/draws');
+      const {ok:drawsFetchOk, data:remoteDrawsRoot}=await cfGetPathChecked('srFiles/draws');
+      if(!drawsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
       const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
       const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
       drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
