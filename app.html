@@ -7532,15 +7532,21 @@ function pendingDetailHtml(p){
   }
   return '';
 }
-function rPending(){
-  const typeLabel={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정', attendance:'🗓️ 근태신청'};
+// 승인 대기 목록(관리자 변경요청 + 근태신청) 계산 — rPending() 화면과 마스터 로그인 팝업이 공통으로 사용
+const PENDING_TYPE_LABEL={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정', attendance:'🗓️ 근태신청'};
+function getPendingApprovalItems(){
   const isM=isMaster();
   const atPending=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').map(a=>({
     __att:true, id:a.id, type:'attendance',
     label:(a.name||'-')+' — '+(a.type||'')+' '+(a.date||'')+(a.time?' '+a.time:'')+(a.reason?' · '+a.reason:''),
     requestedBy:a.name||'-', requestedAt:a.ts
   }));
-  const list=(isM?[...pendingChanges,...atPending]:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
+  return (isM?[...pendingChanges,...atPending]:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
+}
+function rPending(){
+  const typeLabel=PENDING_TYPE_LABEL;
+  const isM=isMaster();
+  const list=getPendingApprovalItems();
   return `
   <div class="page-title">✅ 승인 대기</div>
   <div class="page-sub">${isM?'관리자가 요청한 변경사항과 근태신청을 검토하고 승인 또는 거부합니다':'내가 요청한 변경사항의 승인 현황입니다 (마스터 승인 시 반영됩니다)'} · 대기 중 ${list.length}건</div>
@@ -11923,33 +11929,32 @@ function doLogin(){
   render();
   if(curUser.role==='master') setTimeout(checkMasterPendingApproval,350);
 }
-// 마스터 로그인 시 승인 대기 항목(근태신청/업무일지/발주서) 알림 팝업
+// 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
 function checkMasterPendingApproval(){
   if(!curUser||curUser.role!=='master')return;
-  const pendingAttendance=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').length;
+  const typeLabel=PENDING_TYPE_LABEL;
+  const list=getPendingApprovalItems();
   const pendingDaily=(dailyReports||[]).filter(r=>!r.approved).length;
-  const pendingPurchase=(purchases||[]).filter(p=>p.status==='pending').length;
-  const total=pendingAttendance+pendingDaily+pendingPurchase;
+  const total=list.length+pendingDaily;
   if(!total)return;
-  const rows=[
-    {label:'🗓️ 근태신청 승인대기',count:pendingAttendance,tab:'attendance'},
-    {label:'📋 업무일지 승인대기',count:pendingDaily,tab:'dailyreport'},
-    {label:'📦 발주서 승인대기',count:pendingPurchase,tab:'purchase'}
-  ].filter(r=>r.count>0);
   document.getElementById('mo-title').textContent='🔔 승인 대기 항목 알림';
   document.getElementById('mb').innerHTML=`
     <div class="info-box">로그인 시점 기준 승인이 필요한 항목이 <strong>${total}건</strong> 있습니다.</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
-      ${rows.map(r=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
-        <div style="font-size:14px;font-weight:700">${r.label}</div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;padding:3px 10px;border-radius:20px">${r.count}건</span>
-          <button class="btn bbl" style="padding:6px 14px;font-size:12px" onclick="cmo();go('${r.tab}')">확인하기</button>
-        </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:420px;overflow-y:auto">
+      ${list.map(p=>`
+      <div onclick="cmo();go('pending')" style="cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+        <span class="badge ${p.__att?'ba':(p.type==='delete'||p.type==='filedel'||p.type==='recdel')?'br':p.type==='add'?'bg':'ba'}" style="font-size:10px;margin-right:6px">${typeLabel[p.type]||p.type}</span>
+        <span style="font-size:13px;font-weight:600">${p.label||''}</span>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${p.requestedBy} · ${new Date(p.requestedAt).toLocaleString('ko',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
       </div>`).join('')}
+      ${pendingDaily?`
+      <div onclick="cmo();go('dailyreport')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+        <span style="font-size:13px;font-weight:600">📋 업무일지 미승인</span>
+        <span style="background:var(--red-bg);color:var(--red);font-weight:700;font-size:12px;padding:2px 9px;border-radius:20px">${pendingDaily}건</span>
+      </div>`:''}
     </div>
     <div class="btn-row" style="margin-top:16px">
+      <button class="btn bbl" style="flex:1;justify-content:center" onclick="cmo();go('pending')">✅ 승인 대기 전체 보기</button>
       <button class="btn" style="flex:1;justify-content:center;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="cmo()">닫기</button>
     </div>`;
   document.getElementById('ov').classList.add('on');
