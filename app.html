@@ -12048,6 +12048,7 @@ function doLogin(){
     setTimeout(batchImportDrawsFromGithub,900);
     setTimeout(batchImportDrawsFromGithub2,1500);
     setTimeout(batchImportDrawsFromGithub3,2100);
+    setTimeout(batchImportDrawsFromGithub4,2700);
   }
 }
 // 부품번호(classNo) 매칭 도면 일괄 첨부 — 2026-07-16 정창식 요청, 1회성 마이그레이션
@@ -12184,6 +12185,50 @@ async function batchImportDrawsFromGithub3(){
   }
   localStorage.setItem('sr-draws-batch-import-20260716-3','1');
   tst('✅ 도면 일괄 첨부 완료(3차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 5000);
+  render();
+}
+// 부품번호(classNo) 매칭 도면 일괄 첨부 4차분 — 2026-07-16 정창식 요청 추가분, 1회성 마이그레이션
+// 14790747은 PDF/IGS 두 파일이 올라와 열람이 쉬운 PDF를 사용, 중복 업로드된 동일 파일(14785269, 14756461)은 1건으로 처리,
+// 재고에 없는 14634748/14646869/14771324/14777451/14777452/14777453는 제외
+async function batchImportDrawsFromGithub4(){
+  if(localStorage.getItem('sr-draws-batch-import-20260716-4')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targets=[
+    {classNo:'14790747',file:'14790747.pdf',label:'14790747---_1.pdf',type:'application/pdf'},
+    {classNo:'14543100',file:'14543100.pdf',label:'14543100.pdf',type:'application/pdf'},
+    {classNo:'14756461',file:'14756461.pdf',label:'14756461---_1.pdf',type:'application/pdf'},
+    {classNo:'14761306',file:'14761306.pdf',label:'14761306---_1.pdf',type:'application/pdf'},
+    {classNo:'14778612',file:'14778612.pdf',label:'14778612---_1.pdf',type:'application/pdf'},
+    {classNo:'14783626',file:'14783626.pdf',label:'14783626---_1.pdf',type:'application/pdf'},
+    {classNo:'14785269',file:'14785269.pdf',label:'14785269---_1.pdf',type:'application/pdf'},
+    {classNo:'14785469',file:'14785469.pdf',label:'14785469---_1.pdf',type:'application/pdf'}
+  ];
+  let okCount=0, failCount=0, skipped=[];
+  for(const t of targets){
+    const item=inv.find(x=>x.classNo===t.classNo);
+    if(!item){ skipped.push(t.classNo); continue; }
+    try{
+      const resp=await fetch('https://raw.githubusercontent.com/samsungsr2026/sr-system/main/importDraws4/'+t.file);
+      if(!resp.ok)throw new Error('http '+resp.status);
+      const blob=await resp.blob();
+      const dataUrl=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result);
+        r.onerror=()=>rej(new Error('read fail'));
+        r.readAsDataURL(blob);
+      });
+      draws[item.id]={type:t.type,name:t.label,data:dataUrl,isImage:false};
+      drawsDirty.add(item.id);
+      const di=drawsDeleted.indexOf(item.id);
+      if(di!==-1)drawsDeleted.splice(di,1);
+      okCount++;
+    }catch(e){ failCount++; }
+  }
+  if(okCount>0){
+    try{ await svImgs(); }catch(e){}
+  }
+  localStorage.setItem('sr-draws-batch-import-20260716-4','1');
+  tst('✅ 도면 일괄 첨부 완료(4차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
   render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
