@@ -12047,6 +12047,7 @@ function doLogin(){
     setTimeout(checkMasterPendingApproval,350);
     setTimeout(batchImportDrawsFromGithub,900);
     setTimeout(batchImportDrawsFromGithub2,1500);
+    setTimeout(batchImportDrawsFromGithub3,2100);
   }
 }
 // 부품번호(classNo) 매칭 도면 일괄 첨부 — 2026-07-16 정창식 요청, 1회성 마이그레이션
@@ -12145,6 +12146,44 @@ async function batchImportDrawsFromGithub2(){
   }
   localStorage.setItem('sr-draws-batch-import-20260716-2','1');
   tst('✅ 도면 일괄 첨부 완료(2차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(용량 큰 TIFF 등)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
+  render();
+}
+// 부품번호(classNo) 매칭 도면 일괄 첨부 3차분 — 2026-07-16 정창식 요청 추가분, 1회성 마이그레이션
+// 54247683은 재고에 없어 제외, 53638870은 이미 더 최신 개정판(--2_1)이 첨부되어 있어
+// 이번에 올라온 구버전(--1_1)으로 덮어쓰지 않도록 제외했다.
+async function batchImportDrawsFromGithub3(){
+  if(localStorage.getItem('sr-draws-batch-import-20260716-3')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targets=[
+    {classNo:'53552724',file:'53552724.pdf',label:'53552724--1_1.pdf',type:'application/pdf'},
+    {classNo:'53681979',file:'53681979.pdf',label:'53681979--1_1.pdf',type:'application/pdf'}
+  ];
+  let okCount=0, failCount=0, skipped=[];
+  for(const t of targets){
+    const item=inv.find(x=>x.classNo===t.classNo);
+    if(!item){ skipped.push(t.classNo); continue; }
+    try{
+      const resp=await fetch('https://raw.githubusercontent.com/samsungsr2026/sr-system/main/importDraws3/'+t.file);
+      if(!resp.ok)throw new Error('http '+resp.status);
+      const blob=await resp.blob();
+      const dataUrl=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result);
+        r.onerror=()=>rej(new Error('read fail'));
+        r.readAsDataURL(blob);
+      });
+      draws[item.id]={type:t.type,name:t.label,data:dataUrl,isImage:false};
+      drawsDirty.add(item.id);
+      const di=drawsDeleted.indexOf(item.id);
+      if(di!==-1)drawsDeleted.splice(di,1);
+      okCount++;
+    }catch(e){ failCount++; }
+  }
+  if(okCount>0){
+    try{ await svImgs(); }catch(e){}
+  }
+  localStorage.setItem('sr-draws-batch-import-20260716-3','1');
+  tst('✅ 도면 일괄 첨부 완료(3차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 5000);
   render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
