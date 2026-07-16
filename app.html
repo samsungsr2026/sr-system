@@ -1105,7 +1105,7 @@ function rPurchaseStats(){
               ?p.items[0].item+' 외 '+(p.items.filter(it=>it.item).length-1)+'종'
               :p.items.filter(it=>it.item).map(it=>it.item).join(', ');
             const pendingDel=getPendingRecdel('purchase', p.id);
-            return`<tr onclick="previewPurchaseDoc(${i})" style="cursor:pointer;${pendingDel?'opacity:.5;background:var(--bg3)':''}">
+            return`<tr ${pendingDel?'':`onclick="previewPurchaseDoc(${i})"`} style="${pendingDel?'opacity:.5;background:var(--bg3);pointer-events:none':'cursor:pointer'}">
               <td style="font-family:monospace;font-size:12px;color:var(--blue);white-space:nowrap">${p.docNo}</td>
               <td>${itemTxt}</td>
               <td style="font-family:monospace;font-weight:700;white-space:nowrap;text-align:center">${p.items.filter(it=>it.item).reduce((s,it)=>s+Number(it.qty),0)}</td>
@@ -3070,7 +3070,7 @@ function rPurchase(){
               ? p.items[0].item+' 외 '+(p.items.filter(it=>it.item).length-1)+'종'
               : p.items.filter(it=>it.item).map(it=>it.item).join(', ');
             const pendingDel=getPendingRecdel('purchase', p.id);
-            return`<tr style="cursor:pointer;${pendingDel?'opacity:.5;background:var(--bg3)':''}" onclick="previewPurchaseDoc(${i})">
+            return`<tr style="${pendingDel?'opacity:.5;background:var(--bg3);pointer-events:none':'cursor:pointer'}" ${pendingDel?'':`onclick="previewPurchaseDoc(${i})"`}>
             <td style="font-family:monospace;font-size:12px;color:var(--blue);white-space:nowrap">${p.docNo}</td>
             <td style="font-weight:600;white-space:nowrap">${p.vendor}</td>
             <td style="font-size:13px">${itemTxt}</td>
