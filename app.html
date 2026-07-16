@@ -1013,6 +1013,7 @@ function delPurchase(i, afterMode){
   if(!requireEdit())return;
   const p=purchases[i];
   if(!p)return;
+  if(getPendingRecdel('purchase', p.id)){tst('이미 삭제 승인 대기 중입니다');return;}
   if(!confirm(p.docNo+' 발주서를 삭제하시겠습니까?'))return;
   if(isAdminPendingRequired()){
     queuePendingChange('recdel', String(p.id), {module:'purchase', moduleLabel:'매입 발주서', id:p.id, docNo:p.docNo, vendor:p.vendor}, '매입 발주서 삭제 — '+p.docNo+' ('+(p.vendor||'')+')');
@@ -1103,7 +1104,8 @@ function rPurchaseStats(){
             const itemTxt=p.items.filter(it=>it.item).length>2
               ?p.items[0].item+' 외 '+(p.items.filter(it=>it.item).length-1)+'종'
               :p.items.filter(it=>it.item).map(it=>it.item).join(', ');
-            return`<tr onclick="previewPurchaseDoc(${i})" style="cursor:pointer">
+            const pendingDel=getPendingRecdel('purchase', p.id);
+            return`<tr onclick="previewPurchaseDoc(${i})" style="cursor:pointer;${pendingDel?'opacity:.5;background:var(--bg3)':''}">
               <td style="font-family:monospace;font-size:12px;color:var(--blue);white-space:nowrap">${p.docNo}</td>
               <td>${itemTxt}</td>
               <td style="font-family:monospace;font-weight:700;white-space:nowrap;text-align:center">${p.items.filter(it=>it.item).reduce((s,it)=>s+Number(it.qty),0)}</td>
@@ -1111,11 +1113,13 @@ function rPurchaseStats(){
               <td style="font-size:12px;color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleDateString('ko')}</td>
               <td style="white-space:nowrap"><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
               <td style="white-space:nowrap" onclick="event.stopPropagation()">
+                ${pendingDel?`<span class="badge br" style="font-size:11px">⏳ 삭제 승인대기 중</span>`:`
                 <div style="display:flex;gap:3px">
                 <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 6px;font-size:11px">출력</button>
                 <button onclick="editPurchaseOrder(${i})" class="btn bba" style="padding:3px 6px;font-size:11px">수정</button>
                 <button onclick="delPurchase(${i},'stat')" class="btn" style="padding:3px 6px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
                 </div>
+                `}
               </td>
             </tr>`;
           }).join('')}
@@ -3065,7 +3069,8 @@ function rPurchase(){
             const itemTxt = p.items.filter(it=>it.item).length>2
               ? p.items[0].item+' 외 '+(p.items.filter(it=>it.item).length-1)+'종'
               : p.items.filter(it=>it.item).map(it=>it.item).join(', ');
-            return`<tr style="cursor:pointer" onclick="previewPurchaseDoc(${i})">
+            const pendingDel=getPendingRecdel('purchase', p.id);
+            return`<tr style="cursor:pointer;${pendingDel?'opacity:.5;background:var(--bg3)':''}" onclick="previewPurchaseDoc(${i})">
             <td style="font-family:monospace;font-size:12px;color:var(--blue);white-space:nowrap">${p.docNo}</td>
             <td style="font-weight:600;white-space:nowrap">${p.vendor}</td>
             <td style="font-size:13px">${itemTxt}</td>
@@ -3074,6 +3079,7 @@ function rPurchase(){
             <td style="font-size:12px;color:var(--text3);white-space:nowrap">${new Date(p.ts).toLocaleDateString('ko')}</td>
             <td style="white-space:nowrap"><span class="badge ${p.status==='done'?'bg':p.status==='partial'?'ba':'bb'}">${p.status==='done'?'완료':p.status==='partial'?'일부입고':'발주중'}</span></td>
             <td style="white-space:nowrap" onclick="event.stopPropagation()">
+              ${pendingDel?`<span class="badge br" style="font-size:11px">⏳ 삭제 승인대기 중</span>`:`
               <div style="display:flex;gap:3px">
               <button onclick="prPurchaseDoc(${i})" class="btn bbl" style="padding:3px 6px;font-size:11px">출력</button>
               <button onclick="prPurchaseDocPDF(${i})" class="btn bbp" style="padding:3px 6px;font-size:11px">PDF</button>
@@ -3081,6 +3087,7 @@ function rPurchase(){
               ${p.status!=='done'?`<button onclick="purchases[${i}].status='done';svPurchase();go('purchase')" class="btn bbg" style="padding:3px 6px;font-size:11px">완료</button>`:''}
               <button onclick="delPurchase(${i})" class="btn" style="padding:3px 6px;font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)">삭제</button>
               </div>
+              `}
             </td>
           </tr>`;}).join('')}
         </tbody>
@@ -6510,7 +6517,9 @@ function rOrder(){
           const totalPages=Math.max(1,Math.ceil(filtered.length/ORD_PAGE_SIZE));
           const curPage=Math.min(Math.max(1,ordPage),totalPages);
           const pageItems=filtered.slice((curPage-1)*ORD_PAGE_SIZE,curPage*ORD_PAGE_SIZE);
-          const rows=pageItems.map(({o,i})=>`<tr>
+          const rows=pageItems.map(({o,i})=>{
+            const pendingDel=getPendingRecdel('order', o.id);
+            return `<tr style="${pendingDel?'opacity:.5;background:var(--bg3)':''}">
               <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${o.docNo}</td>
               <td>${o.vendor||'-'}</td>
               <td style="color:var(--text2)">${o.items.length}종</td>
@@ -6518,13 +6527,16 @@ function rOrder(){
               <td>${o.printedAt?`<span class="badge bg" style="font-size:10px">✓ 출력완료${o.appliedStock?' · 재고반영':''}</span>`:`<span class="badge bgr" style="font-size:10px">미출력</span>`}</td>
               <td style="color:var(--text3);font-size:11px;white-space:nowrap">${o.printedAt?new Date(o.printedAt).toLocaleString('ko',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'-'}</td>
               <td style="white-space:nowrap">
+                ${pendingDel?`<span class="badge br" style="font-size:11px">⏳ 삭제 승인대기 중</span>`:`
                 <button class="btn" style="padding:5px 11px;font-size:12px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="event.stopPropagation();previewOrder(${i})">👁️ 미리보기</button>
                 <button class="btn bbl" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();printOrder(${i})">🖨️ 출력</button>
                 <button style="background:${o.delivered?'rgba(34,197,94,.12)':'var(--bg3)'};border:1px solid ${o.delivered?'rgba(34,197,94,.35)':'var(--border)'};color:${o.delivered?'#16a34a':'var(--text2)'};cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();toggleOrderDelivered(${i})">${o.delivered?'☑':'☐'} 납품완료</button>
                 ${isMaster()&&!o.printedAt?`<button class="btn bba" style="padding:5px 11px;font-size:12px;margin-left:4px" onclick="event.stopPropagation();editOrder(${i})">✏️ 수정</button>`:''}
                 <button style="background:var(--red-bg);border:1px solid rgba(212,32,72,.3);color:var(--red);cursor:pointer;font-size:12px;font-weight:700;padding:5px 9px;border-radius:6px;margin-left:4px" onclick="event.stopPropagation();delOrder(${i})">삭제</button>
+                `}
               </td>
-            </tr>`).join('');
+            </tr>`;
+          }).join('');
           const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setOrdPage(${p})" style="min-width:30px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
           let pageBtns='';
           for(let p=1;p<=totalPages;p++)pageBtns+=pgBtn(p,p,false,p===curPage);
@@ -6846,6 +6858,7 @@ function cancelEditOrder(){
 function delOrder(i){
   if(!requireEdit())return;
   const o=orders[i];
+  if(getPendingRecdel('order', o.id)){tst('이미 삭제 승인 대기 중입니다');return;}
   if(!confirm(o.docNo+' 발주서를 삭제하시겠습니까?'))return;
   if(isAdminPendingRequired()){
     queuePendingChange('recdel', String(o.id), {module:'order', moduleLabel:'발주서', id:o.id, docNo:o.docNo, vendor:o.vendor}, '발주서 삭제 — '+o.docNo+' ('+(o.vendor||'')+')');
@@ -7534,6 +7547,10 @@ function pendingDetailHtml(p){
 }
 // 승인 대기 목록(관리자 변경요청 + 근태신청) 계산 — rPending() 화면과 마스터 로그인 팝업이 공통으로 사용
 const PENDING_TYPE_LABEL={add:'📝 신규 등록', edit:'✏️ 수정', loc:'📍 위치 변경', delete:'🗑️ 삭제', filedel:'🗂️ 파일 삭제', recdel:'🗑️ 삭제', recedit:'✏️ 수정', attendance:'🗓️ 근태신청'};
+// 특정 레코드(module+id)에 대한 삭제 승인대기(recdel) 요청이 있으면 반환 (없으면 null) — 목록에서 비활성화 표시용
+function getPendingRecdel(module, id){
+  return pendingChanges.find(p=>p.type==='recdel' && p.payload && p.payload.module===module && String(p.payload.id)===String(id)) || null;
+}
 function getPendingApprovalItems(){
   const isM=isMaster();
   const atPending=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').map(a=>({
