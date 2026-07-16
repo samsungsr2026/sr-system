@@ -12192,7 +12192,7 @@ async function batchImportDrawsFromGithub3(){
 // 14790747은 PDF/IGS 두 파일이 올라와 열람이 쉬운 PDF를 사용, 중복 업로드된 동일 파일(14785269, 14756461)은 1건으로 처리,
 // 재고에 없는 14634748/14646869/14771324/14777451/14777452/14777453는 제외
 async function batchImportDrawsFromGithub4(){
-  if(localStorage.getItem('sr-draws-batch-import-20260716-4')==='1')return;
+  if(localStorage.getItem('sr-draws-batch-import-20260716-4-v2')==='1')return;
   if(!curUser||curUser.role!=='master')return;
   const targets=[
     {classNo:'14790747',file:'14790747.pdf',label:'14790747---_1.pdf',type:'application/pdf'},
@@ -12228,14 +12228,18 @@ async function batchImportDrawsFromGithub4(){
   if(okCount>0){
     try{ await svImgs(); }catch(e){}
   }
-  localStorage.setItem('sr-draws-batch-import-20260716-4','1');
-  tst('✅ 도면 일괄 첨부 완료(4차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
+  // 실패가 하나도 없을 때만 완료 처리 - GitHub raw CDN 전파 지연(최대 약 5분) 등으로 fetch 자체가
+  // 실패하면 다음 로그인 때 재시도할 수 있도록 완료 플래그를 세우지 않는다(2026-07 실제 발생: 배포 직후
+  // 로그인해서 마이그레이션이 실행되는 바람에 파일이 아직 CDN에 반영 안 돼 전부 실패했는데도
+  // 완료로 기록되어 버려서 다시는 재시도되지 않던 문제).
+  if(failCount===0) localStorage.setItem('sr-draws-batch-import-20260716-4-v2','1');
+  tst('✅ 도면 일괄 첨부 완료(4차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(다음 로그인 때 재시도)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
   render();
 }
 // 부품번호(classNo) 매칭 도면 일괄 첨부 5차분 — 2026-07-16 정창식 요청 추가분, 1회성 마이그레이션
 // 동일 파일 중복 업로드(14795432)는 1건만 사용, 재고에 없는 14800878은 제외
 async function batchImportDrawsFromGithub5(){
-  if(localStorage.getItem('sr-draws-batch-import-20260716-5')==='1')return;
+  if(localStorage.getItem('sr-draws-batch-import-20260716-5-v2')==='1')return;
   if(!curUser||curUser.role!=='master')return;
   const targets=[
     {classNo:'14795432',file:'14795432.pdf',label:'14795432---_1.pdf',type:'application/pdf'},
@@ -12270,8 +12274,8 @@ async function batchImportDrawsFromGithub5(){
   if(okCount>0){
     try{ await svImgs(); }catch(e){}
   }
-  localStorage.setItem('sr-draws-batch-import-20260716-5','1');
-  tst('✅ 도면 일괄 첨부 완료(5차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
+  if(failCount===0) localStorage.setItem('sr-draws-batch-import-20260716-5-v2','1');
+  tst('✅ 도면 일괄 첨부 완료(5차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(다음 로그인 때 재시도)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
   render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
