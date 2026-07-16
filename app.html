@@ -1427,7 +1427,7 @@ async function saveMolds(force){
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
 let planSq=''; // 생산계획서 품목 검색어
-let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null,pendStockRecon=null;
+let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null,pendStockRecon=null,invSortMode='default';
 
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
@@ -2841,6 +2841,16 @@ function fil(){
     const srOk = !sq||ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq);
     return stOk&&srOk;
   }).sort((a,b)=>{
+    if(invSortMode==='qty'){
+      // 현재 재고 많은 순
+      return b.qty-a.qty;
+    }
+    if(invSortMode==='lastIn'){
+      // 최근 입고 순 (입고 이력 없는 품목은 뒤로)
+      const ta=lastInTx(a.id),tb=lastInTx(b.id);
+      const va=ta?ta.ts:-1, vb=tb?tb.ts:-1;
+      return vb-va;
+    }
     // 중단 품목 하단
     const stopA=isStop(a),stopB=isStop(b);
     if(stopA!==stopB) return stopA?1:-1;
@@ -4412,6 +4422,14 @@ function rInv(){
   </div>
   <div class="ftabs">
     ${['전체','정상','주의','부족','생산중단'].map(s=>`<div class="ftab${fcat===s?' on':''}" onclick="fcat='${s}';render()">${s}</div>`).join('')}
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <span style="font-size:12px;color:var(--text3);flex-shrink:0">조회순</span>
+    <div class="ftabs" style="margin-bottom:0">
+      <div class="ftab${invSortMode==='default'?' on':''}" onclick="invSortMode='default';render()">기본순</div>
+      <div class="ftab${invSortMode==='qty'?' on':''}" onclick="invSortMode='qty';render()">현재 재고</div>
+      <div class="ftab${invSortMode==='lastIn'?' on':''}" onclick="invSortMode='lastIn';render()">최근 입고</div>
+    </div>
   </div>
   <div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
     <table class="tbl" style="min-width:1160px">
