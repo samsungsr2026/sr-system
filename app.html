@@ -11957,7 +11957,59 @@ function doLogin(){
   cmo();
   tst('✓ '+acc.name+'님 로그인 ('+roleName(acc.role)+')');
   render();
-  if(curUser.role==='master') setTimeout(checkMasterPendingApproval,350);
+  if(curUser.role==='master'){
+    setTimeout(checkMasterPendingApproval,350);
+    setTimeout(batchImportDrawsFromGithub,900);
+  }
+}
+// 부품번호(classNo) 매칭 도면 일괄 첨부 — 2026-07-16 정창식 요청, 1회성 마이그레이션
+// GitHub repo의 importDraws/{classNo}.pdf 파일들을 부품번호가 일치하는 품목의 도면으로 자동 첨부
+// localStorage 플래그로 1회만 실행되도록 가드
+async function batchImportDrawsFromGithub(){
+  if(localStorage.getItem('sr-draws-batch-import-20260716')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targets=[
+    {classNo:'54841088',file:'54841088.pdf',label:'54841088.pdf'},
+    {classNo:'55211668',file:'55211668.pdf',label:'55211668--1_1.pdf'},
+    {classNo:'55211669',file:'55211669.pdf',label:'55211669--1_1.pdf'},
+    {classNo:'53462387',file:'53462387.pdf',label:'53462387--1_1.pdf'},
+    {classNo:'53502270',file:'53502270.pdf',label:'53502270--1_1.pdf'},
+    {classNo:'53534571',file:'53534571.pdf',label:'53534571--1_1.pdf'},
+    {classNo:'53638870',file:'53638870.pdf',label:'53638870--2_1.pdf'},
+    {classNo:'54143079',file:'54143079.pdf',label:'54143079--1_1.pdf'},
+    {classNo:'54422341',file:'54422341.pdf',label:'54422341--1_1.pdf'},
+    {classNo:'54422356',file:'54422356.pdf',label:'54422356--1_1.pdf'},
+    {classNo:'54422771',file:'54422771.pdf',label:'54422771--1_1.pdf'},
+    {classNo:'54670780',file:'54670780.pdf',label:'54670780.pdf'},
+    {classNo:'54732286',file:'54732286.pdf',label:'54732286_ver2.pdf'}
+  ];
+  let okCount=0, failCount=0, skipped=[];
+  for(const t of targets){
+    const item=inv.find(x=>x.classNo===t.classNo);
+    if(!item){ skipped.push(t.classNo); continue; }
+    try{
+      const resp=await fetch('https://raw.githubusercontent.com/samsungsr2026/sr-system/main/importDraws/'+t.file);
+      if(!resp.ok)throw new Error('http '+resp.status);
+      const blob=await resp.blob();
+      const dataUrl=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result);
+        r.onerror=()=>rej(new Error('read fail'));
+        r.readAsDataURL(blob);
+      });
+      draws[item.id]={type:'application/pdf',name:t.label,data:dataUrl,isImage:false};
+      drawsDirty.add(item.id);
+      const di=drawsDeleted.indexOf(item.id);
+      if(di!==-1)drawsDeleted.splice(di,1);
+      okCount++;
+    }catch(e){ failCount++; }
+  }
+  if(okCount>0){
+    try{ await svImgs(); }catch(e){}
+  }
+  localStorage.setItem('sr-draws-batch-import-20260716','1');
+  tst('✅ 도면 일괄 첨부 완료: '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 5000);
+  render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
 function checkMasterPendingApproval(){
