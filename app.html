@@ -1604,6 +1604,10 @@ async function gdDeleteFile(itemId, fileId){
 }
 // ── Google Drive 연동 끝 ────────────────────────────────────────
 
+// 사진/도면 서버 저장 실패 알림 중복 방지용 — 같은 품목이 계속 dirty로 남아 재시도될 때마다
+// 관계없는 다른 저장 동작에서도 매번 실패 토스트가 반복 표시되는 문제(2026-07 실제 발생)를 막기 위해,
+// 이미 한 번 알림을 띄운 품목은 저장에 성공하기 전까지 다시 알리지 않는다.
+let _fileSaveFailNotified=new Set();
 async function svImgs(){
   _lastImgsSave=Date.now(); // 저장 시작 시점에 기록 - 저장 직후 폴링(jbPullFiles)이 되돌리지 않도록 함
   _lastDrawsSave=Date.now();
@@ -1619,9 +1623,21 @@ async function svImgs(){
   const imgsPromises=Array.from(imgsDirty).map(itemId=>{
     if(imgs[itemId]){
       return cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).then(r=>{
-        if(r&&r.ok)imgsDirty.delete(itemId);
-        else{ imgsFailed.push(itemId); tst('⚠️ 사진 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다',4000); }
-      }).catch(()=>{ imgsFailed.push(itemId); tst('⚠️ 사진 서버 저장 실패 - 네트워크를 확인해주세요',4000); });
+        if(r&&r.ok){imgsDirty.delete(itemId);_fileSaveFailNotified.delete('pic:'+itemId);}
+        else{
+          imgsFailed.push(itemId);
+          if(!_fileSaveFailNotified.has('pic:'+itemId)){
+            _fileSaveFailNotified.add('pic:'+itemId);
+            tst('⚠️ 사진 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다 ('+(r&&(r.status||r.detail)||'')+')',4000);
+          }
+        }
+      }).catch(()=>{
+        imgsFailed.push(itemId);
+        if(!_fileSaveFailNotified.has('pic:'+itemId)){
+          _fileSaveFailNotified.add('pic:'+itemId);
+          tst('⚠️ 사진 서버 저장 실패 - 네트워크를 확인해주세요',4000);
+        }
+      });
     }else{
       return cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
     }
@@ -1631,9 +1647,21 @@ async function svImgs(){
   const drawsPromises=Array.from(drawsDirty).map(itemId=>{
     if(draws[itemId]){
       return cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).then(r=>{
-        if(r&&r.ok)drawsDirty.delete(itemId);
-        else{ drawsFailed.push(itemId); tst('⚠️ 도면 서버 저장 실패 - 파일이 너무 크거나 네트워크 문제일 수 있습니다 ('+(r&&(r.status||r.detail)||'')+')',4500); }
-      }).catch(()=>{ drawsFailed.push(itemId); tst('⚠️ 도면 서버 저장 실패 - 네트워크를 확인해주세요',4500); });
+        if(r&&r.ok){drawsDirty.delete(itemId);_fileSaveFailNotified.delete('draw:'+itemId);}
+        else{
+          drawsFailed.push(itemId);
+          if(!_fileSaveFailNotified.has('draw:'+itemId)){
+            _fileSaveFailNotified.add('draw:'+itemId);
+            tst('⚠️ 도면 서버 저장 실패 — '+(inv.find(x=>x.id===itemId)?.name||itemId)+' ('+(r&&(r.status||r.detail)||'')+') · 재시도 중이며 이 알림은 한 번만 표시됩니다',5000);
+          }
+        }
+      }).catch(()=>{
+        drawsFailed.push(itemId);
+        if(!_fileSaveFailNotified.has('draw:'+itemId)){
+          _fileSaveFailNotified.add('draw:'+itemId);
+          tst('⚠️ 도면 서버 저장 실패 — '+(inv.find(x=>x.id===itemId)?.name||itemId)+' (네트워크 오류) · 재시도 중이며 이 알림은 한 번만 표시됩니다',5000);
+        }
+      });
     }
     return Promise.resolve();
   });
