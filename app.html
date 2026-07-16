@@ -12046,6 +12046,7 @@ function doLogin(){
   if(curUser.role==='master'){
     setTimeout(checkMasterPendingApproval,350);
     setTimeout(batchImportDrawsFromGithub,900);
+    setTimeout(batchImportDrawsFromGithub2,1500);
   }
 }
 // 부품번호(classNo) 매칭 도면 일괄 첨부 — 2026-07-16 정창식 요청, 1회성 마이그레이션
@@ -12095,6 +12096,55 @@ async function batchImportDrawsFromGithub(){
   }
   localStorage.setItem('sr-draws-batch-import-20260716','1');
   tst('✅ 도면 일괄 첨부 완료: '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 5000);
+  render();
+}
+// 부품번호(classNo) 매칭 도면 일괄 첨부 2차분 — 2026-07-16 정창식 요청 추가분, 1회성 마이그레이션
+// GitHub repo의 importDraws2/{classNo}.{ext} 파일들을 부품번호가 일치하는 품목의 도면으로 자동 첨부
+async function batchImportDrawsFromGithub2(){
+  if(localStorage.getItem('sr-draws-batch-import-20260716-2')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targets=[
+    {classNo:'53502270',file:'53502270.pdf',label:'53502270--1_1.pdf',type:'application/pdf'},
+    {classNo:'53513778',file:'53513778.pdf',label:'53513778--1_1.pdf',type:'application/pdf'},
+    {classNo:'53522271',file:'53522271.pdf',label:'53522271--1_1.pdf',type:'application/pdf'},
+    {classNo:'53534571',file:'53534571.igs',label:'53534571__1_.igs',type:'model/iges'},
+    {classNo:'14518967',file:'14518967.tif',label:'14518967.tif',type:'image/tiff'},
+    {classNo:'14778612',file:'14778612.pdf',label:'14778612---_1.pdf',type:'application/pdf'},
+    {classNo:'14802561',file:'14802561.pdf',label:'14802561---_1.pdf',type:'application/pdf'},
+    {classNo:'14803590',file:'14803590.pdf',label:'14803590---_1.pdf',type:'application/pdf'},
+    {classNo:'14803675',file:'14803675.pdf',label:'14803675---_1.pdf',type:'application/pdf'},
+    {classNo:'16835582',file:'16835582.pdf',label:'16835582--1_1.pdf',type:'application/pdf'},
+    {classNo:'53264721',file:'53264721.pdf',label:'53264721--1_1.pdf',type:'application/pdf'},
+    {classNo:'53462385',file:'53462385.pdf',label:'53462385--1_1.pdf',type:'application/pdf'},
+    {classNo:'53462387',file:'53462387.pdf',label:'53462387--1_1.pdf',type:'application/pdf'},
+    {classNo:'53495738',file:'53495738.pdf',label:'53495738--1_1.pdf',type:'application/pdf'}
+  ];
+  let okCount=0, failCount=0, skipped=[];
+  for(const t of targets){
+    const item=inv.find(x=>x.classNo===t.classNo);
+    if(!item){ skipped.push(t.classNo); continue; }
+    try{
+      const resp=await fetch('https://raw.githubusercontent.com/samsungsr2026/sr-system/main/importDraws2/'+t.file);
+      if(!resp.ok)throw new Error('http '+resp.status);
+      const blob=await resp.blob();
+      const dataUrl=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result);
+        r.onerror=()=>rej(new Error('read fail'));
+        r.readAsDataURL(blob);
+      });
+      draws[item.id]={type:t.type,name:t.label,data:dataUrl,isImage:false};
+      drawsDirty.add(item.id);
+      const di=drawsDeleted.indexOf(item.id);
+      if(di!==-1)drawsDeleted.splice(di,1);
+      okCount++;
+    }catch(e){ failCount++; }
+  }
+  if(okCount>0){
+    try{ await svImgs(); }catch(e){}
+  }
+  localStorage.setItem('sr-draws-batch-import-20260716-2','1');
+  tst('✅ 도면 일괄 첨부 완료(2차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(용량 큰 TIFF 등)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
   render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
