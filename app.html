@@ -4472,10 +4472,10 @@ function rInv(){
           <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.rubberWeight?Number(it.rubberWeight).toFixed(2):'-'}</td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.steelWeight?Number(it.steelWeight).toFixed(2):'-'}</td>
           <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-          <td style="padding:11px 6px"><span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
+          <td style="padding:11px 6px">${it.producer?`<span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-block;line-height:1.5" onclick="opD('${it.id}')">${it.producer.split(',').map(p=>p.trim()).filter(Boolean).join('<br>')}</span>`:'<span style="color:var(--text3)">-</span>'}</td>
           <td style="text-align:center">${prodBadge(it)}</td>
           <td>${sb(it)}</td>
-          <td style="text-align:center">${getDraw(it.id)?'<span style="background:var(--green-bg);color:var(--green);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600">✓ 있음</span>':'<span style="color:var(--text3);font-size:11px">-</span>'}</td>
+          <td style="text-align:center">${getDraw(it.id)?'<span style="color:var(--blue);font-weight:700;font-size:13px">O</span>':'<span style="color:var(--red);font-weight:700;font-size:13px">X</span>'}</td>
         </tr>`).join('')}
       </tbody>
     </table>
