@@ -1622,7 +1622,7 @@ async function svImgs(){
   const imgsFailed=[], drawsFailed=[];
   const imgsPromises=Array.from(imgsDirty).map(itemId=>{
     if(imgs[itemId]){
-      return cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`, imgs[itemId]).then(r=>{
+      return cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`, imgs[itemId]).then(r=>{
         if(r&&r.ok){imgsDirty.delete(itemId);_fileSaveFailNotified.delete('pic:'+itemId);}
         else{
           imgsFailed.push(itemId);
@@ -1639,14 +1639,14 @@ async function svImgs(){
         }
       });
     }else{
-      return cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
+      return cfDeletePath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
     }
   });
   if(imgsDeleted.length)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
   // 도면은 변경된(dirty) 품목만 개별 경로로 전송 - 도면이 많이 쌓여도 한 번의 요청은 변경분만 전송됨
   const drawsPromises=Array.from(drawsDirty).map(itemId=>{
     if(draws[itemId]){
-      return cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`, draws[itemId]).then(r=>{
+      return cfPutPath(`srFiles/draws/_repo/${fbKeyEncode(itemId)}`, draws[itemId]).then(r=>{
         if(r&&r.ok){drawsDirty.delete(itemId);_fileSaveFailNotified.delete('draw:'+itemId);}
         else{
           drawsFailed.push(itemId);
@@ -1852,7 +1852,7 @@ function approvePending(pid){
         delete draws[fp.itemId];
         drawsDirty.delete(fp.itemId);
         if(!drawsDeleted.includes(fp.itemId))drawsDeleted.push(fp.itemId);
-        cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(fp.itemId)}`).catch(()=>{});
+        cfDeletePath(`srFiles/draws/_repo/${fbKeyEncode(fp.itemId)}`).catch(()=>{});
       }else delete imgs[fp.itemId];
       svImgs();
       addLog('other',(fp.imgKind==='draw'?'도면':'사진')+' 삭제(승인) — '+p.label, `요청자: ${p.requestedBy}`);
@@ -2063,6 +2063,25 @@ async function cfSetFile(key, data) {
 // 기존엔 파일 하나를 추가/삭제할 때마다 보관함 전체(이미 올라간 다른 파일들 포함)를 통째로 재전송했음.
 // 보관함이 커지면 결국 한 번의 요청 용량이 Firebase 한도를 넘어 400 오류가 발생함(2026-06 실제 발생).
 // 이제 새 파일은 그 파일만, 삭제는 삭제 표시만 작게 전송한다.
+// Firebase Realtime Database는 키에 '.' '#' '$' '[' ']' '/' 문자를 허용하지 않는다.
+// encodeURIComponent는 '#','$','[',']','/'는 %XX로 이스케이프하지만 '.'만은 그대로 남겨두기 때문에,
+// 금형번호/부품번호 등에 마침표가 포함된 품목(예: "15.9Φ")의 사진·도면은 서버 경로 생성 시 마침표가
+// 그대로 URL에 남아 Firebase가 400으로 거부 — 계속 실패·재시도를 반복하며 알림이 끊임없이 뜨는 원인이었다(2026-07 실제 발생).
+// 로컬(draws/imgs 등) 객체의 키는 원래 품목ID 그대로 유지하고, Firebase 경로를 만들 때만 이 함수로 변환한다.
+function fbKeyEncode(id){
+  return encodeURIComponent(String(id).replace(/\./g,'__DOT__'));
+}
+// Firebase에서 받아온 저장소 객체의 키(위 인코딩이 적용된 상태)를 원래 품목ID로 되돌린다.
+function fbKeyDecode(key){
+  return String(key).replace(/__DOT__/g,'.');
+}
+// {인코딩된키: 값} 형태의 객체를 {원래품목ID: 값} 형태로 변환 (imgs/draws 등 병합 전 사용)
+function fbDecodeRepoKeys(obj){
+  if(!obj)return {};
+  const out={};
+  Object.keys(obj).forEach(k=>{ out[fbKeyDecode(k)]=obj[k]; });
+  return out;
+}
 async function cfPutPath(path, data){
   try{
     const r = await fetch(`${FB}/${path}.json`, {
@@ -2228,7 +2247,7 @@ async function jbPullFiles(rim){
       if(Date.now()-_lastImgsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
       const {ok:imgsFetchOk, data:remoteImgsRoot}=await cfGetPathChecked('srFiles/imgs');
       if(!imgsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
-      const remoteImgs=(remoteImgsRoot&&remoteImgsRoot['_repo'])||{};
+      const remoteImgs=fbDecodeRepoKeys((remoteImgsRoot&&remoteImgsRoot['_repo'])||{});
       const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
       imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
       const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
@@ -2241,7 +2260,7 @@ async function jbPullFiles(rim){
       const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
       if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
       let migDone=0;
-      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
+      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
       const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
       imgs=mergedImgs;
       try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
@@ -2265,7 +2284,7 @@ async function jbPullFiles(rim){
         tst('⚠️ 도면 서버 상태 확인 실패 - 다음 동기화에서 재시도',3000);
         throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
       }
-      const remoteDraws=(remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{};
+      const remoteDraws=fbDecodeRepoKeys((remoteDrawsRoot&&remoteDrawsRoot['_repo'])||{});
       const remoteDrawsDel=(remoteDrawsRoot&&remoteDrawsRoot['_deleted'])||[];
       // [진단용] 서버에 실제로 몇 건이 있고 그중 데이터가 실제로 있는 게 몇 건인지 전역 변수에 저장 (도면 화면에 표시됨)
       window._drawsServerTotal=Object.keys(remoteDraws).length;
@@ -2283,12 +2302,16 @@ async function jbPullFiles(rim){
       const delSetD=new Set(drawsDeleted.map(String));
       const toSendD=Object.keys(mergedDraws).filter(id=>!remoteDraws[id]&&!delSetD.has(String(id)));
       if(toSendD.length){
-        const resultsD=await Promise.all(toSendD.map(id=>cfPutPath(`srFiles/draws/_repo/${encodeURIComponent(id)}`, mergedDraws[id])));
+        const resultsD=await Promise.all(toSendD.map(id=>cfPutPath(`srFiles/draws/_repo/${fbKeyEncode(id)}`, mergedDraws[id])));
         const failD=toSendD.filter((id,i2)=>!(resultsD[i2]&&resultsD[i2].ok));
-        if(failD.length){
-          const names=failD.map(id=>{const it=inv.find(x=>x.id===id);return it?it.name:id;});
+        // 이미 성공한 품목은 재알림 플래그 해제 (다음에 다시 실패하면 다시 한 번은 알림)
+        toSendD.filter((id,i2)=>resultsD[i2]&&resultsD[i2].ok).forEach(id=>_fileSaveFailNotified.delete('draw:'+id));
+        const newlyFailed=failD.filter(id=>!_fileSaveFailNotified.has('draw:'+id));
+        if(newlyFailed.length){
+          newlyFailed.forEach(id=>_fileSaveFailNotified.add('draw:'+id));
+          const names=newlyFailed.map(id=>{const it=inv.find(x=>x.id===id);return it?it.name:id;});
           const errD=resultsD.find(r=>r&&!r.ok);
-          tst('⚠️ 도면 서버 저장 실패: '+names.join(', ')+' ('+((errD&&(errD.status||errD.detail))||'')+') - 파일 용량을 줄여서 다시 시도해주세요',6000);
+          tst('⚠️ 도면 서버 저장 실패: '+names.join(', ')+' ('+((errD&&(errD.status||errD.detail))||'')+') - 파일 용량을 줄여서 다시 시도해주세요 · 이 알림은 품목당 한 번만 표시됩니다',6000);
         }
       }
     }catch(e){ if(window._filesStage==='before-draws')window._filesStage='draws-error:'+((e&&e.message)||e); }
@@ -2798,12 +2821,12 @@ function removeImg(itemId,kind){
     delete draws[itemId];
     drawsDirty.delete(itemId);
     if(!drawsDeleted.includes(itemId))drawsDeleted.push(itemId);
-    cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
+    cfDeletePath(`srFiles/draws/_repo/${fbKeyEncode(itemId)}`).catch(()=>{});
   }else{
     delete imgs[itemId];
     imgsDirty.delete(itemId);
     if(!imgsDeleted.includes(itemId))imgsDeleted.push(itemId);
-    cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(itemId)}`).catch(()=>{});
+    cfDeletePath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`).catch(()=>{});
   }
   svImgs();tst('삭제되었습니다');opD(itemId);
 }
@@ -9793,8 +9816,8 @@ function applyItemEdit(id, payload, approvedFrom){
   inv[idx].moldLoc=moldLoc;
   if(moldNo&&moldNo!==id){
     // 금형번호(ID) 변경 시 사진/도면 저장 키도 함께 이전
-    if(imgs[id]){imgs[moldNo]=imgs[id];delete imgs[id];imgsDirty.add(moldNo);cfDeletePath(`srFiles/imgs/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
-    if(draws[id]){draws[moldNo]=draws[id];delete draws[id];drawsDirty.add(moldNo);cfDeletePath(`srFiles/draws/_repo/${encodeURIComponent(id)}`).catch(()=>{});}
+    if(imgs[id]){imgs[moldNo]=imgs[id];delete imgs[id];imgsDirty.add(moldNo);cfDeletePath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`).catch(()=>{});}
+    if(draws[id]){draws[moldNo]=draws[id];delete draws[id];drawsDirty.add(moldNo);cfDeletePath(`srFiles/draws/_repo/${fbKeyEncode(id)}`).catch(()=>{});}
     if(attaches[id]){
       attaches[moldNo]=attaches[id];delete attaches[id];
       attaches[moldNo].forEach(f=>{ if(f.id)cfAddFileItem('attaches', Object.assign({}, f, {itemId:moldNo})).catch(()=>{}); });
