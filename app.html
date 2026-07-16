@@ -11921,6 +11921,38 @@ function doLogin(){
   cmo();
   tst('✓ '+acc.name+'님 로그인 ('+roleName(acc.role)+')');
   render();
+  if(curUser.role==='master') setTimeout(checkMasterPendingApproval,350);
+}
+// 마스터 로그인 시 승인 대기 항목(근태신청/업무일지/발주서) 알림 팝업
+function checkMasterPendingApproval(){
+  if(!curUser||curUser.role!=='master')return;
+  const pendingAttendance=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').length;
+  const pendingDaily=(dailyReports||[]).filter(r=>!r.approved).length;
+  const pendingPurchase=(purchases||[]).filter(p=>p.status==='pending').length;
+  const total=pendingAttendance+pendingDaily+pendingPurchase;
+  if(!total)return;
+  const rows=[
+    {label:'🗓️ 근태신청 승인대기',count:pendingAttendance,tab:'attendance'},
+    {label:'📋 업무일지 승인대기',count:pendingDaily,tab:'dailyreport'},
+    {label:'📦 발주서 승인대기',count:pendingPurchase,tab:'purchase'}
+  ].filter(r=>r.count>0);
+  document.getElementById('mo-title').textContent='🔔 승인 대기 항목 알림';
+  document.getElementById('mb').innerHTML=`
+    <div class="info-box">로그인 시점 기준 승인이 필요한 항목이 <strong>${total}건</strong> 있습니다.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+      ${rows.map(r=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+        <div style="font-size:14px;font-weight:700">${r.label}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;padding:3px 10px;border-radius:20px">${r.count}건</span>
+          <button class="btn bbl" style="padding:6px 14px;font-size:12px" onclick="cmo();go('${r.tab}')">확인하기</button>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" style="flex:1;justify-content:center;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="cmo()">닫기</button>
+    </div>`;
+  document.getElementById('ov').classList.add('on');
 }
 function doLogout(){
   if(!curUser)return;
