@@ -2851,6 +2851,13 @@ function dataUrlToBlobUrl(dataUrl){
   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   return URL.createObjectURL(new Blob([bytes],{type:mime}));
 }
+// 저장된 type이 비어있거나 'application/pdf'와 다른 경우(모바일 업로드 등에서 흔함)까지 포함해서
+// 파일명 확장자로도 PDF 여부를 판별한다 - type만 보고 판단하면 실제로는 PDF인데도 놓치는 경우가 있었음.
+function isPdfDraw(d){
+  if(d.type && String(d.type).toLowerCase().indexOf('pdf')!==-1) return true;
+  if(d.name && /\.pdf$/i.test(d.name)) return true;
+  return false;
+}
 // 도면 보기 - 이미지는 확대뷰, PDF/문서는 새 창
 function viewDraw(itemId){
   const d=getDraw(itemId);
@@ -2860,11 +2867,15 @@ function viewDraw(itemId){
     return;
   }
   try{
-    if(d.type==='application/pdf'){
-      // blob: URL로 직접 새 탭에서 열면 브라우저 내장 PDF 뷰어가 즉시 표시한다(다운로드 안 됨)
+    if(isPdfDraw(d)){
+      // blob: URL을 새 창의 <iframe>에 넣어서 브라우저 내장 PDF 플러그인으로 직접 렌더링한다.
+      // (blob: URL로 곧바로 window.open 하면 브라우저의 "PDF는 항상 다운로드" 설정에 걸려
+      // 여전히 다운로드되는 경우가 있어서, 문서 자체를 새로 만들고 그 안에 iframe으로 넣는 방식으로 우회한다)
       const blobUrl=dataUrlToBlobUrl(d.data);
-      const win=window.open(blobUrl,'_blank');
+      const win=window.open('','_blank');
       if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
+      win.document.write('<!DOCTYPE html><html><head><title>'+(d.name||'도면')+'</title><style>html,body{margin:0;padding:0;height:100%;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style></head><body><iframe src="'+blobUrl+'"></iframe></body></html>');
+      win.document.close();
     }else{
       // PDF가 아닌 파일(도면 CAD/이미지 등 브라우저가 미리보기 못하는 형식)은 다운로드 안내
       const win=window.open('','_blank');
