@@ -4432,7 +4432,7 @@ function rInv(){
     </div>
   </div>
   <div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
-    <table class="tbl" style="min-width:1160px">
+    <table class="tbl" style="min-width:1080px">
       <thead><tr>
         <th style="width:44px">순번</th>
         <th>품명</th>
@@ -4443,10 +4443,10 @@ function rInv(){
         <th style="white-space:nowrap">최근 입고</th>
         <th>최소 기준</th>
         <th>월평균 출하</th>
-        <th style="width:56px">고무무게</th>
-        <th>스틸무게</th>
+        <th style="width:52px;padding:10px 6px">고무무게</th>
+        <th style="width:52px;padding:10px 6px">스틸무게</th>
         <th>재질</th>
-        <th style="width:64px">생산자</th>
+        <th style="width:50px;padding:10px 6px">생산자</th>
         <th>생산 여부</th>
         <th>재고 상태</th>
         <th style="width:56px">도면</th>
@@ -4462,17 +4462,17 @@ function rInv(){
           </td>
           <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
           <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:13px">${it.id}</td>
-          <td><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer" onclick="opD('${it.id}')">${it.location||'-'} ✎</span></td>
-          <td style="font-family:monospace;font-weight:700;font-size:15px;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
+          <td style="white-space:nowrap"><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.location||'-'} ✎</span></td>
+          <td style="font-family:monospace;font-weight:700;font-size:15px;white-space:nowrap;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
             ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
           </td>
           <td style="font-family:monospace;font-size:12px;white-space:nowrap">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+' <span style="color:var(--text3);font-size:11px">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
           <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
           <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px">${it.rubberWeight||'-'}</td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.steelWeight||'-'}</td>
+          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.rubberWeight?Number(it.rubberWeight).toFixed(2):'-'}</td>
+          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.steelWeight?Number(it.steelWeight).toFixed(2):'-'}</td>
           <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-          <td><span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
+          <td style="padding:11px 6px"><span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
           <td style="text-align:center">${prodBadge(it)}</td>
           <td>${sb(it)}</td>
           <td style="text-align:center">${getDraw(it.id)?'<span style="background:var(--green-bg);color:var(--green);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600">✓ 있음</span>':'<span style="color:var(--text3);font-size:11px">-</span>'}</td>
