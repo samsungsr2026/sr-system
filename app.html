@@ -2838,18 +2838,14 @@ function viewBig(src){
   document.getElementById('ov-img-pic').src=src;
   ov.classList.add('on');
 }
-// data: URL(base64)을 Blob URL로 변환 - 브라우저(특히 Chrome)는 큰 data: URL을 PDF 뷰어로 열지 않고
-// 그냥 다운로드시켜버리는 경우가 많아서, blob: URL로 바꿔줘야 새 창에서 바로 열람된다(2026-07 실제 발생).
-function dataUrlToBlobUrl(dataUrl){
+// data: URL(base64)을 바이트 배열로 변환 (pdf.js에 넘기기 위함)
+function dataUrlToBytes(dataUrl){
   const comma=dataUrl.indexOf(',');
-  const header=dataUrl.slice(0,comma);
   const base64=dataUrl.slice(comma+1);
-  const mimeMatch=header.match(/data:(.*?);base64/);
-  const mime=mimeMatch?mimeMatch[1]:'application/octet-stream';
   const binary=atob(base64);
   const bytes=new Uint8Array(binary.length);
   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes],{type:mime}));
+  return bytes;
 }
 // 저장된 type이 비어있거나 'application/pdf'와 다른 경우(모바일 업로드 등에서 흔함)까지 포함해서
 // 파일명 확장자로도 PDF 여부를 판별한다 - type만 보고 판단하면 실제로는 PDF인데도 놓치는 경우가 있었음.
@@ -2858,7 +2854,71 @@ function isPdfDraw(d){
   if(d.name && /\.pdf$/i.test(d.name)) return true;
   return false;
 }
-// 도면 보기 - 이미지는 확대뷰, PDF/문서는 새 창
+// pdf.js 라이브러리를 필요할 때 한 번만 불러온다 (CDN)
+let _pdfJsReady=null;
+function ensurePdfJs(){
+  if(window.pdfjsLib) return Promise.resolve();
+  if(_pdfJsReady) return _pdfJsReady;
+  _pdfJsReady=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>{
+      try{
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve();
+      }catch(e){reject(e);}
+    };
+    s.onerror=()=>reject(new Error('pdf.js 로드 실패'));
+    document.head.appendChild(s);
+  });
+  return _pdfJsReady;
+}
+// PDF를 앱 안의 모달 창에서 캔버스로 직접 그려서 보여준다.
+// 브라우저 새 탭/iframe으로 PDF를 열면 데스크톱에서도 종종, 특히 모바일(안드로이드 크롬 등)에서는
+// 거의 항상 미리보기 없이 그냥 다운로드되어 버리는 문제가 있었다(2026-07 실제 발생, 스크린샷으로 확인).
+// pdf.js로 직접 렌더링하면 플랫폼과 무관하게 항상 화면에 표시된다.
+async function renderPdfInModal(dataUrl, title, itemId){
+  document.getElementById('mo-title').textContent='📐 '+(title||'도면');
+  document.getElementById('mb').innerHTML=`
+    <div style="text-align:center;padding:30px;color:var(--text3)">📄 PDF 불러오는 중...</div>`;
+  document.getElementById('ov').classList.add('on');
+  try{
+    await ensurePdfJs();
+    const bytes=dataUrlToBytes(dataUrl);
+    const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+    const mb=document.getElementById('mb');
+    mb.innerHTML=`
+      <div id="pdf-view-container" style="display:flex;flex-direction:column;align-items:center;gap:10px;max-height:70vh;overflow:auto;background:#525659;padding:10px;border-radius:8px"></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn bbl" style="flex:1;justify-content:center" onclick="downloadDraw('${itemId}')">📥 다운로드</button>
+      </div>`;
+    const container=document.getElementById('pdf-view-container');
+    const maxW=Math.min(window.innerWidth-80, 760);
+    for(let pageNum=1; pageNum<=pdf.numPages; pageNum++){
+      const page=await pdf.getPage(pageNum);
+      const baseVp=page.getViewport({scale:1});
+      const scale=Math.max(0.5, maxW/baseVp.width);
+      const viewport=page.getViewport({scale});
+      const canvas=document.createElement('canvas');
+      canvas.style.background='#fff';
+      canvas.style.boxShadow='0 2px 10px rgba(0,0,0,.35)';
+      canvas.style.maxWidth='100%';
+      canvas.width=viewport.width;
+      canvas.height=viewport.height;
+      container.appendChild(canvas);
+      await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
+    }
+  }catch(e){
+    document.getElementById('mb').innerHTML=`
+      <div style="text-align:center;padding:30px;color:var(--text3)">
+        ⚠️ 미리보기를 불러오지 못했습니다.<br>아래 버튼으로 다운로드해서 확인해주세요.
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn bbl" style="flex:1;justify-content:center" onclick="downloadDraw('${itemId}')">📥 다운로드</button>
+      </div>`;
+  }
+}
+// 도면 보기 - 이미지는 확대뷰, PDF는 앱 내 모달에서 바로 렌더링, 그 외 파일은 다운로드 안내
 function viewDraw(itemId){
   const d=getDraw(itemId);
   if(!d)return;
@@ -2866,23 +2926,16 @@ function viewDraw(itemId){
     viewBig(d.data);
     return;
   }
+  if(isPdfDraw(d)){
+    renderPdfInModal(d.data, d.name, itemId);
+    return;
+  }
   try{
-    if(isPdfDraw(d)){
-      // blob: URL을 새 창의 <iframe>에 넣어서 브라우저 내장 PDF 플러그인으로 직접 렌더링한다.
-      // (blob: URL로 곧바로 window.open 하면 브라우저의 "PDF는 항상 다운로드" 설정에 걸려
-      // 여전히 다운로드되는 경우가 있어서, 문서 자체를 새로 만들고 그 안에 iframe으로 넣는 방식으로 우회한다)
-      const blobUrl=dataUrlToBlobUrl(d.data);
-      const win=window.open('','_blank');
-      if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
-      win.document.write('<!DOCTYPE html><html><head><title>'+(d.name||'도면')+'</title><style>html,body{margin:0;padding:0;height:100%;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style></head><body><iframe src="'+blobUrl+'"></iframe></body></html>');
-      win.document.close();
-    }else{
-      // PDF가 아닌 파일(도면 CAD/이미지 등 브라우저가 미리보기 못하는 형식)은 다운로드 안내
-      const win=window.open('','_blank');
-      if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
-      win.document.write('<title>'+(d.name||'도면')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center"><p style="font-size:16px;margin-bottom:20px">'+(d.name||'도면 파일')+'</p><a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a></body>');
-      win.document.close();
-    }
+    // PDF가 아닌 파일(도면 CAD/이미지 등 브라우저가 미리보기 못하는 형식)은 다운로드 안내
+    const win=window.open('','_blank');
+    if(!win){tst('팝업 허용 후 다시 시도해주세요');return;}
+    win.document.write('<title>'+(d.name||'도면')+'</title><body style="font-family:sans-serif;padding:40px;text-align:center"><p style="font-size:16px;margin-bottom:20px">'+(d.name||'도면 파일')+'</p><a href="'+d.data+'" download="'+(d.name||'draw')+'" style="display:inline-block;padding:12px 28px;background:#1a6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:700">파일 다운로드</a></body>');
+    win.document.close();
   }catch(e){tst('파일을 열 수 없습니다');}
 }
 // 도면 파일 다운로드
