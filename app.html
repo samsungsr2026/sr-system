@@ -2878,7 +2878,25 @@ function picThumb(it){
   return `<div onclick="event.stopPropagation();opD('${it.id}')" title="사진 없음 - 클릭하여 등록"
     style="width:64px;height:64px;border-radius:8px;border:1px dashed var(--border2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0">${it.e||'📷'}</div>`;
 }
-function lastInTx(id){return txs.filter(function(t){return t.iid===id&&t.type==='in';}).sort(function(a,b){return b.ts-a.ts;})[0];}
+function lastInTx(id){
+  // 매번 전체 거래내역을 훑지 않고, 최근에 계산해둔 캐시(_lastInMapCache)가 있으면 그것을 사용한다.
+  // (품목 수 × 거래내역 수만큼 반복되던 필터+정렬이 목록 렌더링/정렬마다 반복되어 대량 데이터에서
+  // 화면이 정상적으로 보이기까지 수 초~십수 초가 걸리던 문제의 핵심 원인이었음 - 2026-07 실제 발생)
+  if(_lastInMapCache) return _lastInMapCache[id];
+  return txs.filter(function(t){return t.iid===id&&t.type==='in';}).sort(function(a,b){return b.ts-a.ts;})[0];
+}
+// 품목ID → 가장 최근 입고 거래 1건. 거래내역 전체를 단 한 번만 훑어서 계산한다.
+let _lastInMapCache=null;
+function buildLastInMap(){
+  const m={};
+  for(let k=0;k<txs.length;k++){
+    const t=txs[k];
+    if(t.type!=='in')continue;
+    const cur=m[t.iid];
+    if(!cur||t.ts>cur.ts)m[t.iid]=t;
+  }
+  return m;
+}
 function st(i){return i.qty<=i.min*.3?'low':i.qty<=i.min?'med':'ok';}
 function sb(i){const s=st(i);return s==='low'?'<span class="badge br">부족</span>':s==='med'?'<span class="badge ba">주의</span>':'<span class="badge bg">정상</span>';}
 function prodBadge(it){
@@ -2888,7 +2906,7 @@ function prodBadge(it){
     return '<span class="badge br">중단'+dt+'</span>';
   }
   if(it.prodStatus==='active') return '<span class="badge bg">생산중</span>';
-  var last=txs.filter(function(t){return t.iid===it.id&&t.type==='in';}).sort(function(a,b){return b.ts-a.ts;})[0];
+  var last=lastInTx(it.id);
   if(!last||(Date.now()-last.ts)>365*24*60*60*1000) return '<span class="badge br">중단 · '+today+'</span>';
   return '<span class="badge bg">생산중</span>';
 }
@@ -2897,12 +2915,15 @@ function isStop(it){
   // 중단 여부 판단 (prodBadge 로직과 동일)
   if(it.prodStatus==='stop') return true;
   if(it.prodStatus==='active') return false;
-  var last=txs.filter(function(t){return t.iid===it.id&&t.type==='in';}).sort(function(a,b){return b.ts-a.ts;})[0];
+  var last=lastInTx(it.id);
   return !last||(Date.now()-last.ts)>365*24*60*60*1000;
 }
 function fil(){
   // 상태별 정렬 우선순위: 부족(0) > 주의(1) > 정상(2)
   const stOrder={low:0,med:1,ok:2};
+  // 거래내역 전체를 한 번만 훑어 품목별 최신 입고 거래를 미리 계산해두고(캐시),
+  // 아래 필터/정렬/화면 렌더링에서 반복 재계산하지 않도록 한다.
+  _lastInMapCache=buildLastInMap();
   return inv.filter(i=>{
     const stop=isStop(i);
     const stOk = fcat==='전체'||(fcat==='정상'&&st(i)==='ok'&&!stop)||(fcat==='주의'&&st(i)==='med'&&!stop)||(fcat==='부족'&&st(i)==='low'&&!stop)||(fcat==='생산중단'&&stop);
