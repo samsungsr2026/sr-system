@@ -4501,8 +4501,58 @@ function rDash(){
 }
 
 // ── 재고조회 ──────────────────────────────────────────────────────
+let invPage=1;
+const INV_PAGE_SIZE=60;
+function setInvPage(p){invPage=p;render();window.scrollTo({top:0,behavior:'smooth'});}
+// 제품조회 목록의 행(<tr>) HTML — rInv()의 기본 렌더링과 invSearch()의 실시간 검색 갱신이
+// 서로 다른 컬럼 구성을 사용해 검색 중 표가 깨져 보이던 문제(2026-07 실제 발생)를 막기 위해
+// 두 곳 모두 반드시 이 함수 하나만 사용하도록 통일한다.
+function invRowHtml(it, num){
+  return `<tr onclick="opD('${it.id}')" style="cursor:pointer">
+    <td style="font-family:monospace;color:var(--text3);font-size:12px;text-align:center">${num}</td>
+    <td>
+      <div style="display:flex;align-items:center;gap:10px">
+        ${picThumb(it)}
+        <strong>${it.name}</strong>
+      </div>
+    </td>
+    <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
+    <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:13px">${it.id}</td>
+    <td style="white-space:nowrap"><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="event.stopPropagation();opD('${it.id}')">${it.location||'-'} ✎</span></td>
+    <td style="font-family:monospace;font-weight:700;font-size:15px;white-space:nowrap;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
+      ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
+    </td>
+    <td style="font-family:monospace;font-size:11px;padding:11px 6px;line-height:1.5">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+'<br><span style="color:var(--text3)">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
+    <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
+    <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
+    <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.rubberWeight?Number(it.rubberWeight).toFixed(2):'-'}</td>
+    <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.steelWeight?Number(it.steelWeight).toFixed(2):'-'}</td>
+    <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
+    <td style="padding:11px 6px">${it.producer?`<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start" onclick="event.stopPropagation();opD('${it.id}')">${it.producer.split(',').map(p=>p.trim()).filter(Boolean).map(p=>`<span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">${p}</span>`).join('')}</div>`:'<span style="color:var(--text3)">-</span>'}</td>
+    <td style="text-align:center">${prodBadge(it)}</td>
+    <td>${sb(it)}</td>
+    <td style="text-align:center">${getDraw(it.id)?'<span style="color:var(--blue);font-weight:700;font-size:13px">O</span>':'<span style="color:var(--red);font-weight:700;font-size:13px">X</span>'}</td>
+  </tr>`;
+}
+// 페이지네이션 컨트롤 HTML — 목록이 길어도 한 번에 전부 그리지 않고 페이지 단위로만 그려서
+// 대량 데이터에서도 화면이 즉시 정상적으로 표시되도록 한다(2026-07 실제 발생: 품목 600건 이상을
+// 한 번에 그리느라 화면이 몇 초간 깨져 보이는 문제 해결).
+function invPaginationHtml(list){
+  const totalPages=Math.max(1,Math.ceil(list.length/INV_PAGE_SIZE));
+  if(totalPages<=1)return '';
+  const curPage=Math.min(Math.max(1,invPage),totalPages);
+  const pgBtn=(p,label,disabled,active)=>`<button ${disabled?'disabled':''} onclick="setInvPage(${p})" style="min-width:30px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:${active?'var(--blue)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};font-size:12px;font-weight:600;cursor:${disabled?'default':'pointer'};opacity:${disabled?'0.4':'1'}">${label}</button>`;
+  let btns=pgBtn(curPage-1,'‹ 이전',curPage===1,false);
+  const startP=Math.max(1,curPage-2), endP=Math.min(totalPages,startP+4);
+  for(let p=startP;p<=endP;p++)btns+=pgBtn(p,p,false,p===curPage);
+  btns+=pgBtn(curPage+1,'다음 ›',curPage===totalPages,false);
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;flex-wrap:wrap">${btns}<span style="font-size:12px;color:var(--text3);margin-left:8px">${curPage}/${totalPages} 페이지 · 총 ${list.length}건</span></div>`;
+}
 function rInv(){
   const list=fil();
+  const totalPages=Math.max(1,Math.ceil(list.length/INV_PAGE_SIZE));
+  invPage=Math.min(Math.max(1,invPage),totalPages);
+  const pageItems=list.slice((invPage-1)*INV_PAGE_SIZE, invPage*INV_PAGE_SIZE);
   return `
   <div class="page-title">제품 조회</div>
   <div class="page-sub">전체 ${inv.length}종 품목 · 조회 ${list.length}종</div>
@@ -4513,14 +4563,14 @@ function rInv(){
     </div>
   </div>
   <div class="ftabs">
-    ${['전체','정상','주의','부족','생산중단'].map(s=>`<div class="ftab${fcat===s?' on':''}" onclick="fcat='${s}';render()">${s}</div>`).join('')}
+    ${['전체','정상','주의','부족','생산중단'].map(s=>`<div class="ftab${fcat===s?' on':''}" onclick="fcat='${s}';invPage=1;render()">${s}</div>`).join('')}
   </div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <span style="font-size:12px;color:var(--text3);flex-shrink:0">조회순</span>
     <div class="ftabs" style="margin-bottom:0">
-      <div class="ftab${invSortMode==='default'?' on':''}" onclick="invSortMode='default';render()">기본순</div>
-      <div class="ftab${invSortMode==='qty'?' on':''}" onclick="invSortMode='qty';render()">현재 재고</div>
-      <div class="ftab${invSortMode==='lastIn'?' on':''}" onclick="invSortMode='lastIn';render()">최근 입고</div>
+      <div class="ftab${invSortMode==='default'?' on':''}" onclick="invSortMode='default';invPage=1;render()">기본순</div>
+      <div class="ftab${invSortMode==='qty'?' on':''}" onclick="invSortMode='qty';invPage=1;render()">현재 재고</div>
+      <div class="ftab${invSortMode==='lastIn'?' on':''}" onclick="invSortMode='lastIn';invPage=1;render()">최근 입고</div>
     </div>
   </div>
   <div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
@@ -4544,34 +4594,11 @@ function rInv(){
         <th style="width:56px">도면</th>
       </tr></thead>
       <tbody id="inv-result-box">
-        ${list.map((it,idx)=>`<tr onclick="opD('${it.id}')">
-          <td style="font-family:monospace;color:var(--text3);font-size:12px;text-align:center">${idx+1}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:10px">
-              ${picThumb(it)}
-              <strong>${it.name}</strong>
-            </div>
-          </td>
-          <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
-          <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:13px">${it.id}</td>
-          <td style="white-space:nowrap"><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.location||'-'} ✎</span></td>
-          <td style="font-family:monospace;font-weight:700;font-size:15px;white-space:nowrap;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
-            ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
-          </td>
-          <td style="font-family:monospace;font-size:11px;padding:11px 6px;line-height:1.5">${(()=>{const t=lastInTx(it.id);return t?new Date(t.ts).toLocaleDateString('ko',{year:'2-digit',month:'2-digit',day:'2-digit'})+'<br><span style="color:var(--text3)">+'+t.qty.toLocaleString()+it.unit+'</span>':'<span style="color:var(--text3)">-</span>';})()}</td>
-          <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.rubberWeight?Number(it.rubberWeight).toFixed(2):'-'}</td>
-          <td style="font-family:monospace;color:var(--text2);font-weight:500;font-size:12px;padding:11px 6px;white-space:nowrap">${it.steelWeight?Number(it.steelWeight).toFixed(2):'-'}</td>
-          <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-          <td style="padding:11px 6px">${it.producer?`<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start" onclick="opD('${it.id}')">${it.producer.split(',').map(p=>p.trim()).filter(Boolean).map(p=>`<span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">${p}</span>`).join('')}</div>`:'<span style="color:var(--text3)">-</span>'}</td>
-          <td style="text-align:center">${prodBadge(it)}</td>
-          <td>${sb(it)}</td>
-          <td style="text-align:center">${getDraw(it.id)?'<span style="color:var(--blue);font-weight:700;font-size:13px">O</span>':'<span style="color:var(--red);font-weight:700;font-size:13px">X</span>'}</td>
-        </tr>`).join('')}
+        ${pageItems.map((it,i)=>invRowHtml(it,(invPage-1)*INV_PAGE_SIZE+i+1)).join('')}
       </tbody>
     </table>
-    ${!list.length?'<div style="text-align:center;padding:30px;color:var(--text3)">검색 결과 없음</div>':''}
+    <div id="inv-noresult-box" style="${!list.length?'':'display:none'}"><div style="text-align:center;padding:30px;color:var(--text3)">검색 결과 없음</div></div>
+    <div id="inv-pagination-box">${invPaginationHtml(list)}</div>
   </div>`;}
 function rIO(){
   return `
@@ -6086,6 +6113,7 @@ let invBlurTimer = null;
 function invSearch(val){
   clearTimeout(invBlurTimer);
   sq=val;
+  invPage=1; // 검색어가 바뀌면 항상 1페이지부터 다시 보여준다
   // 4초 입력 없으면 키보드 내리기
   invBlurTimer = setTimeout(function(){
     var el = document.querySelector('#main input[type="text"]');
@@ -6094,30 +6122,16 @@ function invSearch(val){
   const list=fil();
   const box=document.getElementById('inv-result-box');
   if(!box) return;
-  box.innerHTML=list.length===0?'<div style="text-align:center;padding:30px;color:var(--text3)">검색 결과 없음</div>':
-    list.map(it=>`<tr onclick="opD('${it.id}')" style="cursor:pointer">
-      <td>
-        <div style="display:flex;align-items:center;gap:10px">
-          ${picThumb(it)}
-          <strong>${it.name}</strong>
-        </div>
-      </td>
-      <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
-      <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:13px">${it.id}</td>
-      <td><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer" onclick="opD('${it.id}')">${it.location||'-'} ✎</span></td>
-      <td style="font-family:monospace;font-weight:700;font-size:15px;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
-        ${it.qty<0?'⚠️ ':''}${it.qty.toLocaleString()} <span style="font-size:11px;${it.qty<0?'color:var(--red)':'color:var(--text3)'};font-weight:400">${it.unit}</span>
-      </td>
-      <td style="font-family:monospace;color:var(--text3)">${it.min} <span style="font-size:11px">${it.unit}</span></td>
-      <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.avgOut||'-'} <span style="font-size:11px;color:var(--text3)">${it.avgOut?it.unit:''}</span></td>
-      <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.rubberWeight||'-'}</td>
-      <td style="font-family:monospace;color:var(--text2);font-weight:500">${it.steelWeight||'-'}</td>
-      <td><span class="badge bgr" style="font-size:11px">${it.material||'-'}</span></td>
-      <td><span style="background:var(--purple-bg);color:var(--purple);padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer" onclick="event.stopPropagation();opD('${it.id}')">${it.producer||'-'}</span></td>
-      <td style="text-align:center">${prodBadge(it)}</td>
-      <td>${it.qty<0?'<span class="badge br" style="background:rgba(212,32,72,.2);border:1px solid var(--red)">⚠️ 마이너스</span>':sb(it)}</td>
-    </tr>`).join('');
-
+  const totalPages=Math.max(1,Math.ceil(list.length/INV_PAGE_SIZE));
+  invPage=Math.min(Math.max(1,invPage),totalPages);
+  const pageItems=list.slice((invPage-1)*INV_PAGE_SIZE, invPage*INV_PAGE_SIZE);
+  box.innerHTML=list.length===0?'':pageItems.map((it,i)=>invRowHtml(it,(invPage-1)*INV_PAGE_SIZE+i+1)).join('');
+  const noResultBox=document.getElementById('inv-noresult-box');
+  if(noResultBox)noResultBox.style.display=list.length===0?'':'none';
+  const pageBox=document.getElementById('inv-pagination-box');
+  if(pageBox)pageBox.innerHTML=invPaginationHtml(list);
+  const subEl=document.querySelector('.page-sub');
+  if(subEl)subEl.textContent='전체 '+inv.length+'종 품목 · 조회 '+list.length+'종';
 }
 
 function bcSearch(val){
