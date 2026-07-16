@@ -4448,6 +4448,7 @@ function rInv(){
         <th style="width:64px">생산자</th>
         <th>생산 여부</th>
         <th>재고 상태</th>
+        <th style="width:56px">도면</th>
       </tr></thead>
       <tbody id="inv-result-box">
         ${list.map(it=>`<tr onclick="opD('${it.id}')">
@@ -4472,6 +4473,7 @@ function rInv(){
           <td><span style="background:var(--purple-bg);color:var(--purple);padding:3px 6px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="opD('${it.id}')">${it.producer||'-'}</span></td>
           <td style="text-align:center">${prodBadge(it)}</td>
           <td>${sb(it)}</td>
+          <td style="text-align:center">${getDraw(it.id)?'<span style="background:var(--green-bg);color:var(--green);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600">✓ 있음</span>':'<span style="color:var(--text3);font-size:11px">-</span>'}</td>
         </tr>`).join('')}
       </tbody>
     </table>
