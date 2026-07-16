@@ -2882,18 +2882,20 @@ async function renderPdfInModal(dataUrl, title, itemId){
   document.getElementById('mb').innerHTML=`
     <div style="text-align:center;padding:30px;color:var(--text3)">📄 PDF 불러오는 중...</div>`;
   document.getElementById('ov').classList.add('on');
+  const moEl=document.querySelector('.mo');
+  if(moEl)moEl.style.width='1500px';
   try{
     await ensurePdfJs();
     const bytes=dataUrlToBytes(dataUrl);
     const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
     const mb=document.getElementById('mb');
     mb.innerHTML=`
-      <div id="pdf-view-container" style="display:flex;flex-direction:column;align-items:center;gap:10px;max-height:70vh;overflow:auto;background:#525659;padding:10px;border-radius:8px"></div>
+      <div id="pdf-view-container" style="display:flex;flex-direction:column;align-items:center;gap:10px;max-height:85vh;overflow:auto;background:#525659;padding:10px;border-radius:8px"></div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn bbl" style="flex:1;justify-content:center" onclick="downloadDraw('${itemId}')">📥 다운로드</button>
       </div>`;
     const container=document.getElementById('pdf-view-container');
-    const maxW=Math.min(window.innerWidth-80, 760);
+    const maxW=Math.min(window.innerWidth-80, 1440);
     for(let pageNum=1; pageNum<=pdf.numPages; pageNum++){
       const page=await pdf.getPage(pageNum);
       const baseVp=page.getViewport({scale:1});
