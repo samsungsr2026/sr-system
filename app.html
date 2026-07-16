@@ -4434,6 +4434,7 @@ function rInv(){
   <div class="card" style="padding:0;overflow:hidden;overflow-x:auto">
     <table class="tbl" style="min-width:1160px">
       <thead><tr>
+        <th style="width:44px">순번</th>
         <th>품명</th>
         <th>부품번호</th>
         <th>금형번호</th>
@@ -4451,7 +4452,8 @@ function rInv(){
         <th style="width:56px">도면</th>
       </tr></thead>
       <tbody id="inv-result-box">
-        ${list.map(it=>`<tr onclick="opD('${it.id}')">
+        ${list.map((it,idx)=>`<tr onclick="opD('${it.id}')">
+          <td style="font-family:monospace;color:var(--text3);font-size:12px;text-align:center">${idx+1}</td>
           <td>
             <div style="display:flex;align-items:center;gap:10px">
               ${picThumb(it)}
