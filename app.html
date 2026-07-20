@@ -12123,6 +12123,7 @@ function doLogin(){
     setTimeout(batchImportDrawsFromGithub5,3300);
     setTimeout(batchImportDrawsFromGithub6,3900);
     setTimeout(batchImportDrawsFromGithub7,4500);
+    setTimeout(batchImportDrawsFromGithub8,5100);
   }
 }
 // 부품번호(classNo) 매칭 도면 일괄 첨부 — 2026-07-16 정창식 요청, 1회성 마이그레이션
@@ -12448,6 +12449,58 @@ async function batchImportDrawsFromGithub7(){
   }
   if(failCount===0) localStorage.setItem('sr-draws-batch-import-20260720-7-v1','1');
   tst('✅ 도면 일괄 첨부 완료(7차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(다음 로그인 때 재시도)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
+  render();
+}
+// 부품번호(classNo) 매칭 도면 일괄 첨부 8차분 — 2026-07-20 정창식 요청 추가분(3차 업로드), 1회성 마이그레이션
+// 1123-05150은 JPG 이미지 파일(GROMMET-CAB), 나머지는 PDF
+async function batchImportDrawsFromGithub8(){
+  if(localStorage.getItem('sr-draws-batch-import-20260720-8-v1')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targets=[
+    {classNo:'14762937',file:'14762937.pdf',label:'14762937---_1.pdf',type:'application/pdf'},
+    {classNo:'14539142',file:'14539142.pdf',label:'14539142---_1.pdf',type:'application/pdf'},
+    {classNo:'14763390',file:'14763390.pdf',label:'14763390---New_Rubber.pdf',type:'application/pdf'},
+    {classNo:'14764363',file:'14764363.pdf',label:'14764363.pdf',type:'application/pdf'},
+    {classNo:'14754325',file:'14754325.pdf',label:'p14754325---_1.pdf',type:'application/pdf'},
+    {classNo:'14731960',file:'14731960.pdf',label:'14731960--1_1_35t로_수정.pdf',type:'application/pdf'},
+    {classNo:'14777173',file:'14777173.pdf',label:'14777173---_1.pdf',type:'application/pdf'},
+    {classNo:'14775049',file:'14775049.pdf',label:'14775049---_1.pdf',type:'application/pdf'},
+    {classNo:'14761306',file:'14761306.pdf',label:'14761306---_1.pdf',type:'application/pdf'},
+    {classNo:'14776091',file:'14776091.pdf',label:'14776091---_1.pdf',type:'application/pdf'},
+    {classNo:'14775844',file:'14775844.pdf',label:'14775844---_1.pdf',type:'application/pdf'},
+    {classNo:'14775769',file:'14775769.pdf',label:'14775769---_1.pdf',type:'application/pdf'},
+    {classNo:'14775765',file:'14775765.pdf',label:'14775765---_1.pdf',type:'application/pdf'},
+    {classNo:'14771966',file:'14771966.pdf',label:'14771966---_Rubber.pdf',type:'application/pdf'},
+    {classNo:'14736153',file:'14736153.pdf',label:'14736153---_1.pdf',type:'application/pdf'},
+    {classNo:'14736152',file:'14736152.pdf',label:'14736152---_1.pdf',type:'application/pdf'},
+    {classNo:'1123-05150',file:'1123-05150.jpg',label:'1123-05150_3P_.JPG',type:'image/jpeg',isImage:true}
+  ];
+  let okCount=0, failCount=0, skipped=[];
+  for(const t of targets){
+    const item=inv.find(x=>x.classNo===t.classNo);
+    if(!item){ skipped.push(t.classNo); continue; }
+    try{
+      const resp=await fetch('https://raw.githubusercontent.com/samsungsr2026/sr-system/main/importDraws8/'+t.file);
+      if(!resp.ok)throw new Error('http '+resp.status);
+      const blob=await resp.blob();
+      const dataUrl=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result);
+        r.onerror=()=>rej(new Error('read fail'));
+        r.readAsDataURL(blob);
+      });
+      draws[item.id]={type:t.type,name:t.label,data:dataUrl,isImage:!!t.isImage};
+      drawsDirty.add(item.id);
+      const di=drawsDeleted.indexOf(item.id);
+      if(di!==-1)drawsDeleted.splice(di,1);
+      okCount++;
+    }catch(e){ failCount++; }
+  }
+  if(okCount>0){
+    try{ await svImgs(); }catch(e){}
+  }
+  if(failCount===0) localStorage.setItem('sr-draws-batch-import-20260720-8-v1','1');
+  tst('✅ 도면 일괄 첨부 완료(8차): '+okCount+'건 성공'+(failCount?' · '+failCount+'건 실패(다음 로그인 때 재시도)':'')+(skipped.length?' · 매칭없음 '+skipped.join(',')+' ('+skipped.length+'건)':''), 6000);
   render();
 }
 // 마스터 로그인 시 승인 대기 항목 알림 팝업 — '승인 대기' 화면에 나오는 모든 항목(관리자 변경요청 전체 + 근태신청) + 업무일지 미승인 표시
