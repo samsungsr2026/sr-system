@@ -2973,9 +2973,11 @@ async function renderTifInModal(dataUrl, title, itemId){
     const bytes=dataUrlToBytes(dataUrl);
     const buf=bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
     const ifds=window.UTIF.decode(buf);
-    window.UTIF.decodeImage(buf, ifds[0]);
+    if(!ifds||!ifds.length)throw new Error('TIFF 구조를 인식하지 못했습니다');
+    window.UTIF.decodeImage(buf, ifds[0], ifds);
     const rgba=window.UTIF.toRGBA8(ifds[0]);
     const w=ifds[0].width, h=ifds[0].height;
+    if(!w||!h)throw new Error('이미지 크기 정보를 읽지 못했습니다');
     const canvas=document.createElement('canvas');
     canvas.width=w; canvas.height=h;
     const ctx=canvas.getContext('2d');
@@ -2994,6 +2996,7 @@ async function renderTifInModal(dataUrl, title, itemId){
     document.getElementById('mb').innerHTML=`
       <div style="text-align:center;padding:30px;color:var(--text3)">
         ⚠️ TIF 미리보기를 불러오지 못했습니다.<br>아래 버튼으로 다운로드해서 확인해주세요.
+        <div style="margin-top:10px;font-size:12px;color:var(--text4,#999)">(${(e&&e.message)||e})</div>
       </div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn bbl" style="flex:1;justify-content:center" onclick="downloadDraw('${itemId}')">📥 다운로드</button>
