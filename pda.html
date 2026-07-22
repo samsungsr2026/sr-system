@@ -360,10 +360,21 @@ function buildProdWorkerSelect() {
   });
 }
 
+// 대역폭 절약용 ETag 캐시 - 안 바뀐 데이터는 304(본문 없음)로 응답받아 재다운로드를 피함
+let _fbEtagCache={}, _fbEtagDataCache={};
 async function fbGet(key) {
-  const r = await fetch(`${FB}/sr/${key}.json`);
-  if (!r.ok) return null;
-  return await r.json();
+  const path='sr/'+key;
+  try{
+    const headers={'X-Firebase-ETag':'true'};
+    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
+    const r = await fetch(`${FB}/${path}.json`, {headers});
+    if(r.status===304)return _fbEtagDataCache[path];
+    if (!r.ok) return null;
+    const data=await r.json();
+    const etag=r.headers.get('ETag');
+    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
+    return data;
+  }catch(e){ return null; }
 }
 
 async function fbSet(key, data) {
