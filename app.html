@@ -2255,6 +2255,10 @@ async function jbPullFiles(rim){
       imgsUndelPending.forEach(id=>{ if(!remoteImgsDel.includes(id))imgsUndelPending.delete(id); });
       const remoteImgsDelForMerge=remoteImgsDel.filter(id=>!imgsUndelPending.has(String(id)));
       imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDelForMerge);
+      // 핵심 불변식: 서버(_repo)에 실제 사진 데이터가 살아있다면, 어떤 기기가 들고 있는 낡은 로컬 삭제기록도
+      // 이를 되살릴 수 없다 - 실제 삭제는 _repo 데이터 자체를 지우는 동작(removeImg)에서 이뤄지므로,
+      // 데이터가 실제로 존재한다는 것은 그 삭제기록이 낡았다는 뜻이다. 자동으로 정리(자가치유)한다.
+      imgsDeleted=imgsDeleted.filter(id=>!remoteImgs[id]);
       const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
       // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
       const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
@@ -2298,6 +2302,8 @@ async function jbPullFiles(rim){
       drawsUndelPending.forEach(id=>{ if(!remoteDrawsDel.includes(id))drawsUndelPending.delete(id); });
       const remoteDrawsDelForMerge=remoteDrawsDel.filter(id=>!drawsUndelPending.has(String(id)));
       drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDelForMerge);
+      // 핵심 불변식: 서버(_repo)에 실제 도면 데이터가 살아있다면, 어떤 기기의 낡은 로컬 삭제기록도 되살릴 수 없다.
+      drawsDeleted=drawsDeleted.filter(id=>!remoteDraws[id]);
       const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
       drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
       const delChanged=JSON.stringify(drawsDeleted.slice().sort())!==JSON.stringify((remoteDrawsDel||[]).slice().sort());
