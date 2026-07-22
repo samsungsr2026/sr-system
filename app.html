@@ -1999,6 +1999,22 @@ function fetchTimeout(url, ms, options){
   const opts = Object.assign({}, options || {}, ctrl ? {signal: ctrl.signal} : {});
   return fetch(url, opts).finally(() => { if (timer) clearTimeout(timer); });
 }
+// inv/tx/orders/production/moldreport/핵심(sr.json) 폴링도 사진/도면과 동일하게 ETag 조건부 GET을 적용.
+// 15~30초마다 여러 기기에서 반복 요청되는데, 안 바뀐 경우 304(본문 없음)로 응답받아 대역폭을 아낀다.
+// 기존 호출부(.then(r=>r.ok?r.json():null)) 패턴을 그대로 쓸 수 있도록 Response와 비슷한 형태로 반환한다.
+async function fetchTimeoutETag(url, ms){
+  try{
+    const headers={'X-Firebase-ETag':'true'};
+    if(_fbEtagCache[url])headers['If-None-Match']=_fbEtagCache[url];
+    const r=await fetchTimeout(url, ms, {headers});
+    if(r.status===304){ return {ok:true, json:async()=>_fbEtagDataCache[url]}; }
+    if(!r.ok) return {ok:false, json:async()=>null};
+    const data=await r.json();
+    const etag=r.headers.get('ETag');
+    if(etag){ _fbEtagCache[url]=etag; _fbEtagDataCache[url]=data; }
+    return {ok:true, json:async()=>data};
+  }catch(e){ return {ok:false, json:async()=>null}; }
+}
 
 function jbStat(msg, color) {
   const el = document.getElementById('jb-sync');
@@ -2414,7 +2430,7 @@ async function jbPullInv(){
   if(_invSaving||Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
   _invPullBusy=true;
   try{
-    const ri=await fetchTimeout(`${FB}/sr/inv.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const ri=await fetchTimeoutETag(`${FB}/sr/inv.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){
       inv=ri;
       snapshotInvBaseline();
@@ -2433,7 +2449,7 @@ async function jbPullTx(){
   if(_txPullBusy)return;
   _txPullBusy=true;
   try{
-    const rt=await fetchTimeout(`${FB}/sr/tx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const rt=await fetchTimeoutETag(`${FB}/sr/tx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(rt)){
       txs=rt;
       try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
@@ -2451,7 +2467,7 @@ async function jbPullOrders(){
   if(_ordersPullBusy)return;
   _ordersPullBusy=true;
   try{
-    const ro=await fetchTimeout(`${FB}/sr/orders.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const ro=await fetchTimeoutETag(`${FB}/sr/orders.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(ro)&&!_invSaving&&Date.now()-_lastSave>=8000){
       orders=ro;
       snapshotOrdersBaseline();
@@ -2497,7 +2513,7 @@ async function jbPullProduction(){
   if(_productionPullBusy)return;
   _productionPullBusy=true;
   try{
-    const rpr=await fetchTimeout(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const rpr=await fetchTimeoutETag(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){
       production=migrateProduction(rpr);
       try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}
@@ -2512,7 +2528,7 @@ async function jbPullMoldReport(){
   if(_mrPullBusy)return;
   _mrPullBusy=true;
   try{
-    const rmr=await fetchTimeout(`${FB}/sr/moldreport.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const rmr=await fetchTimeoutETag(`${FB}/sr/moldreport.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){
       moldReports=rmr;
       try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}
@@ -2529,7 +2545,7 @@ async function jbPull() {
   jbStat('🔄 동기화 중...');
   try {
     // Firebase에서 모든 데이터 한번에 읽기
-    const fbAll = await fetchTimeout(`${FB}/sr.json`, 45000).then(r=>r.ok?r.json():null).catch(()=>null);
+    const fbAll = await fetchTimeoutETag(`${FB}/sr.json`, 45000).then(r=>r.ok?r.json():null).catch(()=>null);
     window._jbStage='fetched:'+(fbAll?'ok':'null');
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
