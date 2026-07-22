@@ -2249,7 +2249,11 @@ async function jbPullFiles(rim){
       if(!imgsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
       const remoteImgs=fbDecodeRepoKeys((remoteImgsRoot&&remoteImgsRoot['_repo'])||{});
       const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
-      imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDel);
+      // pending(방금 삭제표시를 해제했지만 서버 반영 확정 전) 품목은 원격 목록에 남아있어도 union으로 되살리지 않는다.
+      // 서버에서 실제로 사라진 게 확인되면 confirmed로 보고 pending에서 제거한다.
+      imgsUndelPending.forEach(id=>{ if(!remoteImgsDel.includes(id))imgsUndelPending.delete(id); });
+      const remoteImgsDelForMerge=remoteImgsDel.filter(id=>!imgsUndelPending.has(String(id)));
+      imgsDeleted=gcMergeDeleted(imgsDeleted, remoteImgsDelForMerge);
       const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
       // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
       const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
@@ -2289,7 +2293,10 @@ async function jbPullFiles(rim){
       // [진단용] 서버에 실제로 몇 건이 있고 그중 데이터가 실제로 있는 게 몇 건인지 전역 변수에 저장 (도면 화면에 표시됨)
       window._drawsServerTotal=Object.keys(remoteDraws).length;
       window._drawsServerWithData=Object.values(remoteDraws).filter(v=>v&&(typeof v==='string'||(typeof v==='object'&&v.data))).length;
-      drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDel);
+      // pending(방금 삭제표시를 해제했지만 서버 반영 확정 전) 품목은 원격 목록에 남아있어도 union으로 되살리지 않는다.
+      drawsUndelPending.forEach(id=>{ if(!remoteDrawsDel.includes(id))drawsUndelPending.delete(id); });
+      const remoteDrawsDelForMerge=remoteDrawsDel.filter(id=>!drawsUndelPending.has(String(id)));
+      drawsDeleted=gcMergeDeleted(drawsDeleted, remoteDrawsDelForMerge);
       const mergedDraws=Object.assign({}, draws, remoteDraws); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
       drawsDeleted.forEach(id=>{ delete mergedDraws[id]; }); // 삭제된 항목은 되살아나지 않게 제거
       const delChanged=JSON.stringify(drawsDeleted.slice().sort())!==JSON.stringify((remoteDrawsDel||[]).slice().sort());
@@ -2446,6 +2453,13 @@ let _lastAttSave=0; // 근태신청을 직접 승인/거부/삭제한 직후엔 
 let _lastDrSave=0; // 업무일지를 직접 저장한 직후엔 백그라운드 재조회가 되돌리지 않도록 함
 let _lastImgsSave=0; // 제품 사진을 직접 저장한 직후엔 백그라운드 폴링(jbPullFiles)이 되돌리지 않도록 함
 let _lastDrawsSave=0; // 제품 도면을 직접 저장한 직후엔 백그라운드 폴링(jbPullFiles)이 되돌리지 않도록 함
+// 예전에 사진/도면을 삭제했다가 재등록한 품목의 tombstone(삭제표시) 해제가 서버에 아직 확정되지 않은 동안,
+// 폴링(jbPullFiles)이 서버에 남아있던 예전 삭제기록을 union으로 되살려 방금 올린 사진/도면을 다시 지워버리는
+// 문제(2026-07 실제 발생: 재등록한 사진이 몇 초 뒤 사라짐)를 막기 위한 목록. 서버에서 삭제기록이 실제로
+// 사라진 것을 확인하기 전까지는, 이 목록에 있는 품목ID는 폴링이 원격 삭제기록을 되살리지 못하게 하고
+// 매 폴링마다 삭제 해제를 서버로 재전송(자동 재시도)한다.
+let imgsUndelPending=new Set();
+let drawsUndelPending=new Set();
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열, 작업자별 다건 등록)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
 function migrateProduction(p){
@@ -2739,7 +2753,7 @@ function handleImgUpload(itemId,kind,inputEl){
         // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
         // 새로 등록하는 순간 tombstone에서 제거한다.
         const _imgDelIdx=imgsDeleted.indexOf(itemId);
-        if(_imgDelIdx!==-1){ imgsDeleted.splice(_imgDelIdx,1); cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{}); }
+        if(_imgDelIdx!==-1){ imgsDeleted.splice(_imgDelIdx,1); imgsUndelPending.add(itemId); cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{}); }
         tst('💾 저장 중...',1200);
         svImgs().then(res=>{
           if(!res||!res.imgsFailed||!res.imgsFailed.includes(itemId))tst('✓ 제품 사진이 저장되었습니다 (서버 저장 확인됨)');
@@ -2766,7 +2780,7 @@ function handleImgUpload(itemId,kind,inputEl){
       draws[itemId]={type:file.type,name:file.name,data:e.target.result,isImage:false};
       drawsDirty.add(itemId);
       const _drawDelIdx2=drawsDeleted.indexOf(itemId);
-      if(_drawDelIdx2!==-1){ drawsDeleted.splice(_drawDelIdx2,1); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
+      if(_drawDelIdx2!==-1){ drawsDeleted.splice(_drawDelIdx2,1); drawsUndelPending.add(itemId); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
       tst('💾 저장 중...',1200);
       svImgs().then(res=>{
         if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면 ('+file.name+') 저장되었습니다 (서버 저장 확인됨)');
@@ -2788,7 +2802,7 @@ function handleImgUpload(itemId,kind,inputEl){
         // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
         // 새로 등록하는 순간 tombstone에서 제거한다.
         const _drawDelIdx1=drawsDeleted.indexOf(itemId);
-        if(_drawDelIdx1!==-1){ drawsDeleted.splice(_drawDelIdx1,1); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
+        if(_drawDelIdx1!==-1){ drawsDeleted.splice(_drawDelIdx1,1); drawsUndelPending.add(itemId); cfPutPath('srFiles/draws/_deleted', drawsDeleted).catch(()=>{}); }
         tst('💾 저장 중...',1200);
         svImgs().then(res=>{
           if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면이 저장되었습니다 (서버 저장 확인됨)');
