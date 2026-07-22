@@ -127,9 +127,9 @@ select.fi option{background:#fff;color:#111}
 .ftab.on{background:var(--blue);border-color:var(--blue);color:#fff}
 
 /* 모달 */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center;overscroll-behavior:contain}
 .ov.on{display:flex}
-.mo{background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:520px;max-width:90vw;padding:24px;animation:fadeIn .2s ease;max-height:92vh;overflow-y:auto}
+.mo{background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:520px;max-width:90vw;padding:24px;animation:fadeIn .2s ease;max-height:92vh;overflow-y:auto;overscroll-behavior:contain}
 @keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 .mo-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .mo-title{font-size:17px;font-weight:700}
