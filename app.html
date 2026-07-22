@@ -1612,6 +1612,7 @@ async function svImgs(){
   _lastImgsSave=Date.now(); // 저장 시작 시점에 기록 - 저장 직후 폴링(jbPullFiles)이 되돌리지 않도록 함
   _lastDrawsSave=Date.now();
   try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){tst('⚠️ 저장공간 부족 - 사진 용량을 줄여주세요',3000);}
+  try{localStorage.setItem('sr-imgs-deleted',JSON.stringify(imgsDeleted));}catch(e){}
   try{localStorage.setItem('sr-draws',drawsForStorage(draws));}catch(e){tst('⚠️ 저장공간 부족 - 도면 파일 용량을 줄여주세요',3000);}
   try{localStorage.setItem('sr-draws-deleted',JSON.stringify(drawsDeleted));}catch(e){}
   try{localStorage.setItem('sr-attaches',acForStorage(attaches));}catch(e){tst('⚠️ 저장공간 부족 - 첨부파일 용량을 줄여주세요',3000);}
