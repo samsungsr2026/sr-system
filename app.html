@@ -12269,7 +12269,7 @@ function doLogin(){
   render();
   if(curUser.role==='master'){
     setTimeout(checkMasterPendingApproval,350);
-    setTimeout(repairTif14518967,600);
+    setTimeout(deleteAllTifDraws,600);
     setTimeout(batchImportDrawsFromGithub,900);
     setTimeout(batchImportDrawsFromGithub2,1500);
     setTimeout(batchImportDrawsFromGithub3,2100);
@@ -12694,6 +12694,27 @@ async function repairTif14518967(){
   }catch(e){
     tst('⚠️ 14518967.tif 도면 복구 실패: '+(e&&e.message||e), 6000);
   }
+}
+// 등록된 도면 중 TIF/TIFF 파일만 전부 삭제 (2026-07-22 정창식 요청, 1회성)
+// 기존 삭제 아키텍처(tombstone + srFiles/_repo 경로 삭제)를 그대로 따른다.
+async function deleteAllTifDraws(){
+  if(localStorage.getItem('sr-delete-all-tif-draws-20260722')==='1')return;
+  if(!curUser||curUser.role!=='master')return;
+  const targetIds=Object.keys(draws).filter(id=>isTifDraw(getDraw(id)||{}));
+  if(targetIds.length===0){
+    localStorage.setItem('sr-delete-all-tif-draws-20260722','1');
+    return;
+  }
+  targetIds.forEach(id=>{
+    delete draws[id];
+    drawsDirty.delete(id);
+    if(!drawsDeleted.includes(id))drawsDeleted.push(id);
+    cfDeletePath(`srFiles/draws/_repo/${fbKeyEncode(id)}`).catch(()=>{});
+  });
+  try{ await svImgs(); }catch(e){}
+  localStorage.setItem('sr-delete-all-tif-draws-20260722','1');
+  tst('🗑️ TIF 도면 '+targetIds.length+'건 전부 삭제 완료', 5000);
+  render();
 }
 function checkMasterPendingApproval(){
   if(!curUser||curUser.role!=='master')return;
