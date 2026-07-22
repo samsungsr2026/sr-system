@@ -4792,7 +4792,7 @@ function rInv(){
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" class="fi" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" onkeyup="invSearch(this.value)" style="padding-left:37px">
+      <input type="text" class="fi" id="inv-search-box" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" onkeyup="invSearch(this.value)" style="padding-left:37px">
     </div>
   </div>
   <div class="ftabs">
@@ -6347,11 +6347,11 @@ function invSearch(val){
   clearTimeout(invBlurTimer);
   sq=val;
   invPage=1; // 검색어가 바뀌면 항상 1페이지부터 다시 보여준다
-  // 4초 입력 없으면 키보드 내리기
+  // 10초 입력 없으면 키보드 내리기 (기존 4초는 너무 짧아 입력 중 포커스가 끊기는 문제가 있었음)
   invBlurTimer = setTimeout(function(){
     var el = document.querySelector('#main input[type="text"]');
     if(el) el.blur();
-  }, 4000);
+  }, 10000);
   const list=fil();
   const box=document.getElementById('inv-result-box');
   if(!box) return;
