@@ -2842,13 +2842,14 @@ function handleImgUpload(itemId,kind,inputEl){
 
   // 제품 도면: 이미지/PDF/문서 등 모든 파일 허용
   const isImage=isBrowserRenderableImage(file);
+  const isTiff=/\.tiff?$/i.test(file.name||'')||/tiff?$/i.test(file.type||'');
   // 용량 제한 안내 (localStorage 한계 고려, 약 8MB)
-  if(file.size>8*1024*1024){
+  if(file.size>8*1024*1024 && !isTiff){
     tst('⚠️ 파일이 너무 큽니다 (8MB 이하 권장)',2800);
   }
   const reader=new FileReader();
   reader.onload=function(e){
-    // 원본 파일 그대로(base64) 저장하는 공통 로직 - PDF/문서 및 TIFF처럼 브라우저가 미리보기를 못 그리는 이미지에 사용
+    // 원본 파일 그대로(base64) 저장하는 공통 로직 - PDF/문서 등에 사용 (TIFF 변환 실패 시 최종 대비책으로도 사용)
     const saveRaw=function(){
       draws[itemId]={type:file.type,name:file.name,data:e.target.result,isImage:false};
       drawsDirty.add(itemId);
@@ -2860,7 +2861,57 @@ function handleImgUpload(itemId,kind,inputEl){
         opD(itemId);
       }).catch(()=>{ tst('⚠️ 저장 중 오류가 발생했습니다',3000); opD(itemId); });
     };
-    if(isImage){
+    // 캔버스에 이미 그려진 이미지(리사이즈 완료)를 JPEG로 압축해 저장하는 공통 로직
+    const saveCanvasAsDraw=function(cv){
+      draws[itemId]={type:'image/jpeg',name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true};
+      drawsDirty.add(itemId);
+      // 예전에 이 품목의 도면을 삭제한 적이 있다면 삭제 tombstone에 itemId가 남아있어,
+      // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
+      // 새로 등록하는 순간 tombstone에서 제거한다.
+      const _drawDelIdx1=drawsDeleted.indexOf(itemId);
+      if(_drawDelIdx1!==-1){ releaseDrawTombstone(itemId); }
+      tst('💾 저장 중...',1200);
+      svImgs().then(res=>{
+        if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면이 저장되었습니다 (서버 저장 확인됨)');
+        opD(itemId);
+      }).catch(()=>{ tst('⚠️ 저장 중 오류가 발생했습니다',3000); opD(itemId); });
+    };
+    if(isTiff){
+      // TIF는 브라우저 <img>가 못 그리므로 그동안 원본을 그대로(수 MB~수십 MB) 저장해왔다.
+      // 도면 미리보기에 쓰던 UTIF.js 디코더를 업로드 시점에도 재사용해 리사이즈+JPEG 압축 후 저장한다.
+      tst('🖼️ TIF 변환 중...',1500);
+      ensureUTIF().then(()=>{
+        try{
+          const bytes=dataUrlToBytes(e.target.result);
+          const buf=bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
+          const ifds=window.UTIF.decode(buf);
+          if(!ifds||!ifds.length)throw new Error('TIFF 구조 인식 실패');
+          window.UTIF.decodeImage(buf, ifds[0], ifds);
+          const rgba=window.UTIF.toRGBA8(ifds[0]);
+          const iw=ifds[0].width, ih=ifds[0].height;
+          if(!iw||!ih)throw new Error('이미지 크기 정보 없음');
+          const srcCv=document.createElement('canvas');srcCv.width=iw;srcCv.height=ih;
+          const srcCtx=srcCv.getContext('2d');
+          const imgData=srcCtx.createImageData(iw,ih);
+          imgData.data.set(rgba);
+          srcCtx.putImageData(imgData,0,0);
+          const maxW=1400;
+          let w=iw,h=ih;
+          if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
+          const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+          cv.getContext('2d').drawImage(srcCv,0,0,w,h);
+          saveCanvasAsDraw(cv);
+        }catch(err){
+          if(file.size>8*1024*1024){tst('⚠️ TIF 변환 실패 - 파일이 커서 원본 저장도 어려울 수 있습니다',3000);}
+          else{tst('⚠️ TIF 변환 실패 - 원본 그대로 저장합니다',2500);}
+          saveRaw();
+        }
+      }).catch(()=>{
+        if(file.size>8*1024*1024){tst('⚠️ TIF 디코더 로드 실패 (8MB 이하 권장)',3000);}
+        else{tst('⚠️ TIF 디코더 로드 실패 - 원본 그대로 저장합니다',2500);}
+        saveRaw();
+      });
+    }else if(isImage){
       // 이미지 도면은 리사이즈해서 저장
       const img=new Image();
       img.onload=function(){
@@ -2869,25 +2920,14 @@ function handleImgUpload(itemId,kind,inputEl){
         if(w>maxW||h>maxW){const r=Math.min(maxW/w,maxW/h);w=Math.round(w*r);h=Math.round(h*r);}
         const cv=document.createElement('canvas');cv.width=w;cv.height=h;
         cv.getContext('2d').drawImage(img,0,0,w,h);
-        draws[itemId]={type:file.type,name:file.name,data:cv.toDataURL('image/jpeg',0.85),isImage:true};
-        drawsDirty.add(itemId);
-        // 예전에 이 품목의 도면을 삭제한 적이 있다면 삭제 tombstone에 itemId가 남아있어,
-        // 새로 등록해도 다음 폴링(jbPullFiles) 때 tombstone 규칙에 의해 도로 사라지는 문제가 있었음(2026-07 실제 발생).
-        // 새로 등록하는 순간 tombstone에서 제거한다.
-        const _drawDelIdx1=drawsDeleted.indexOf(itemId);
-        if(_drawDelIdx1!==-1){ releaseDrawTombstone(itemId); }
-        tst('💾 저장 중...',1200);
-        svImgs().then(res=>{
-          if(!res||!res.drawsFailed||!res.drawsFailed.includes(itemId))tst('✓ 도면이 저장되었습니다 (서버 저장 확인됨)');
-          opD(itemId);
-        }).catch(()=>{ tst('⚠️ 저장 중 오류가 발생했습니다',3000); opD(itemId); });
+        saveCanvasAsDraw(cv);
       };
-      // 브라우저가 이 이미지 포맷을 지원하지 않아 캔버스 로딩에 실패하면(예: 일부 TIFF/RAW),
+      // 브라우저가 이 이미지 포맷을 지원하지 않아 캔버스 로딩에 실패하면,
       // 에러로 끝내지 않고 원본 파일 그대로 저장해서 최소한 보관/다운로드는 되도록 한다
       img.onerror=function(){ saveRaw(); };
       img.src=e.target.result;
     }else{
-      // PDF·문서·TIFF 등은 원본 그대로 base64 저장
+      // PDF·문서 등은 원본 그대로 base64 저장
       saveRaw();
     }
   };
