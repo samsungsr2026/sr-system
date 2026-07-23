@@ -1046,6 +1046,8 @@ function editPurchaseOrder(i){
 
 // 발주 통계 변수
 let pStatPeriod='month'; // month|quarter|year
+let dashOrderMonth='all'; // 대시보드 '최근 발주서' 월별 필터: all | YYYY-MM
+function setDashOrderMonth(v){dashOrderMonth=v;render();}
 let pStatVendor=null;
 
 function rPurchaseStats(){
@@ -4653,14 +4655,26 @@ function rDash(){
 
       <!-- 최근 발주서 -->
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <div class="card-title" style="margin-bottom:0">최근 발주서</div>
-          <button class="btn" style="padding:5px 12px;font-size:12px;background:var(--purple-bg);color:var(--purple);border:1px solid rgba(109,79,207,.3)" onclick="go('order')">전체보기 →</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div class="card-title" style="margin-bottom:0">${dashOrderMonth==='all'?'최근 발주서':'발주서 · '+dashOrderMonth.split('-')[0]+'년 '+parseInt(dashOrderMonth.split('-')[1],10)+'월'}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <select onchange="setDashOrderMonth(this.value)" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2)">
+              <option value="all" ${dashOrderMonth==='all'?'selected':''}>전체(최근 5건)</option>
+              ${[...new Set(orders.map(o=>{const d=new Date(o.ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}))].sort().reverse().map(m=>`<option value="${m}" ${dashOrderMonth===m?'selected':''}>${m.split('-')[0]}년 ${parseInt(m.split('-')[1],10)}월</option>`).join('')}
+            </select>
+            <button class="btn" style="padding:5px 12px;font-size:12px;background:var(--purple-bg);color:var(--purple);border:1px solid rgba(109,79,207,.3)" onclick="go('order')">전체보기 →</button>
+          </div>
         </div>
-        ${orders.length?`<table class="tbl">
+        ${(()=>{
+          const monthKey=d=>{const dt=new Date(d);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');};
+          const list=dashOrderMonth==='all'
+            ? orders.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,5)
+            : orders.filter(o=>monthKey(o.ts)===dashOrderMonth).sort((a,b)=>(b.ts||0)-(a.ts||0));
+          if(!list.length) return `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">${dashOrderMonth==='all'?'발주서 내역이 없습니다':'해당 월의 발주서 내역이 없습니다'}</div>`;
+          return `<table class="tbl">
           <thead><tr><th>문서번호</th><th>공급업체</th><th>품목</th><th>발행일</th><th>출력</th></tr></thead>
           <tbody>
-            ${orders.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,5).map(o=>`<tr onclick="go('order')">
+            ${list.map(o=>`<tr onclick="go('order')">
               <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:12px">${o.docNo}</td>
               <td style="color:var(--text2)">${o.vendor||'-'}</td>
               <td><span style="color:var(--text2)">${o.items.length}종</span> <span style="font-family:monospace;font-size:11px;color:var(--text3)">/ ${o.items.reduce((s,it)=>s+(it.qty||0),0).toLocaleString()}EA</span></td>
@@ -4668,7 +4682,8 @@ function rDash(){
               <td>${o.printedAt?'<span class="badge bg" style="font-size:10px">✓ 완료</span>':'<span class="badge ba" style="font-size:10px">미출력</span>'}</td>
             </tr>`).join('')}
           </tbody>
-        </table>`:'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">발주서 내역이 없습니다</div>'}
+        </table>`;
+        })()}
       </div>
 
       <div class="card">
