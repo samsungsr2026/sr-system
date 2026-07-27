@@ -9762,6 +9762,8 @@ function opD(id){
       <button class="btn bbr" style="flex:1;justify-content:center" onclick="cmo();go('io')">⬆️ 출고 등록</button>
     </div>
 
+    ${renderProdRepairSection(it)}
+
     <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 10px">제품 사진 / 도면</div>
     <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:8px;display:inline-block">🔧 진단: 이 품목 도면 데이터 ${(drw&&(typeof drw==='string'||drw.data))?'있음':(drw?'메타만있음(데이터없음)':'없음')} / 서버 도면 전체 ${window._drawsServerTotal!=null?window._drawsServerTotal:'확인중'}건(데이터있음 ${window._drawsServerWithData!=null?window._drawsServerWithData:'확인중'}건) / 단계: ${window._filesStage||'(동기화 시작전)'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -9833,6 +9835,72 @@ function opD(id){
   document.getElementById('ov').classList.add('on');
   setupImgDrop();
   setupAttachDrop(it.id);
+}
+
+// ── 제품별 수리 이력 (금형/제품 단위) ──────────────────────────────
+// it.repairs 배열로 각 inv 품목에 직접 저장 (inv 자체의 항목단위 병합·동기화 로직을 그대로 재사용)
+function renderProdRepairSection(it){
+  const list=(it.repairs||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0));
+  const canE=canEdit();
+  return `
+  <div style="margin-top:18px">
+    <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🔧 수리 이력 <span style="color:var(--blue)">${list.length}건</span></div>
+    ${canE?`
+    <div style="background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">수리일</div>
+          <input type="date" id="pr-date" class="fi" value="${new Date().toISOString().slice(0,10)}" style="padding:6px 10px;font-size:13px"></div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">담당자 / 업체</div>
+          <input type="text" id="pr-worker" class="fi" placeholder="예: 안호원 / 대성설비" style="padding:6px 10px;font-size:13px"></div>
+      </div>
+      <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">수리 내용</div>
+        <textarea id="pr-content" class="fi" rows="2" placeholder="예: 금형 파손 부위 용접 보수" style="padding:8px 10px;font-size:13px;resize:vertical;width:100%"></textarea></div>
+      <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">비용 (선택)</div>
+        <input type="number" id="pr-cost" class="fi" placeholder="예: 150000" style="padding:6px 10px;font-size:13px"></div>
+      <button class="btn bbl btn-full" style="justify-content:center" onclick="addProdRepair('${it.id}')">+ 수리 이력 등록</button>
+    </div>`:''}
+    ${!list.length?`<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;background:var(--bg3);border-radius:8px">등록된 수리 이력이 없습니다</div>`:`
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${list.map(r=>`
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:700;color:var(--blue);font-family:monospace">${r.date||'-'}</span>
+            ${r.worker?`<span style="font-size:12px;color:var(--purple);font-weight:600">${r.worker}</span>`:''}
+            ${r.cost?`<span style="font-size:12px;color:var(--amber);font-weight:700;font-family:monospace">${Number(r.cost).toLocaleString()}원</span>`:''}
+          </div>
+          <div style="font-size:13px;color:var(--text);margin-top:4px;white-space:pre-wrap">${r.content||''}</div>
+        </div>
+        ${canE?`<button onclick="delProdRepair('${it.id}','${r.id}')" style="flex-shrink:0;background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;height:fit-content">삭제</button>`:''}
+      </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+function addProdRepair(itemId){
+  if(!requireEdit())return;
+  const idx=inv.findIndex(i=>i.id===itemId);
+  if(idx<0)return;
+  const date=document.getElementById('pr-date')?.value||new Date().toISOString().slice(0,10);
+  const worker=document.getElementById('pr-worker')?.value?.trim()||'';
+  const content=document.getElementById('pr-content')?.value?.trim()||'';
+  const cost=parseFloat(document.getElementById('pr-cost')?.value)||0;
+  if(!content){tst('수리 내용을 입력해주세요');return;}
+  if(!Array.isArray(inv[idx].repairs))inv[idx].repairs=[];
+  inv[idx].repairs.unshift({id:Date.now()+'_'+Math.random().toString(36).slice(2,7),date,worker,content,cost,ts:Date.now()});
+  sv();
+  addLog('stock','수리 이력 등록 — '+inv[idx].name, content, inv[idx].id);
+  tst('✓ 수리 이력이 등록되었습니다');
+  opD(itemId);
+}
+function delProdRepair(itemId,repairId){
+  if(!requireEdit())return;
+  const idx=inv.findIndex(i=>i.id===itemId);
+  if(idx<0||!Array.isArray(inv[idx].repairs))return;
+  if(!confirm('이 수리 이력을 삭제하시겠습니까?'))return;
+  inv[idx].repairs=inv[idx].repairs.filter(r=>String(r.id)!==String(repairId));
+  sv();
+  tst('삭제되었습니다');
+  opD(itemId);
 }
 
 // ── 추가 첨부파일 ────────────────────────────────────────────────
