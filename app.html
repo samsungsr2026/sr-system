@@ -4763,7 +4763,7 @@ function invRowHtml(it, num){
         <strong>${it.name}</strong>
       </div>
     </td>
-    <td style="font-family:monospace;color:var(--text3);font-size:12px">${it.classNo||'-'}</td>
+    <td style="font-family:monospace;color:var(--text3);font-size:12px">${[it.classNo,...(it.altClassNo||[])].filter(Boolean).join(', ')||'-'}</td>
     <td style="font-family:monospace;font-weight:600;color:var(--blue);font-size:13px">${it.id}</td>
     <td style="white-space:nowrap"><span style="background:var(--blue-bg);color:var(--blue);padding:3px 9px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="event.stopPropagation();opD('${it.id}')">${it.location||'-'} ✎</span></td>
     <td style="font-family:monospace;font-weight:700;font-size:15px;white-space:nowrap;${it.qty<0?'background:rgba(212,32,72,.15);color:var(--red);padding:6px 10px;border-radius:6px;border:1.5px solid var(--red);text-align:center':'color:'+(st(it)==='low'?'var(--red)':st(it)==='med'?'var(--amber)':'var(--text)')}">
