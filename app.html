@@ -10256,12 +10256,27 @@ function addAltPartNo(itemId){
   if(inv[idx].id===val||inv[idx].classNo===val||inv[idx].barcode===val||inv[idx].altClassNo.includes(val)){
     tst('이미 이 품목에 등록된 품번입니다');return;
   }
-  // 다른 품목에 이미 등록된 품번인지 확인 (충돌 방지)
+  // 다른 품목에 이미 등록된 품번인지 확인
   const conflict=inv.find(i=>i.id!==itemId&&(i.id===val||i.classNo===val||i.barcode===val||(Array.isArray(i.altClassNo)&&i.altClassNo.includes(val))));
-  if(conflict){tst('⚠️ 이미 다른 품목("'+conflict.name+'")에 등록된 품번입니다');return;}
+  if(conflict){
+    if(conflict.id===val){
+      // 금형번호(고유 식별자)는 다른 품목의 추가 품번으로 옮길 수 없음
+      tst('⚠️ "'+val+'"은(는) "'+conflict.name+'"의 금형번호(고유 식별자)라서 다른 품목의 추가 품번으로 등록할 수 없습니다');
+      return;
+    }
+    const where=conflict.classNo===val?'부품번호':(conflict.barcode===val?'바코드':'추가 품번');
+    if(!confirm('"'+val+'"은(는) 이미 "'+conflict.name+'"의 '+where+'(으)로 등록되어 있습니다.\n그 품목에서 제거하고 이 품목("'+inv[idx].name+'")으로 옮기시겠습니까?'))return;
+    const cidx=inv.findIndex(i=>i.id===conflict.id);
+    if(cidx>=0){
+      if(inv[cidx].classNo===val)inv[cidx].classNo='';
+      if(inv[cidx].barcode===val)inv[cidx].barcode='';
+      if(Array.isArray(inv[cidx].altClassNo))inv[cidx].altClassNo=inv[cidx].altClassNo.filter(a=>a!==val);
+      addLog('stock','품번 이동 — '+conflict.name, '품번 제거: '+val+' ('+inv[idx].name+'로 이동)', conflict.id);
+    }
+  }
   inv[idx].altClassNo.push(val);
   sv();
-  addLog('stock','추가 품번 등록 — '+inv[idx].name, '품번 추가: '+val, inv[idx].id);
+  addLog('stock','추가 품번 등록 — '+inv[idx].name, '품번 추가: '+val+(conflict?' ("'+conflict.name+'"에서 이동)':''), inv[idx].id);
   tst('✓ 품번이 추가되었습니다: '+val);
   opD(itemId);
 }
