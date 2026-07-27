@@ -4950,17 +4950,20 @@ function rManIO(){
   </div>`;
 }
 
-// 직접입력 모드의 품목 검색 (금형번호/부품번호로 자동 매칭)
+// 직접입력 모드의 품목 검색 (금형번호/부품번호/바코드/추가품번으로 자동 매칭)
 let manIOSelected={in:null,out:null};
 function findItem(type,val){
   val=(val||'').trim();
   const info=document.getElementById(type==='in'?'ii-info':'oi-info');
   if(!val){info.style.display='none';manIOSelected[type]=null;return;}
-  // 정확히 일치 우선 (금형번호 또는 부품번호)
-  let it=inv.find(i=>i.id.toLowerCase()===val.toLowerCase()||(i.classNo||'').toLowerCase()===val.toLowerCase()||(i.barcode||'').toLowerCase()===val.toLowerCase());
+  const vl=val.toLowerCase();
+  // 정확히 일치 우선 (금형번호/부품번호/바코드/추가품번)
+  let it=inv.find(i=>i.id.toLowerCase()===vl||(i.classNo||'').toLowerCase()===vl||(i.barcode||'').toLowerCase()===vl
+    ||(Array.isArray(i.altClassNo)&&i.altClassNo.some(a=>String(a).trim().toLowerCase()===vl)));
   // 정확 일치 없으면 부분 일치 - 1개만 매칭되면 자동 선택
   if(!it){
-    const matches=inv.filter(i=>ciInc(i.id,val)||ciInc(i.classNo,val));
+    const matches=inv.filter(i=>ciInc(i.id,val)||ciInc(i.classNo,val)
+      ||(Array.isArray(i.altClassNo)&&i.altClassNo.some(a=>ciInc(a,val))));
     if(matches.length===1)it=matches[0];
     else if(matches.length>1){
       info.style.display='block';
@@ -5046,10 +5049,28 @@ function rScanIO(){
   </div>`;
 }
 
+// 품목코드(금형번호/부품번호/바코드/추가품번) 중 어느 것이 들어와도 동일 품목으로 매칭
+// altClassNo: 한 품목이 여러 품번을 가질 때 추가로 등록해둔 품번 배열
+function findInvByCode(code){
+  if(code===undefined||code===null)return null;
+  const c=String(code).trim();
+  if(!c)return null;
+  return inv.find(i=>{
+    if(i.id===c||i.classNo===c||i.barcode===c)return true;
+    if(Array.isArray(i.altClassNo)&&i.altClassNo.some(a=>String(a).trim()===c))return true;
+    return false;
+  })||null;
+}
+function findInvIndexByCode(code){
+  const it=findInvByCode(code);
+  if(!it)return -1;
+  return inv.findIndex(i=>i.id===it.id);
+}
+
 function doScan(){
   const code=document.getElementById('sc-code')?.value?.trim();
   if(!code){tst('코드를 입력해주세요');return;}
-  const it=inv.find(i=>i.id===code||i.barcode===code);
+  const it=findInvByCode(code);
   const r=document.getElementById('scan-res');
   if(it){
     scanId=it.id;r.style.display='block';
@@ -5395,16 +5416,16 @@ function processIOData(rows,fileName){
   parsed.forEach(r=>{
     let it=null;
     if(r.format==='volvo'){
-      // 볼보 형식은 Material No. → 부품번호(classNo)로 매칭
-      it=inv.find(i=>i.classNo===r.matNo||i.barcode===r.matNo||i.id===r.matNo);
+      // 볼보 형식은 Material No. → 부품번호(classNo/추가품번 포함)로 매칭
+      it=findInvByCode(r.matNo);
       if(it){
         valid.push({type:'out',iid:it.id,qty:r.qty,w:'',
           memo:`[볼보출고] PO:${r.po} · ${r.desc}${r.orderDate?' · 발주일 '+r.orderDate:''}${r.delivery?' · 납기 '+r.delivery:''}`,
           nm:it.name,unit:it.unit,matNo:r.matNo,po:r.po,format:'volvo'});
       }else bad.push({...r,reason:'부품번호('+r.matNo+') 없음'});
     }else{
-      it=inv.find(i=>i.id===r.iid);
-      if(it)valid.push({...r,nm:it.name,unit:it.unit});
+      it=findInvByCode(r.iid);
+      if(it)valid.push({...r,iid:it.id,nm:it.name,unit:it.unit});
       else bad.push({...r,reason:'품목코드('+r.iid+') 없음'});
     }
   });
@@ -9697,6 +9718,23 @@ function opD(id){
         <div style="font-size:11px;color:var(--text3);margin:8px 0 6px">포장 단위 (1포장 수량)</div>
         <input type="number" id="edit-packunit" value="${it.packUnit||''}" placeholder="예: 100" min="0"
           style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-weight:600;outline:none;font-family:monospace">
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:10px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">추가 품번 <span style="color:var(--text3);font-weight:400">(동일 제품·다른 품번, 입출고시 자동 인식)</span></div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input type="text" id="edit-altpartno-new" placeholder="추가 품번 입력"
+              style="flex:1;background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;color:#111;outline:none;font-family:monospace"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();addAltPartNo('${it.id}')}">
+            <button onclick="addAltPartNo('${it.id}')"
+              style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">+ 추가</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${(it.altClassNo||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:3px 8px">
+              <span style="font-size:12px;font-weight:600;color:#111;font-family:monospace">${a}</span>
+              <button onclick="delAltPartNo('${it.id}',${i})"
+                style="background:var(--red-bg);border:none;color:var(--red);cursor:pointer;font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px">✕</button>
+            </div>`).join('')}
+          </div>
+        </div>
       </div>
       <div style="background:var(--bg3);border-radius:8px;padding:12px 14px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:6px">재질</div>
@@ -10206,6 +10244,41 @@ function applyItemEdit(id, payload, approvedFrom){
     addLog(logType, title, detail, inv[idx].id);
   }
 }
+// ── 추가 품번 (동일 제품, 여러 품번) ──────────────────────────────
+function addAltPartNo(itemId){
+  if(!requireEdit())return;
+  const idx=inv.findIndex(i=>i.id===itemId);
+  if(idx<0)return;
+  const el=document.getElementById('edit-altpartno-new');
+  const val=el?.value?.trim();
+  if(!val){tst('추가할 품번을 입력해주세요');return;}
+  if(!Array.isArray(inv[idx].altClassNo))inv[idx].altClassNo=[];
+  if(inv[idx].id===val||inv[idx].classNo===val||inv[idx].barcode===val||inv[idx].altClassNo.includes(val)){
+    tst('이미 이 품목에 등록된 품번입니다');return;
+  }
+  // 다른 품목에 이미 등록된 품번인지 확인 (충돌 방지)
+  const conflict=inv.find(i=>i.id!==itemId&&(i.id===val||i.classNo===val||i.barcode===val||(Array.isArray(i.altClassNo)&&i.altClassNo.includes(val))));
+  if(conflict){tst('⚠️ 이미 다른 품목("'+conflict.name+'")에 등록된 품번입니다');return;}
+  inv[idx].altClassNo.push(val);
+  sv();
+  addLog('stock','추가 품번 등록 — '+inv[idx].name, '품번 추가: '+val, inv[idx].id);
+  tst('✓ 품번이 추가되었습니다: '+val);
+  opD(itemId);
+}
+function delAltPartNo(itemId,i){
+  if(!requireEdit())return;
+  const idx=inv.findIndex(x=>x.id===itemId);
+  if(idx<0||!Array.isArray(inv[idx].altClassNo))return;
+  const removed=inv[idx].altClassNo[i];
+  if(removed===undefined)return;
+  if(!confirm('추가 품번 "'+removed+'"을(를) 삭제하시겠습니까?'))return;
+  inv[idx].altClassNo.splice(i,1);
+  sv();
+  addLog('stock','추가 품번 삭제 — '+inv[idx].name, '품번 삭제: '+removed, inv[idx].id);
+  tst('삭제되었습니다');
+  opD(itemId);
+}
+
 function modalAddWorker(itemId){
   if(!requireEdit())return;
   const el=document.getElementById('modal-new-worker');
@@ -10399,7 +10472,7 @@ function finishStockRecon(pairs, fileName){
   const changes=[];
   let matched=0, unmatchedCount=0;
   Object.keys(byMat).forEach(matNo=>{
-    const idx=inv.findIndex(it=>String(it.classNo||'').trim()===matNo||String(it.barcode||'').trim()===matNo);
+    const idx=findInvIndexByCode(matNo);
     if(idx<0){unmatchedCount++;return;}
     matched++;
     const it=inv[idx];
@@ -10430,7 +10503,7 @@ function apStockRecon(){
   const cnt=pendStockRecon.length;
   let applied=0;
   pendStockRecon.forEach(c=>{
-    const idx=inv.findIndex(it=>String(it.classNo||'').trim()===c.matNo||String(it.barcode||'').trim()===c.matNo);
+    const idx=findInvIndexByCode(c.matNo);
     if(idx>=0){inv[idx].qty=c.newQty;applied++;}
   });
   sv();
