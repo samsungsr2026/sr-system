@@ -9762,8 +9762,6 @@ function opD(id){
       <button class="btn bbr" style="flex:1;justify-content:center" onclick="cmo();go('io')">⬆️ 출고 등록</button>
     </div>
 
-    ${renderProdRepairSection(it)}
-
     <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 10px">제품 사진 / 도면</div>
     <div style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:4px 8px;margin-bottom:8px;display:inline-block">🔧 진단: 이 품목 도면 데이터 ${(drw&&(typeof drw==='string'||drw.data))?'있음':(drw?'메타만있음(데이터없음)':'없음')} / 서버 도면 전체 ${window._drawsServerTotal!=null?window._drawsServerTotal:'확인중'}건(데이터있음 ${window._drawsServerWithData!=null?window._drawsServerWithData:'확인중'}건) / 단계: ${window._filesStage||'(동기화 시작전)'}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -9831,7 +9829,9 @@ function opD(id){
       </div>
     </div>
 
-    ${renderAttachSection(it.id)}`;
+    ${renderAttachSection(it.id)}
+
+    ${renderProdRepairSection(it)}`;
   document.getElementById('ov').classList.add('on');
   setupImgDrop();
   setupAttachDrop(it.id);
