@@ -1176,6 +1176,11 @@ function ciInc(str,q){
   if(!q)return true;
   return (str==null?'':String(str)).toLowerCase().includes(String(q).toLowerCase());
 }
+// 품목의 추가 품번(altClassNo) 중 하나라도 검색어와 일치하는지 확인
+function altMatch(i,q){
+  if(!q)return false;
+  return Array.isArray(i.altClassNo)&&i.altClassNo.some(a=>ciInc(a,q));
+}
 function mergeByKey(localArr, remoteArr, keyFn){
   const map=new Map();
   (Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{ if(x) map.set(keyFn(x), x); });
@@ -3200,7 +3205,7 @@ function fil(){
   return inv.filter(i=>{
     const stop=isStop(i);
     const stOk = fcat==='전체'||(fcat==='정상'&&st(i)==='ok'&&!stop)||(fcat==='주의'&&st(i)==='med'&&!stop)||(fcat==='부족'&&st(i)==='low'&&!stop)||(fcat==='생산중단'&&stop);
-    const srOk = !sq||ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq);
+    const srOk = !sq||ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq)||altMatch(i,sq);
     return stOk&&srOk;
   }).sort((a,b)=>{
     if(invSortMode==='qty'){
@@ -4867,7 +4872,7 @@ function ioItemHTML(type,sq){
   const col=type==='in'?'var(--green)':'var(--amber)';
   const bg=type==='in'?'var(--green-bg)':'var(--amber-bg)';
   if(!sq)return '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">🔍 품목을 검색하세요</div>';
-  const f=inv.filter(i=>ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.classNo,sq));
+  const f=inv.filter(i=>ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.classNo,sq)||altMatch(i,sq));
   if(!f.length)return '<div style="text-align:center;padding:16px;color:var(--text3)">검색 결과 없음</div>';
   return f.slice(0,30).map(it=>`
     <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg3);border-radius:8px;margin-bottom:6px;border:1px solid var(--border);cursor:pointer" onclick="selectIOItem('${type}','${it.id}')">
@@ -5881,7 +5886,7 @@ function rPlan(){
   // 검색어 필터 (품명/금형번호/부품번호)
   if(planSq){
     const q=planSq;
-    const match=i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q);
+    const match=i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q)||altMatch(i,q);
     low=low.filter(match);med=med.filter(match);
   }
   const sc=Object.values(planSel).filter(v=>v>0).length;
@@ -5926,7 +5931,7 @@ function planSearchResultHTML(){
   if(!planSq)return '';
   const q=planSq;
   const all=[...inv.filter(i=>st(i)==='low'&&!isStop(i)),...inv.filter(i=>st(i)==='med'&&!isStop(i)),...inv.filter(i=>st(i)==='ok'&&!isStop(i))];
-  const f=all.filter(i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q));
+  const f=all.filter(i=>ciInc(i.name,q)||ciInc(i.id,q)||ciInc(i.classNo,q)||altMatch(i,q));
   if(!f.length)return '<div style="text-align:center;padding:14px;color:var(--text3)">검색 결과 없음</div>';
   return f.slice(0,20).map(it=>{
     const s=st(it);
@@ -6261,7 +6266,8 @@ function rBarcode(){
     !sq2||
     ciInc(i.name,sq2)||
     ciInc(i.id,sq2)||
-    ciInc(i.classNo,sq2)
+    ciInc(i.classNo,sq2)||
+    altMatch(i,sq2)
   );
 
   return `
@@ -6405,7 +6411,8 @@ function bcSearch(val){
     !sq2||
     ciInc(i.name,sq2)||
     ciInc(i.id,sq2)||
-    ciInc(i.classNo,sq2)
+    ciInc(i.classNo,sq2)||
+    altMatch(i,sq2)
   );
   const box=document.getElementById('bc-result-box');
   if(!box)return;
@@ -6992,7 +6999,7 @@ function mvItemResultHTML(i){
   const v=SUPPLIERS[i];
   const already=(SUPPLIER_ITEMS[v]||[]).map(it=>it.id).filter(Boolean);
   if(!mvItemSq) return '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">재고 품목을 검색하세요</div>';
-  const f=inv.filter(it=>!already.includes(it.id)&&(ciInc(it.name,mvItemSq)||ciInc(it.id,mvItemSq)||ciInc(it.classNo,mvItemSq)));
+  const f=inv.filter(it=>!already.includes(it.id)&&(ciInc(it.name,mvItemSq)||ciInc(it.id,mvItemSq)||ciInc(it.classNo,mvItemSq)||altMatch(it,mvItemSq)));
   if(!f.length) return '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">검색 결과 없음</div>';
   return f.slice(0,20).map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg2,var(--bg));border-radius:6px;margin-bottom:5px;border:1px solid var(--border)">
     <div style="flex:1;min-width:0;font-size:12px">${it.name} <span style="color:var(--text3);font-size:10px">(${it.id})</span></div>
@@ -7100,7 +7107,7 @@ function ordResultHTML(){
     return html;
   }
   if(!orderSq) return html+'<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">🔍 품목을 검색하세요</div>';
-  let f=inv.filter(i=>ciInc(i.name,orderSq)||ciInc(i.id,orderSq)||ciInc(i.classNo,orderSq));
+  let f=inv.filter(i=>ciInc(i.name,orderSq)||ciInc(i.id,orderSq)||ciInc(i.classNo,orderSq)||altMatch(i,orderSq));
   // 업체가 선택돼 있으면 그 업체 취급 품목을 우선 정렬
   if(vendor&&supItems.length){
     const supIds=new Set(supItems.map(si=>si.id).filter(Boolean));
@@ -7688,7 +7695,7 @@ function rDelProd(){
   }
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
     !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
-    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)||altMatch(i,delSq)
   );
   const sc=delSel.size;
   return `
@@ -7746,7 +7753,7 @@ function rDelProd(){
 function renderDelList(){
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
     !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
-    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)||altMatch(i,delSq)
   );
   const tbody=document.getElementById('del-list-body');
   if(!tbody){render();return;}
@@ -7770,7 +7777,7 @@ function toggleDelItem(idx, checked){
 function toggleDelAll(checked){
   const list=inv.map((i,idx)=>({...i,_idx:idx})).filter(i=>
     !delSq||ciInc(i.name,delSq)||ciInc(i.id,delSq)||
-    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)
+    ciInc(i.classNo,delSq)||ciInc(i.location,delSq)||altMatch(i,delSq)
   );
   list.forEach(i=>{ if(checked) delSel.add(i._idx); else delSel.delete(i._idx); });
   render();
@@ -9712,7 +9719,7 @@ function opD(id){
           style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--purple);font-size:13px;font-weight:700;outline:none;font-family:monospace">
       </div>
       <div style="background:var(--bg3);border-radius:8px;padding:12px 14px">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">부품번호</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">부품번호${(it.altClassNo||[]).length?` <span style="color:var(--blue);font-weight:700">· 전체 ${1+it.altClassNo.length}개: ${[it.classNo||'-',...it.altClassNo].join(', ')}</span>`:''}</div>
         <input type="text" id="edit-partno" value="${it.classNo||''}" placeholder="부품번호"
           style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-weight:600;outline:none;font-family:monospace">
         <div style="font-size:11px;color:var(--text3);margin:8px 0 6px">포장 단위 (1포장 수량)</div>
