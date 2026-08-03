@@ -4602,6 +4602,8 @@ function rDash(){
   prodToday.forEach(p=>{ (prodByWorker[p.worker]=prodByWorker[p.worker]||[]).push(p); });
   Object.keys(prodByWorker).forEach(w=>prodByWorker[w].sort((a,b)=>a.ts-b.ts));
   const prodWorkers=Object.keys(prodByWorker).sort();
+  // 미발행(미출력) 발주서 목록 - 대시보드 좌측에 표시
+  const unprintedOrders=orders.map((o,i)=>({o,i})).filter(x=>!x.o.printedAt).sort((a,b)=>b.o.ts-a.o.ts);
   return `
   <div class="page-title">대시보드</div>
   <div class="page-sub">삼성SR 재고 현황 요약</div>
@@ -4628,14 +4630,31 @@ function rDash(){
     </div>
   </div>
 
-  <!-- 금일 생산 현황 (PDA 단말기에서 작업자가 수기 등록) -->
-  <div style="margin-bottom:16px">
+  <!-- 좌: 미발행 발주서 / 우: 금일 생산 현황 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card" style="border-color:rgba(212,32,72,.2)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">📋 미발행 발주서 <span style="color:var(--text2)">${unprintedOrders.length}건</span></div>
+        <button class="btn" style="padding:5px 12px;font-size:12px;background:var(--red-bg);color:var(--red);border:1px solid rgba(212,32,72,.3)" onclick="go('order')">전체 보기 →</button>
+      </div>
+      ${unprintedOrders.length?`<div style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto">
+        ${unprintedOrders.slice(0,8).map(({o,i})=>`
+        <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer" onclick="go('order');previewOrder(${i})">
+          <div style="min-width:0">
+            <div style="font-size:12px;font-weight:700;color:var(--blue);font-family:monospace">${o.docNo}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${o.vendor||'-'} · ${o.items.length}종 · ${new Date(o.ts).toLocaleDateString('ko',{month:'short',day:'numeric'})}</div>
+          </div>
+          <button class="btn bbl" style="flex-shrink:0;padding:5px 11px;font-size:11px" onclick="event.stopPropagation();go('order');printOrder(${i})">🖨️ 출력</button>
+        </div>`).join('')}
+      </div>`:`<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">미발행 발주서가 없습니다</div>`}
+    </div>
+
     <div class="card" style="border-color:rgba(13,158,114,.2)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div class="card-title" style="margin-bottom:0">🏭 금일 생산 현황</div>
         <button class="btn" style="padding:5px 12px;font-size:12px;background:var(--green-bg);color:var(--green);border:1px solid rgba(13,158,114,.3)" onclick="go('prodview')">조회 →</button>
       </div>
-      ${prodWorkers.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+      ${prodWorkers.length?`<div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto">
         ${prodWorkers.map(w=>{
           const escP=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
           const entries=prodByWorker[w];
