@@ -9884,28 +9884,35 @@ function opD(id){
 
 // ── 제품별 수리 이력 (금형/제품 단위) ──────────────────────────────
 // it.repairs 배열로 각 inv 품목에 직접 저장 (inv 자체의 항목단위 병합·동기화 로직을 그대로 재사용)
+let prEditId=null; // 현재 수정 중인 수리 이력 id (없으면 신규 등록 모드)
 function renderProdRepairSection(it){
   const list=(it.repairs||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0));
+  const editing=prEditId?(it.repairs||[]).find(r=>r.id===prEditId):null;
+  const inpStyle="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-weight:600;outline:none;font-family:monospace";
   return `
   <div style="margin-top:18px">
     <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🔧 수리 이력 <span style="color:var(--blue)">${list.length}건</span></div>
     <div style="background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      ${editing?`<div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:8px">✎ 이 이력을 수정 중입니다</div>`:''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">수리일</div>
-          <input type="date" id="pr-date" class="fi" value="${new Date().toISOString().slice(0,10)}" style="padding:6px 10px;font-size:13px"></div>
+          <input type="date" id="pr-date" value="${editing?(editing.date||''):new Date().toISOString().slice(0,10)}" style="${inpStyle}"></div>
         <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">담당자 / 업체</div>
-          <input type="text" id="pr-worker" class="fi" placeholder="예: 안호원 / 대성설비" style="padding:6px 10px;font-size:13px"></div>
+          <input type="text" id="pr-worker" value="${editing?(editing.worker||''):''}" placeholder="예: 안호원 / 대성설비" style="${inpStyle}"></div>
       </div>
       <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">수리 내용</div>
-        <textarea id="pr-content" class="fi" rows="2" placeholder="예: 금형 파손 부위 용접 보수" style="padding:8px 10px;font-size:13px;resize:vertical;width:100%"></textarea></div>
+        <textarea id="pr-content" placeholder="예: 금형 파손 부위 용접 보수" style="${inpStyle};resize:vertical;font-weight:400" rows="2">${editing?(editing.content||''):''}</textarea></div>
       <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">비용 (선택)</div>
-        <input type="number" id="pr-cost" class="fi" placeholder="예: 150000" style="padding:6px 10px;font-size:13px"></div>
-      <button class="btn bbl btn-full" style="justify-content:center" onclick="addProdRepair('${it.id}')">+ 수리 이력 등록</button>
+        <input type="number" id="pr-cost" value="${editing&&editing.cost?editing.cost:''}" placeholder="예: 150000" style="${inpStyle}"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn bbl" style="flex:1;justify-content:center" onclick="addProdRepair('${it.id}')">${editing?'✓ 수정 완료':'+ 수리 이력 등록'}</button>
+        ${editing?`<button class="btn" style="background:var(--bg4);color:var(--text2)" onclick="cancelProdRepairEdit('${it.id}')">취소</button>`:''}
+      </div>
     </div>
     ${!list.length?`<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;background:var(--bg3);border-radius:8px">등록된 수리 이력이 없습니다</div>`:`
     <div style="display:flex;flex-direction:column;gap:8px">
       ${list.map(r=>`
-      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;gap:10px">
+      <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;gap:10px;${r.id===prEditId?'border:1.5px solid var(--purple)':''}">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
             <span style="font-size:12px;font-weight:700;color:var(--blue);font-family:monospace">${r.date||'-'}</span>
@@ -9914,10 +9921,21 @@ function renderProdRepairSection(it){
           </div>
           <div style="font-size:13px;color:var(--text);margin-top:4px;white-space:pre-wrap">${r.content||''}</div>
         </div>
-        <button onclick="delProdRepair('${it.id}','${r.id}')" style="flex-shrink:0;background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;height:fit-content">삭제</button>
+        <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+          <button onclick="editProdRepair('${it.id}','${r.id}')" style="background:var(--blue-bg);border:1px solid var(--blue);color:var(--blue);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">수정</button>
+          <button onclick="delProdRepair('${it.id}','${r.id}')" style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">삭제</button>
+        </div>
       </div>`).join('')}
     </div>`}
   </div>`;
+}
+function editProdRepair(itemId,repairId){
+  prEditId=repairId;
+  opD(itemId);
+}
+function cancelProdRepairEdit(itemId){
+  prEditId=null;
+  opD(itemId);
 }
 function addProdRepair(itemId){
   if(!requireEdit())return;
@@ -9929,10 +9947,20 @@ function addProdRepair(itemId){
   const cost=parseFloat(document.getElementById('pr-cost')?.value)||0;
   if(!content){tst('수리 내용을 입력해주세요');return;}
   if(!Array.isArray(inv[idx].repairs))inv[idx].repairs=[];
-  inv[idx].repairs.unshift({id:Date.now()+'_'+Math.random().toString(36).slice(2,7),date,worker,content,cost,ts:Date.now()});
+  if(prEditId){
+    const ridx=inv[idx].repairs.findIndex(r=>r.id===prEditId);
+    if(ridx>=0){
+      inv[idx].repairs[ridx]={...inv[idx].repairs[ridx],date,worker,content,cost};
+      addLog('stock','수리 이력 수정 — '+inv[idx].name, content, inv[idx].id);
+      tst('✓ 수리 이력이 수정되었습니다');
+    }
+    prEditId=null;
+  }else{
+    inv[idx].repairs.unshift({id:Date.now()+'_'+Math.random().toString(36).slice(2,7),date,worker,content,cost,ts:Date.now()});
+    addLog('stock','수리 이력 등록 — '+inv[idx].name, content, inv[idx].id);
+    tst('✓ 수리 이력이 등록되었습니다');
+  }
   sv();
-  addLog('stock','수리 이력 등록 — '+inv[idx].name, content, inv[idx].id);
-  tst('✓ 수리 이력이 등록되었습니다');
   opD(itemId);
 }
 function delProdRepair(itemId,repairId){
@@ -9941,6 +9969,7 @@ function delProdRepair(itemId,repairId){
   if(idx<0||!Array.isArray(inv[idx].repairs))return;
   if(!confirm('이 수리 이력을 삭제하시겠습니까?'))return;
   inv[idx].repairs=inv[idx].repairs.filter(r=>String(r.id)!==String(repairId));
+  if(prEditId===repairId)prEditId=null;
   sv();
   tst('삭제되었습니다');
   opD(itemId);
