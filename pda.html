@@ -139,9 +139,9 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
       금일 생산현황
     </button>
-    <button class="tab" onclick="switchTab('hist')" id="tab-hist">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-      입고 이력
+    <button class="tab" onclick="switchTab('recon')" id="tab-recon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="2" ry="2"></rect><path d="M9 3h6v3H9z"></path><polyline points="8 13 10.5 15.5 16 10"></polyline></svg>
+      재고조사
     </button>
   </div>
 
@@ -235,35 +235,39 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     </div>
   </div>
 
-  <!-- 입고 이력 조회 탭 -->
-  <div class="page" id="page-hist">
+  <!-- 재고조사 탭 -->
+  <div class="page" id="page-recon">
     <div class="card">
-      <div class="card-title">입고 이력 검색</div>
+      <div class="card-title">재고조사 - 품목 검색</div>
       <div class="fg">
-        <label class="label">품명 / 금형번호 / 부품번호</label>
-        <input class="inp" type="text" id="hist-q" placeholder="검색어 입력..." autocomplete="off" autocapitalize="off"
-          oninput="renderHistList()">
-      </div>
-      <div class="fg" style="display:flex;gap:8px">
-        <div style="flex:1">
-          <label class="label">시작일</label>
-          <input class="inp" type="date" id="hist-from" onchange="renderHistList()">
-        </div>
-        <div style="flex:1">
-          <label class="label">종료일</label>
-          <input class="inp" type="date" id="hist-to" onchange="renderHistList()">
+        <label class="label">바코드 스캔 또는 금형번호 / 부품번호 입력</label>
+        <div style="display:flex;gap:8px">
+          <input class="inp" type="text" id="recon-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
+            style="flex:1" inputmode="numeric"
+            onkeydown="if(event.key==='Enter')doReconSearch();">
+          <button id="btn-recon-search" onclick="this.focus();doReconSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
       </div>
-      <button class="btn btn-cancel" onclick="clearHistFilter()">초기화</button>
-    </div>
-    <div class="card" id="hist-summary-card" style="display:none">
-      <div style="display:flex;gap:8px;text-align:center">
-        <div style="flex:1"><div style="font-size:11px;color:#8090b8;margin-bottom:4px">건수</div><div style="font-size:18px;font-weight:800" id="hist-sum-cnt">0건</div></div>
-        <div style="flex:1"><div style="font-size:11px;color:#8090b8;margin-bottom:4px">총 입고량</div><div style="font-size:18px;font-weight:800;color:#0d9e72" id="hist-sum-qty">+0</div></div>
+
+      <div class="found-box" id="recon-found">
+        <div class="found-name" id="recon-found-name"></div>
+        <div class="found-info" id="recon-found-info"></div>
+        <button class="btn btn-in" id="btn-recon-edit" onclick="startReconEdit()" style="margin-top:12px">✏ 수정</button>
       </div>
     </div>
-    <div id="hist-list">
-      <div class="empty"><div class="empty-icon">📦</div><div class="empty-text">품명, 금형번호 또는 기간을 입력해 조회하세요</div></div>
+
+    <div class="card" id="recon-edit-card" style="display:none">
+      <div class="card-title">실사 재고 입력</div>
+      <div class="fg">
+        <label class="label">실제(전체) 재고 수량</label>
+        <div class="qty-wrap">
+          <button class="qty-btn" onclick="adjReconQty(-1)">−</button>
+          <input class="inp qty-inp" type="number" id="recon-qty" value="0" min="0" inputmode="numeric">
+          <button class="qty-btn" onclick="adjReconQty(1)">+</button>
+        </div>
+      </div>
+      <button class="btn btn-in" id="btn-recon-save" onclick="doReconSave()">✓ 재고 반영</button>
+      <button class="btn btn-cancel" onclick="cancelReconEdit()">취소</button>
     </div>
   </div>
   </div>
@@ -430,90 +434,99 @@ function switchTab(tab) {
   if (tab === 'in') { setTimeout(() => document.getElementById('in-code').focus(), 100); renderInList(); }
   if (tab === 'loc') setTimeout(() => document.getElementById('loc-code').focus(), 100);
   if (tab === 'prod') renderProdList();
-  if (tab === 'hist') renderHistList();
+  if (tab === 'recon') setTimeout(() => document.getElementById('recon-code').focus(), 100);
 }
 
-// ── 입고 이력 조회 (날짜별·부품별) ──────────────────────────────────
-function clearHistFilter() {
-  document.getElementById('hist-q').value = '';
-  document.getElementById('hist-from').value = '';
-  document.getElementById('hist-to').value = '';
-  renderHistList();
+// ── 재고조사 (품목 검색 → 현재고 확인 → 실사 수량으로 전체 반영) ──────────────────
+let reconItem = null;
+
+function doReconSearch() {
+  const el = document.getElementById('recon-code');
+  const code = el.value.trim();
+  if (!code) { tst('코드를 입력해주세요'); return; }
+
+  let it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
+  let fuzzy = false;
+  if (!it) {
+    const nc = normCode(code);
+    if (nc) {
+      it = inv.find(i => normCode(i.id) === nc || normCode(i.barcode) === nc || (i.classNo && normCode(i.classNo) === nc));
+      if (it) fuzzy = true;
+    }
+  }
+  const box = document.getElementById('recon-found');
+  cancelReconEdit();
+  if (it) {
+    reconItem = it;
+    box.style.display = 'block';
+    document.getElementById('recon-found-name').textContent = it.name + (fuzzy ? ' (근사 일치)' : '');
+    document.getElementById('recon-found-info').innerHTML =
+      `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
+    tst(fuzzy ? '✓ ' + it.name + ' (가장 가까운 품목으로 매칭됨)' : '✓ ' + it.name);
+  } else {
+    reconItem = null;
+    box.style.display = 'none';
+    tst('❌ 등록되지 않은 코드입니다');
+  }
 }
 
-function renderHistList() {
-  const q = (document.getElementById('hist-q').value || '').trim().toUpperCase();
-  const fromVal = document.getElementById('hist-from').value;
-  const toVal = document.getElementById('hist-to').value;
-  const box = document.getElementById('hist-list');
-  const sumCard = document.getElementById('hist-summary-card');
+function adjReconQty(d) {
+  const el = document.getElementById('recon-qty');
+  const v = parseInt(el.value) || 0;
+  el.value = Math.max(0, v + d);
+}
 
-  if (!q && !fromVal && !toVal) {
-    sumCard.style.display = 'none';
-    box.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">품명, 금형번호 또는 기간을 입력해 조회하세요</div></div>';
-    return;
+function startReconEdit() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  if (!reconItem) return;
+  document.getElementById('recon-edit-card').style.display = 'block';
+  document.getElementById('recon-qty').value = reconItem.qty;
+  document.getElementById('recon-qty').focus();
+  document.getElementById('recon-qty').select();
+}
+
+function cancelReconEdit() {
+  document.getElementById('recon-edit-card').style.display = 'none';
+}
+
+async function doReconSave() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  if (!reconItem) { tst('먼저 품목을 검색하세요'); return; }
+  const newQty = parseInt(document.getElementById('recon-qty').value);
+  if (isNaN(newQty) || newQty < 0) { tst('수량을 확인해주세요'); return; }
+
+  // 서버 최신 재고를 다시 받아온 뒤 그 위에 반영 (PC 등 다른 기기에서 방금 바뀐 값이 덮어써지지 않도록)
+  try {
+    const freshInv = await fbGet('inv');
+    if (Array.isArray(freshInv) && freshInv.length > 0) inv = freshInv;
+  } catch(e) {}
+
+  const idx = inv.findIndex(i => i.id === reconItem.id);
+  if (idx < 0) { tst('품목을 찾을 수 없습니다'); return; }
+
+  const oldQty = inv[idx].qty;
+  const diff = newQty - oldQty;
+  inv[idx].qty = newQty;
+
+  // 재고조사로 인한 변경도 이력에 남김 (증감분을 tx로 기록)
+  const tx = {id: Date.now(), type: 'recon', iid: reconItem.id, qty: diff, w: curUser.name, ts: Date.now(), memo: `[PDA 재고조사] ${oldQty}${inv[idx].unit} → ${newQty}${inv[idx].unit}`};
+  txs.unshift(tx);
+
+  _lastInSave = Date.now();
+  localStorage.setItem('sr-inv', JSON.stringify(inv));
+  localStorage.setItem('sr-tx', JSON.stringify(txs));
+
+  try {
+    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    tst(`✅ 재고조사 반영완료 · ${oldQty}${inv[idx].unit} → ${newQty}${inv[idx].unit}`);
+  } catch(e) {
+    tst('✅ 저장됨 (오프라인)');
   }
 
-  let list = txs.filter(t => t.type === 'in');
-  if (fromVal) {
-    const f = new Date(fromVal); f.setHours(0, 0, 0, 0);
-    list = list.filter(t => t.ts >= f.getTime());
-  }
-  if (toVal) {
-    const tt = new Date(toVal); tt.setHours(23, 59, 59, 999);
-    list = list.filter(t => t.ts <= tt.getTime());
-  }
-  if (q) {
-    list = list.filter(t => {
-      const it = inv.find(i => i.id === t.iid);
-      return String(t.iid).toUpperCase().includes(q)
-        || (it && it.name && it.name.toUpperCase().includes(q))
-        || (it && it.classNo && String(it.classNo).toUpperCase().includes(q));
-    });
-  }
-  list = list.slice().sort((a, b) => b.ts - a.ts);
-
-  if (!list.length) {
-    sumCard.style.display = 'none';
-    box.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">검색 결과 없음</div></div>';
-    return;
-  }
-
-  const totalQty = list.reduce((s, t) => s + t.qty, 0);
-  sumCard.style.display = 'block';
-  document.getElementById('hist-sum-cnt').textContent = list.length + '건';
-  document.getElementById('hist-sum-qty').textContent = '+' + totalQty.toLocaleString();
-
-  // 날짜별 그룹핑
-  const groups = {};
-  const order = [];
-  list.forEach(t => {
-    const d = new Date(t.ts);
-    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    if (!groups[key]) { groups[key] = []; order.push(key); }
-    groups[key].push(t);
-  });
-
-  let html = '';
-  order.forEach(key => {
-    const items = groups[key];
-    const d = new Date(key + 'T00:00:00');
-    const label = d.toLocaleDateString('ko', { month: 'long', day: 'numeric', weekday: 'short' });
-    const dayTotal = items.reduce((s, t) => s + t.qty, 0);
-    html += `<div class="prod-group-label">📅 ${label} · +${dayTotal.toLocaleString()} (${items.length}건)</div>`;
-    html += items.map(t => {
-      const it = inv.find(i => i.id === t.iid);
-      const timeStr = new Date(t.ts).toLocaleTimeString('ko', { hour: '2-digit', minute: '2-digit' });
-      return `<div class="in-item">
-        <div class="in-item-main">
-          <div class="in-item-name">${escHtml(it ? it.name : t.iid)}</div>
-          <div class="in-item-sub">${escHtml(t.iid)}${it && it.classNo ? ' · ' + escHtml(it.classNo) : ''} · ${t.w ? escHtml(t.w) : '담당 미지정'} · ${timeStr}</div>
-        </div>
-        <div style="font-weight:800;color:#0d9e72;font-family:monospace;flex-shrink:0">+${t.qty}${it ? it.unit : ''}</div>
-      </div>`;
-    }).join('');
-  });
-  box.innerHTML = html;
+  reconItem = inv[idx];
+  document.getElementById('recon-found-info').innerHTML =
+    `금형번호: <span>${reconItem.id}</span> · 부품번호: <span>${reconItem.classNo || '-'}</span><br>현재고: <span>${reconItem.qty.toLocaleString()}${reconItem.unit}</span>`;
+  cancelReconEdit();
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
@@ -763,7 +776,6 @@ async function pullTxFromServer() {
       txs = rt;
       localStorage.setItem('sr-tx', JSON.stringify(txs));
       if (document.getElementById('page-in').classList.contains('on')) renderInList();
-      if (document.getElementById('page-hist').classList.contains('on')) renderHistList();
     }
   } catch(e) {}
 }
