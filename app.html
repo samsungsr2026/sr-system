@@ -2009,6 +2009,21 @@ function fetchTimeout(url, ms, options){
 // 기존 호출부(.then(r=>r.ok?r.json():null)) 패턴을 그대로 쓸 수 있도록 Response와 비슷한 형태로 반환한다.
 async function fetchTimeoutETag(url, ms){
   try{
+    // 페이지를 새로고침하면 이 캐시(_fbEtagCache/_fbEtagDataCache)는 메모리라서 초기화되어,
+    // 매번 새로고침할 때마다 서버에서 전체 데이터를 처음부터 다시 받아오는 문제가 있었음(2026-08 실제 발생).
+    // localStorage에 이전 ETag와 마지막 데이터를 함께 저장해두면, 새로고침 직후 첫 요청에도
+    // If-None-Match를 보낼 수 있어 데이터가 안 바뀌었으면 304로 대역폭을 아낄 수 있음.
+    // 사진/도면(srFiles) 등 큰 바이너리 데이터는 이 함수를 쓰지 않으므로(별도 cfGetPathChecked 경로) 영향 없음.
+    if(_fbEtagCache[url]===undefined){
+      try{
+        const cached=localStorage.getItem('sr-etag:'+url);
+        if(cached){
+          const parsed=JSON.parse(cached);
+          _fbEtagCache[url]=parsed.etag;
+          _fbEtagDataCache[url]=parsed.data;
+        }
+      }catch(e){}
+    }
     const headers={'X-Firebase-ETag':'true'};
     if(_fbEtagCache[url])headers['If-None-Match']=_fbEtagCache[url];
     const r=await fetchTimeout(url, ms, {headers});
@@ -2016,7 +2031,10 @@ async function fetchTimeoutETag(url, ms){
     if(!r.ok) return {ok:false, json:async()=>null};
     const data=await r.json();
     const etag=r.headers.get('ETag');
-    if(etag){ _fbEtagCache[url]=etag; _fbEtagDataCache[url]=data; }
+    if(etag){
+      _fbEtagCache[url]=etag; _fbEtagDataCache[url]=data;
+      try{ localStorage.setItem('sr-etag:'+url, JSON.stringify({etag,data})); }catch(e){}
+    }
     return {ok:true, json:async()=>data};
   }catch(e){ return {ok:false, json:async()=>null}; }
 }
