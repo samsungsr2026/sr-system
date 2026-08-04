@@ -2271,6 +2271,7 @@ async function sv(retryCount) {
 let _filesPullBusy=false;
 async function jbPullFiles(rim){
   if(_filesPullBusy)return; // 중복 동시 실행 방지
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _filesPullBusy=true;
   try{
     // 제품 사진(imgs): 핵심 데이터(/sr.json)에 통째로 섞여 있으면 동기화가 느려지거나(특히 모바일) 실패하므로
@@ -2432,6 +2433,7 @@ async function jbPullFiles(rim){
 let _invPullBusy=false;
 async function jbPullInv(){
   if(_invPullBusy)return;
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   if(_invSaving||Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 재고가 되돌아가는 사고 방지)
   _invPullBusy=true;
   try{
@@ -2452,6 +2454,7 @@ async function jbPullInv(){
 let _txPullBusy=false;
 async function jbPullTx(){
   if(_txPullBusy)return;
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _txPullBusy=true;
   try{
     const rt=await fetchTimeoutETag(`${FB}/sr/tx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -2470,6 +2473,7 @@ async function jbPullTx(){
 let _ordersPullBusy=false;
 async function jbPullOrders(){
   if(_ordersPullBusy)return;
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _ordersPullBusy=true;
   try{
     const ro=await fetchTimeoutETag(`${FB}/sr/orders.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -2516,6 +2520,7 @@ function migrateProduction(p){
 
 async function jbPullProduction(){
   if(_productionPullBusy)return;
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _productionPullBusy=true;
   try{
     const rpr=await fetchTimeoutETag(`${FB}/sr/production.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -2531,6 +2536,7 @@ async function jbPullProduction(){
 let _mrPullBusy=false;
 async function jbPullMoldReport(){
   if(_mrPullBusy)return;
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _mrPullBusy=true;
   try{
     const rmr=await fetchTimeoutETag(`${FB}/sr/moldreport.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -2545,6 +2551,7 @@ async function jbPullMoldReport(){
 let _jbPullBusy=false;
 async function jbPull() {
   if(_jbPullBusy)return; // 이전 동기화가 아직 진행 중이면 중복 실행하지 않음 (느린 연결에서 매번 "동기화 중..."으로 되돌아가는 것을 방지)
+  if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
   _jbPullBusy=true;
   window._jbStage='start';
   jbStat('🔄 동기화 중...');
@@ -13310,7 +13317,7 @@ window.addEventListener('scroll', ()=>{
   btn.style.display=((tab==='inv'||tab==='alert')&&window.scrollY>300)?'flex':'none';
   btn.style.alignItems='center';btn.style.justifyContent='center';
 });
-setInterval(jbPull, 30000);
+setInterval(jbPull, 60000); // 재고/거래/발주/생산/성형일보는 이미 전용 15초 폴링이 커버하므로, 나머지(거래처/수리이력/측정기 등)를 포함한 전체 재확인 주기는 60초로 완화해 대역폭 절약
 setInterval(()=>jbPullFiles(), 30000);
 setInterval(()=>jbPullInv(), 15000);
 setInterval(()=>jbPullTx(), 15000);
