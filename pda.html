@@ -65,6 +65,13 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .loc-stock.ok{background:#edfaf4;color:#0d9e72}
 .loc-stock.low{background:#fce8ed;color:#d42048}
 
+/* 검색 결과 중 여러 개 일치 시 선택 목록 */
+.pick-card{background:#fff;border:1.5px solid #cdd3e8;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.pick-card:active{background:#eef2ff}
+.pick-name{font-size:15px;font-weight:700;color:#1a1f35;margin-bottom:2px}
+.pick-detail{font-size:12px;color:#8090b8}
+.pick-detail b{color:#4a5270}
+
 /* 로그인 화면 */
 .login-wrap{padding:32px 16px;max-width:360px;margin:0 auto}
 .login-title{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px}
@@ -159,6 +166,8 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         </div>
       </div>
 
+      <div id="in-pick-list"></div>
+
       <div class="found-box" id="in-found">
         <div class="found-name" id="in-found-name"></div>
         <div class="found-info" id="in-found-info"></div>
@@ -248,6 +257,8 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
           <button id="btn-recon-search" onclick="this.focus();doReconSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
       </div>
+
+      <div id="recon-pick-list"></div>
 
       <div class="found-box" id="recon-found">
         <div class="found-name" id="recon-found-name"></div>
@@ -437,37 +448,89 @@ function switchTab(tab) {
   if (tab === 'recon') setTimeout(() => document.getElementById('recon-code').focus(), 100);
 }
 
+// ── 검색 공통: 정확히 일치하지 않아도 비슷하게 입력하면 찾아지도록 부분일치 지원 ──────
+// 바코드 스캐너가 "-" 등 구분자를 빼고 숫자만 읽어오는 경우가 있어서,
+// 영문/숫자만 남기고 비교하는 정규화된 매칭을 보조로 사용 (예: "1174-58220" ↔ "117458220")
+function normCode(s) {
+  return String(s == null ? '' : s).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
+// 금형번호/부품번호/바코드/품명 중 어느 것이든 입력값을 "포함"하면 매칭 (부분일치 검색)
+function matchInv(q) {
+  const raw = (q || '').trim();
+  if (!raw) return [];
+  const qu = raw.toUpperCase();
+  let list = inv.filter(d =>
+    d.id.toUpperCase().includes(qu) ||
+    (d.barcode || '').toUpperCase().includes(qu) ||
+    (d.classNo || '').toUpperCase().includes(qu) ||
+    d.name.toUpperCase().includes(qu)
+  );
+  // 구분자를 무시한 정규화 매칭도 함께 시도해서 결과에 합침 (바코드 스캐너 특성 대응)
+  const nq = normCode(raw);
+  if (nq) {
+    const already = new Set(list.map(d => d.id));
+    inv.forEach(d => {
+      if (already.has(d.id)) return;
+      if (normCode(d.id).includes(nq) || normCode(d.barcode || '').includes(nq) || (d.classNo && normCode(d.classNo).includes(nq))) {
+        list.push(d);
+      }
+    });
+  }
+  list.sort((a, b) => {
+    const aExact = a.id.toUpperCase() === qu || (a.classNo || '').toUpperCase() === qu;
+    const bExact = b.id.toUpperCase() === qu || (b.classNo || '').toUpperCase() === qu;
+    if (aExact && !bExact) return -1;
+    if (bExact && !aExact) return 1;
+    return a.id.localeCompare(b.id);
+  });
+  return list.slice(0, 20);
+}
+
 // ── 재고조사 (품목 검색 → 현재고 확인 → 실사 수량으로 전체 반영) ──────────────────
 let reconItem = null;
 
 function doReconSearch() {
-  const el = document.getElementById('recon-code');
-  const code = el.value.trim();
+  const code = document.getElementById('recon-code').value.trim();
+  const pickBox = document.getElementById('recon-pick-list');
   if (!code) { tst('코드를 입력해주세요'); return; }
-
-  let it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
-  let fuzzy = false;
-  if (!it) {
-    const nc = normCode(code);
-    if (nc) {
-      it = inv.find(i => normCode(i.id) === nc || normCode(i.barcode) === nc || (i.classNo && normCode(i.classNo) === nc));
-      if (it) fuzzy = true;
-    }
-  }
-  const box = document.getElementById('recon-found');
   cancelReconEdit();
-  if (it) {
-    reconItem = it;
-    box.style.display = 'block';
-    document.getElementById('recon-found-name').textContent = it.name + (fuzzy ? ' (근사 일치)' : '');
-    document.getElementById('recon-found-info').innerHTML =
-      `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
-    tst(fuzzy ? '✓ ' + it.name + ' (가장 가까운 품목으로 매칭됨)' : '✓ ' + it.name);
-  } else {
+
+  const list = matchInv(code);
+  if (!list.length) {
     reconItem = null;
-    box.style.display = 'none';
-    tst('❌ 등록되지 않은 코드입니다');
+    document.getElementById('recon-found').style.display = 'none';
+    pickBox.innerHTML = '';
+    tst('❌ 일치하는 품목이 없습니다');
+    return;
   }
+  if (list.length === 1) {
+    pickBox.innerHTML = '';
+    selectReconItem(list[0].id);
+    return;
+  }
+  // 여러 건 일치 - 선택 목록 표시
+  reconItem = null;
+  document.getElementById('recon-found').style.display = 'none';
+  pickBox.innerHTML = list.map(d => `<div class="pick-card" onclick="selectReconItem('${d.id}')">
+    <div class="pick-name">${escHtml(d.name)}</div>
+    <div class="pick-detail">금형번호: <b>${escHtml(d.id)}</b> · 부품번호: <b>${escHtml(d.classNo || '-')}</b> · 재고 <b>${d.qty.toLocaleString()}${d.unit}</b></div>
+  </div>`).join('');
+  tst(`${list.length}건 일치 - 품목을 선택하세요`);
+}
+
+function selectReconItem(id) {
+  const it = inv.find(i => i.id === id);
+  if (!it) return;
+  reconItem = it;
+  document.getElementById('recon-pick-list').innerHTML = '';
+  cancelReconEdit();
+  const box = document.getElementById('recon-found');
+  box.style.display = 'block';
+  document.getElementById('recon-found-name').textContent = it.name;
+  document.getElementById('recon-found-info').innerHTML =
+    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
+  tst('✓ ' + it.name);
 }
 
 function adjReconQty(d) {
@@ -530,53 +593,59 @@ async function doReconSave() {
 }
 
 // ── 입고 등록 ──────────────────────────────────────────
-// 바코드 스캐너가 "-" 등 구분자를 빼고 숫자만 읽어오는 경우가 있어서,
-// 영문/숫자만 남기고 비교하는 정규화된 매칭을 보조로 사용 (예: "1174-58220" ↔ "117458220")
-function normCode(s) {
-  return String(s == null ? '' : s).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-}
-
 function doInSearch() {
-  const el = document.getElementById('in-code');
-  const code = el.value.trim();
+  const code = document.getElementById('in-code').value.trim();
+  const pickBox = document.getElementById('in-pick-list');
   if (!code) { tst('코드를 입력해주세요'); return; }
 
-  let it = inv.find(i => i.id === code || i.barcode === code || (i.classNo && i.classNo === code));
-  let fuzzy = false;
-  if (!it) {
-    const nc = normCode(code);
-    if (nc) {
-      it = inv.find(i => normCode(i.id) === nc || normCode(i.barcode) === nc || (i.classNo && normCode(i.classNo) === nc));
-      if (it) fuzzy = true;
-    }
+  const list = matchInv(code);
+  if (!list.length) {
+    foundItem = null;
+    document.getElementById('in-found').style.display = 'none';
+    document.getElementById('in-form-card').style.display = 'none';
+    pickBox.innerHTML = '';
+    tst('❌ 일치하는 품목이 없습니다');
+    return;
   }
+  if (list.length === 1) {
+    pickBox.innerHTML = '';
+    selectInItem(list[0].id);
+    return;
+  }
+  // 여러 건 일치 - 선택 목록 표시
+  foundItem = null;
+  document.getElementById('in-found').style.display = 'none';
+  document.getElementById('in-form-card').style.display = 'none';
+  pickBox.innerHTML = list.map(d => `<div class="pick-card" onclick="selectInItem('${d.id}')">
+    <div class="pick-name">${escHtml(d.name)}</div>
+    <div class="pick-detail">금형번호: <b>${escHtml(d.id)}</b> · 부품번호: <b>${escHtml(d.classNo || '-')}</b> · 재고 <b>${d.qty.toLocaleString()}${d.unit}</b></div>
+  </div>`).join('');
+  tst(`${list.length}건 일치 - 품목을 선택하세요`);
+}
+
+function selectInItem(id) {
+  const it = inv.find(i => i.id === id);
+  if (!it) return;
+  foundItem = it;
+  document.getElementById('in-pick-list').innerHTML = '';
   const box = document.getElementById('in-found');
   const formCard = document.getElementById('in-form-card');
-  if (it) {
-    foundItem = it;
-    box.style.display = 'block';
-    document.getElementById('in-found-name').textContent = it.name + (fuzzy ? ' (근사 일치)' : '');
-    document.getElementById('in-found-info').innerHTML =
-      `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
-    formCard.style.display = 'block';
-    document.getElementById('in-qty').value = 1;
-    // 해당 품목의 기존 생산자 자동 선택
-    const sel = document.getElementById('in-producer');
-    if (it.producer) {
-      const opt = Array.from(sel.options).find(o => o.value === it.producer);
-      if (opt) sel.value = it.producer;
-      else sel.value = '';
-    } else {
-      sel.value = '';
-    }
-    document.getElementById('in-qty').select();
-    tst(fuzzy ? '✓ ' + it.name + ' (가장 가까운 품목으로 매칭됨)' : '✓ ' + it.name);
+  box.style.display = 'block';
+  document.getElementById('in-found-name').textContent = it.name;
+  document.getElementById('in-found-info').innerHTML =
+    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
+  formCard.style.display = 'block';
+  document.getElementById('in-qty').value = 1;
+  // 해당 품목의 기존 생산자 자동 선택
+  const sel = document.getElementById('in-producer');
+  if (it.producer) {
+    const opt = Array.from(sel.options).find(o => o.value === it.producer);
+    sel.value = opt ? it.producer : '';
   } else {
-    foundItem = null;
-    box.style.display = 'none';
-    formCard.style.display = 'none';
-    tst('❌ 등록되지 않은 코드입니다');
+    sel.value = '';
   }
+  document.getElementById('in-qty').select();
+  tst('✓ ' + it.name);
 }
 
 function adjQty(d) {
@@ -674,6 +743,7 @@ function resetInForm() {
   document.getElementById('in-memo').value = '';
   document.getElementById('in-found').style.display = 'none';
   document.getElementById('in-form-card').style.display = 'none';
+  document.getElementById('in-pick-list').innerHTML = '';
   document.getElementById('btn-in-reg').textContent = '⬇ 입고 등록';
   document.getElementById('in-code').focus();
 }
@@ -690,6 +760,7 @@ function editInTx(id) {
   foundItem = it;
 
   document.getElementById('in-code').value = it.id;
+  document.getElementById('in-pick-list').innerHTML = '';
   document.getElementById('in-found').style.display = 'block';
   document.getElementById('in-found-name').textContent = it.name;
   document.getElementById('in-found-info').innerHTML =
