@@ -64,6 +64,14 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .loc-stock{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
 .loc-stock.ok{background:#edfaf4;color:#0d9e72}
 .loc-stock.low{background:#fce8ed;color:#d42048}
+.loc-photo-wrap{margin-top:10px}
+.loc-photo{width:100%;max-height:200px;object-fit:cover;border-radius:10px;border:1px solid #cdd3e8;cursor:zoom-in;display:block;background:#fff}
+.loc-photo-empty{width:100%;height:70px;background:#f4f6fb;border:1.5px dashed #cdd3e8;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8090b8;font-size:13px}
+
+/* 사진 확대 보기 */
+.img-overlay{display:none;position:fixed;inset:0;background:rgba(10,12,25,.92);z-index:2000;align-items:center;justify-content:center;padding:24px}
+.img-overlay.on{display:flex}
+.img-overlay img{max-width:100%;max-height:100%;border-radius:8px}
 
 /* 검색 결과 중 여러 개 일치 시 선택 목록 */
 .pick-card{background:#fff;border:1.5px solid #cdd3e8;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
@@ -285,6 +293,11 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
 <div class="toast" id="toast"></div>
 
+<!-- 제품 사진 확대 보기 -->
+<div class="img-overlay" id="img-overlay" onclick="closeImgOverlay()">
+  <img id="img-overlay-pic" src="">
+</div>
+
 <script>
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let inv = [];
@@ -390,6 +403,50 @@ async function fbGet(key) {
     if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
     return data;
   }catch(e){ return null; }
+}
+
+// 임의 경로(예: srFiles/... )를 읽기 위한 범용 함수 (fbGet과 동일한 ETag 캐시 사용 - 대역폭 절약)
+async function fbGetPath(path) {
+  try{
+    const headers={'X-Firebase-ETag':'true'};
+    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
+    const r = await fetch(`${FB}/${path}.json`, {headers});
+    if(r.status===304)return _fbEtagDataCache[path];
+    if (!r.ok) return null;
+    const data=await r.json();
+    const etag=r.headers.get('ETag');
+    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
+    return data;
+  }catch(e){ return null; }
+}
+
+// 제품 사진(imgs) 저장 경로의 키 인코딩과 짝을 맞춤 (app.html의 fbKeyEncode와 동일한 규칙)
+function fbKeyEncode(id) {
+  return encodeURIComponent(String(id).replace(/\./g, '__DOT__'));
+}
+
+// 품목별 제품 사진을 필요할 때만(위치 조회 결과 표시 시) 개별 경로로 가져와 캐시 - 전체 사진 저장소를 통째로
+// 받아오지 않아 대역폭을 절약한다 (기존 Firebase 대역폭 초과 이슈 대응 원칙과 동일)
+let imgCache = {};
+async function fetchImgFor(id) {
+  if (Object.prototype.hasOwnProperty.call(imgCache, id)) return imgCache[id];
+  try {
+    const data = await fbGetPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`);
+    imgCache[id] = data || '';
+  } catch(e) {
+    imgCache[id] = '';
+  }
+  return imgCache[id];
+}
+
+function viewBigImg(src) {
+  if (!src) return;
+  document.getElementById('img-overlay-pic').src = src;
+  document.getElementById('img-overlay').classList.add('on');
+}
+function closeImgOverlay() {
+  document.getElementById('img-overlay').classList.remove('on');
+  document.getElementById('img-overlay-pic').src = '';
 }
 
 async function fbSet(key, data) {
@@ -983,11 +1040,13 @@ async function doRegProd() {
 }
 
 // ── 위치 조회 ──────────────────────────────────────────
+let locSearchGen = 0;
 function doLocSearch(val) {
   const loc = document.getElementById('loc-code');
 
   const q = (val || '').trim();
   const box = document.getElementById('loc-results');
+  locSearchGen++; // 검색이 바뀔 때마다 증가 - 이전 검색의 사진 로딩 결과가 뒤늦게 와도 무시하기 위함
   if (!q) {
     box.innerHTML = '<div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>';
     return;
@@ -1022,7 +1081,7 @@ function doLocSearch(val) {
     return;
   }
 
-  box.innerHTML = list.map(d => {
+  box.innerHTML = list.map((d, i) => {
     const isLow = d.qty <= d.min;
     return `<div class="loc-card">
       <div class="loc-pos">${d.location || '📭 위치 미등록'}</div>
@@ -1032,8 +1091,32 @@ function doLocSearch(val) {
         부품번호: <b>${d.classNo || '-'}</b>${d.producer ? `<br>생산자: <b>${d.producer}</b>` : ''}${d.moldLoc ? `<br>금형창고: <b>${d.moldLoc}</b>` : ''}
       </div>
       <div class="loc-stock ${isLow ? 'low' : 'ok'}">재고 ${d.qty.toLocaleString()}${d.unit}${isLow ? ' ⚠️' : ' ✓'}</div>
+      <div class="loc-photo-wrap" id="loc-photo-${i}"></div>
     </div>`;
   }).join('');
+
+  loadLocPhotos(list, locSearchGen);
+}
+
+// 검색 결과에 나온 품목들의 사진을 비동기로 불러와 채워넣음 (검색이 바뀐 뒤 도착한 결과는 무시)
+function loadLocPhotos(list, gen) {
+  list.forEach((d, i) => {
+    fetchImgFor(d.id).then(src => {
+      if (gen !== locSearchGen) return;
+      const wrap = document.getElementById('loc-photo-' + i);
+      if (!wrap) return;
+      if (src) {
+        wrap.innerHTML = '';
+        const img = document.createElement('img');
+        img.className = 'loc-photo';
+        img.src = src;
+        img.onclick = () => viewBigImg(src);
+        wrap.appendChild(img);
+      } else {
+        wrap.innerHTML = '<div class="loc-photo-empty">📷 등록된 사진 없음</div>';
+      }
+    });
+  });
 }
 
 // ── 토스트 ──────────────────────────────────────────
