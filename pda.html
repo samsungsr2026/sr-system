@@ -73,6 +73,21 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 .img-overlay.on{display:flex}
 .img-overlay img{max-width:100%;max-height:100%;border-radius:8px}
 
+/* 미발행 발주서 알림 팝업 */
+.order-alert-overlay{display:none;position:fixed;inset:0;background:rgba(10,12,25,.55);z-index:2100;align-items:center;justify-content:center;padding:20px}
+.order-alert-overlay.on{display:flex}
+.order-alert-card{background:#fff;border-radius:16px;padding:22px 20px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.order-alert-icon{font-size:36px;text-align:center;margin-bottom:8px}
+.order-alert-title{font-size:17px;font-weight:800;color:#1a1f35;text-align:center;margin-bottom:4px}
+.order-alert-sub{font-size:13px;color:#8090b8;text-align:center;margin-bottom:16px}
+.order-alert-list{max-height:220px;overflow-y:auto;margin-bottom:16px}
+.order-alert-item{background:#f0f2f8;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.order-alert-item-doc{font-size:14px;font-weight:700;color:#1a1f35}
+.order-alert-item-sub{font-size:12px;color:#8090b8;margin-top:2px}
+.order-alert-btns{display:flex;gap:8px}
+.order-alert-btn{flex:1;padding:13px;border-radius:10px;font-size:15px;font-weight:700;border:none;cursor:pointer;font-family:inherit}
+.order-alert-btn-ok{background:#1a6bff;color:#fff}
+
 /* 검색 결과 중 여러 개 일치 시 선택 목록 */
 .pick-card{background:#fff;border:1.5px solid #cdd3e8;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
 .pick-card:active{background:#eef2ff}
@@ -298,6 +313,19 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
   <img id="img-overlay-pic" src="">
 </div>
 
+<!-- 미발행 발주서 알림 -->
+<div class="order-alert-overlay" id="order-alert-overlay">
+  <div class="order-alert-card">
+    <div class="order-alert-icon">📋</div>
+    <div class="order-alert-title" id="order-alert-title">미발행 발주서가 있습니다</div>
+    <div class="order-alert-sub" id="order-alert-sub"></div>
+    <div class="order-alert-list" id="order-alert-list"></div>
+    <div class="order-alert-btns">
+      <button class="order-alert-btn order-alert-btn-ok" onclick="dismissOrderAlert()">확인</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
 let inv = [];
@@ -311,6 +339,7 @@ let _lastInSave = 0; // 방금 이 폰에서 입고 등록/수정/삭제한 직�
 let production = [];
 let prodEditingId = null;
 let _lastProdSave = 0; // 방금 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
+let orders = []; // 발주서 (미발행 알림용 - PDA에서는 조회만 함)
 
 // 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
 // 신규 형식(배열)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
@@ -341,14 +370,15 @@ async function init() {
 
   // Firebase에서 최신 데이터 로드
   try {
-    const [ri, rt, ra, rw, rpr] = await Promise.all([
-      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('production')
+    const [ri, rt, ra, rw, rpr, ro] = await Promise.all([
+      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('production'), fbGet('orders')
     ]);
     if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ra) && ra.length) accounts = ra;
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
     if (rpr !== null && rpr !== undefined) { production = migrateProduction(rpr); localStorage.setItem('sr-production', JSON.stringify(production)); }
+    if (Array.isArray(ro)) orders = ro;
   } catch(e) {}
 
   // 생산자 드롭다운 채우기
@@ -361,6 +391,7 @@ async function init() {
 
   showApp();
   renderInList();
+  checkUnprintedOrders();
 }
 
 function buildWorkerSelect() {
@@ -1019,6 +1050,48 @@ async function pullProductionFromServer() {
 }
 setInterval(pullProductionFromServer, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
+
+// ── 미발행 발주서 알림 (PDA 팝업) ──────────────────────────────────
+// 이미 확인(닫기)한 발주서는 docNo를 기록해두고, 새로 생긴 미발행 발주서가 있을 때만 다시 팝업을 띄움
+function getDismissedOrders() {
+  try { return JSON.parse(localStorage.getItem('sr-pda-dismissed-orders') || '[]'); } catch(e) { return []; }
+}
+function checkUnprintedOrders() {
+  if (document.hidden) return; // 백그라운드 탭/화면 꺼짐 상태에서는 팝업 띄우지 않음
+  const unprinted = orders.filter(o => !o.printedAt);
+  if (!unprinted.length) return;
+  const dismissed = new Set(getDismissedOrders());
+  const targets = unprinted.filter(o => !dismissed.has(o.docNo));
+  if (!targets.length) return; // 전부 이미 확인한 건이면 다시 띄우지 않음
+
+  document.getElementById('order-alert-sub').textContent = `총 ${unprinted.length}건의 발주서가 아직 출력(발행)되지 않았습니다`;
+  document.getElementById('order-alert-list').innerHTML = targets.slice(0, 10).map(o => `
+    <div class="order-alert-item">
+      <div class="order-alert-item-doc">${o.docNo || '-'} ${o.vendor ? '· ' + o.vendor : ''}</div>
+      <div class="order-alert-item-sub">${o.w ? '담당: ' + o.w + ' · ' : ''}${o.due ? '납기: ' + o.due : ''}</div>
+    </div>`).join('') + (targets.length > 10 ? `<div class="order-alert-item-sub" style="text-align:center;padding:4px">외 ${targets.length - 10}건 더 있음</div>` : '');
+  document.getElementById('order-alert-overlay').classList.add('on');
+  window._pdaOrderAlertTargets = targets.map(o => o.docNo);
+}
+function dismissOrderAlert() {
+  const dismissed = new Set(getDismissedOrders());
+  (window._pdaOrderAlertTargets || []).forEach(docNo => dismissed.add(docNo));
+  localStorage.setItem('sr-pda-dismissed-orders', JSON.stringify([...dismissed]));
+  document.getElementById('order-alert-overlay').classList.remove('on');
+}
+// PC에서 새 발주서를 등록/출력하면 PDA에도 반영되도록 주기적으로(60초) + 화면 복귀 시 orders만 가볍게 다시 받아옴
+async function pullOrdersFromServer() {
+  if (document.hidden) return; // 백그라운드 탭 폴링 방지
+  try {
+    const ro = await fbGet('orders');
+    if (Array.isArray(ro)) {
+      orders = ro;
+      checkUnprintedOrders();
+    }
+  } catch(e) {}
+}
+setInterval(pullOrdersFromServer, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullOrdersFromServer(); });
 
 async function deleteProdEntry(id) {
   if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
