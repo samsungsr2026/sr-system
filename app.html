@@ -3258,7 +3258,7 @@ function tick(){
   document.getElementById('tt').textContent=n.toLocaleDateString('ko',{year:'numeric',month:'long',day:'numeric',weekday:'short'})+' '+n.toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'});
 }
 function dots(){
-  const hl=inv.some(i=>st(i)!=='ok');
+  const hl=inv.some(i=>st(i)!=='ok'&&!isStop(i));
   document.getElementById('aldot').style.display=hl?'flex':'none';
   const mtd=document.getElementById('mt-aldot');
   if(mtd)mtd.style.display=hl?'block':'none';
@@ -3266,7 +3266,7 @@ function dots(){
   // 공지사항 dot - 중요 공지가 있으면 표시
   const noteDot=document.getElementById('notedot');
   if(noteDot){const hasImportant=notices.some(n=>n.important&&!n.done);noteDot.style.display=hasImportant?'flex':'none';}
-  document.getElementById('inv-count').textContent='총 '+inv.length+'종 · 부족 '+inv.filter(i=>st(i)==='low').length+'건';
+  document.getElementById('inv-count').textContent='총 '+inv.length+'종 · 부족 '+inv.filter(i=>st(i)==='low'&&!isStop(i)).length+'건';
   const pendBadge=document.getElementById('pending-badge');
   const pendBadgeMob=document.getElementById('pending-badge-mob');
   if(pendBadge||pendBadgeMob){
@@ -4610,7 +4610,7 @@ td{padding:10px;border:1px solid #ccc;text-align:center}
 
 // ── 대시보드 ──────────────────────────────────────────────────────
 function rDash(){
-  const low=inv.filter(i=>st(i)==='low').length,med=inv.filter(i=>st(i)==='med').length,ok=inv.filter(i=>st(i)==='ok').length;
+  const low=inv.filter(i=>st(i)==='low'&&!isStop(i)).length,med=inv.filter(i=>st(i)==='med'&&!isStop(i)).length,ok=inv.filter(i=>st(i)==='ok'&&!isStop(i)).length;
   const d0=new Date().setHours(0,0,0,0);
   const tIn=txs.filter(t=>t.type==='in'&&t.ts>=d0).reduce((s,t)=>s+t.qty,0);
   const tOut=txs.filter(t=>t.type==='out'&&t.ts>=d0).reduce((s,t)=>s+t.qty,0);
