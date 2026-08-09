@@ -1441,6 +1441,10 @@ let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendX
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
 let imgsDeleted=JSON.parse(localStorage.getItem('sr-imgs-deleted')||'[]'); // 제품 사진 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
+// 사진별 마지막 변경시각(타임스탬프 숫자만, 실제 사진 데이터 아님 - 매우 가벼움).
+// 증분 동기화(2026-08)에 사용: 폴링 때마다 사진 전체를 통째로 재다운로드하지 않고,
+// 이 메타(변경시각)만 먼저 확인해서 실제로 바뀌었거나 새로 생긴 사진만 그 항목만 개별로 받아온다.
+let imgsMetaKnown=JSON.parse(localStorage.getItem('sr-imgs-meta')||'{}');
 let imgsDirty=new Set(); // 이번 변경에서 실제로 추가/수정된 사진 itemId만 모아둠 (svImgs가 전체를 재전송하지 않도록)
 let draws=JSON.parse(localStorage.getItem('sr-draws')||'{}');   // 제품 도면 (이미지/PDF/문서 등 모든 파일)
 let drawsDeleted=JSON.parse(localStorage.getItem('sr-draws-deleted')||'[]'); // 도면 삭제 tombstone (다른 기기 병합 시 되살아남 방지)
@@ -1629,7 +1633,14 @@ async function svImgs(){
   const imgsPromises=Array.from(imgsDirty).map(itemId=>{
     if(imgs[itemId]){
       return cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`, imgs[itemId]).then(r=>{
-        if(r&&r.ok){imgsDirty.delete(itemId);_fileSaveFailNotified.delete('pic:'+itemId);}
+        if(r&&r.ok){
+          imgsDirty.delete(itemId);_fileSaveFailNotified.delete('pic:'+itemId);
+          // 증분 동기화용 메타(변경시각)도 함께 기록 - 다른 기기가 이 사진 하나만 콕 집어 받아갈 수 있게 함
+          const mn=Date.now();
+          imgsMetaKnown[itemId]=mn;
+          try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+          cfPutPath(`srFiles/imgs/_meta/${fbKeyEncode(itemId)}`, mn).catch(()=>{});
+        }
         else{
           imgsFailed.push(itemId);
           if(!_fileSaveFailNotified.has('pic:'+itemId)){
@@ -1645,7 +1656,12 @@ async function svImgs(){
         }
       });
     }else{
-      return cfDeletePath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`).then(()=>imgsDirty.delete(itemId)).catch(()=>{});
+      return cfDeletePath(`srFiles/imgs/_repo/${fbKeyEncode(itemId)}`).then(()=>{
+        imgsDirty.delete(itemId);
+        delete imgsMetaKnown[itemId];
+        try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+        cfDeletePath(`srFiles/imgs/_meta/${fbKeyEncode(itemId)}`).catch(()=>{});
+      }).catch(()=>{});
     }
   });
   if(imgsDeleted.length)cfPutPath('srFiles/imgs/_deleted', imgsDeleted).catch(()=>{});
@@ -2309,10 +2325,42 @@ async function jbPullFiles(rim){
     window._filesStage='before-imgs';
     try{
       if(Date.now()-_lastImgsSave<8000)throw 0; // 방금 로컬에서 저장한 직후엔 원격(아직 반영 안됐을 수 있음)이 되돌리지 않도록 이번 폴링은 건너뜀
-      const {ok:imgsFetchOk, data:remoteImgsRoot}=await cfGetPathChecked('srFiles/imgs');
-      if(!imgsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
-      const remoteImgs=fbDecodeRepoKeys((remoteImgsRoot&&remoteImgsRoot['_repo'])||{});
-      const remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
+      const isColdStart=Object.keys(imgs).length===0; // 이 기기에 로컬로 갖고 있는 사진이 하나도 없음(최초 실행 등)
+      const needBackfill=localStorage.getItem('sr-imgs-meta-backfilled')!=='v1'; // 증분 동기화용 메타를 이 기기에서 아직 한 번도 채워본 적 없음(기기당 최초 1회만 해당)
+      let remoteImgs={}, remoteImgsDel=[];
+      if(isColdStart||needBackfill){
+        // ── 최초 1회(또는 이 기기에 사진이 하나도 없을 때): 기존처럼 전체를 한 번에 받아온다.
+        // 사진 하나 추가될 때마다 전체를 계속 다시 받던 문제(2026-08 실제로 대역폭 폭증 발생)를 막기 위해,
+        // 이 전체 다운로드는 기기당 딱 한 번만 발생하고, 이후부터는 바뀐 사진만 받는 증분 동기화로 전환된다.
+        const {ok:imgsFetchOk, data:remoteImgsRoot}=await cfGetPathChecked('srFiles/imgs');
+        if(!imgsFetchOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
+        remoteImgs=fbDecodeRepoKeys((remoteImgsRoot&&remoteImgsRoot['_repo'])||{});
+        remoteImgsDel=(remoteImgsRoot&&remoteImgsRoot['_deleted'])||[];
+      }else{
+        // ── 증분 동기화: 사진 전체가 아니라 "무엇이 바뀌었는지"(품목별 변경시각만 모은 작은 목록)를 먼저 확인하고,
+        // 실제로 바뀌었거나 새로 생긴 사진만 그 항목만 개별로 받아온다 (전체 재다운로드 없음).
+        const {ok:metaOk, data:remoteMetaRoot}=await cfGetPathChecked('srFiles/imgs/_meta');
+        if(!metaOk)throw 0;
+        const {ok:delOk, data:remoteDelRaw}=await cfGetPathChecked('srFiles/imgs/_deleted');
+        if(!delOk)throw 0; // 요청 자체가 실패한 경우 서버가 비어있다고 오인하면 안 되므로 이번 폴링은 건너뜀
+        remoteImgsDel=Array.isArray(remoteDelRaw)?remoteDelRaw:[];
+        const remoteMeta=fbDecodeRepoKeys(remoteMetaRoot||{});
+        const changedIds=Object.keys(remoteMeta).filter(id=>{
+          const known=imgsMetaKnown[id];
+          return known===undefined||remoteMeta[id]>known;
+        });
+        if(changedIds.length){
+          jbStat('📷 사진 변경분 받는 중... (0/'+changedIds.length+')','#0d6efd');
+          let done=0;
+          await Promise.all(changedIds.map(async id=>{
+            const data=await cfGetPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`);
+            if(data!==null&&data!==undefined)remoteImgs[id]=data;
+            imgsMetaKnown[id]=remoteMeta[id];
+            done++; jbStat('📷 사진 변경분 받는 중... ('+done+'/'+changedIds.length+')','#0d6efd');
+          }));
+          try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+        }
+      }
       // pending(방금 삭제표시를 해제했지만 서버 반영 확정 전) 품목은 원격 목록에 남아있어도 union으로 되살리지 않는다.
       // 서버에서 실제로 사라진 게 확인되면 confirmed로 보고 pending에서 제거한다.
       imgsUndelPending.forEach(id=>{ if(!remoteImgsDel.includes(id))imgsUndelPending.delete(id); });
@@ -2321,18 +2369,20 @@ async function jbPullFiles(rim){
       // 핵심 불변식: 서버(_repo)에 실제 사진 데이터가 살아있다면, 어떤 기기가 들고 있는 낡은 로컬 삭제기록도
       // 이를 되살릴 수 없다 - 실제 삭제는 _repo 데이터 자체를 지우는 동작(removeImg)에서 이뤄지므로,
       // 데이터가 실제로 존재한다는 것은 그 삭제기록이 낡았다는 뜻이다. 자동으로 정리(자가치유)한다.
+      // (증분 동기화에서는 remoteImgs가 "이번에 새로 확인된 것"만 담고 있으므로, 이 자가치유는 그 항목에 대해서만 적용된다)
       imgsDeleted=imgsDeleted.filter(id=>!remoteImgs[id]);
-      const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선, 로컬 전용(아직 미동기화) 항목은 보존
+      const mergedImgs=Object.assign({}, imgs, remoteImgs); // 원격 우선(이번에 바뀐 것만), 그 외 로컬 값은 그대로 보존
       // 레거시: 기존 핵심 데이터(/sr/imgs)에 남아있던 사진을 신규 경로 병합 대상에 포함
       const legacyKeys=(rim&&typeof rim==='object')?Object.keys(rim):[];
       legacyKeys.forEach(id=>{ if(!mergedImgs[id])mergedImgs[id]=rim[id]; });
       imgsDeleted.forEach(id=>{ delete mergedImgs[id]; }); // 삭제된 항목은 되살아나지 않게 제거
       const delChanged=JSON.stringify(imgsDeleted.slice().sort())!==JSON.stringify((remoteImgsDel||[]).slice().sort());
-      // 원격에 아직 없는(로컬 전용/레거시, 미동기화) 항목만 개별 전송 - 전체 재전송 방지
-      const toMigrate=Object.keys(mergedImgs).filter(id=>!remoteImgs[id]);
+      // 서버에 아직 없는(레거시) 항목만 개별 전송 - 전체 재전송 방지
+      const toMigrate=legacyKeys.filter(id=>mergedImgs[id]!==undefined);
       if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
       let migDone=0;
-      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); return r;})));
+      const migNow=Date.now();
+      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); if(r&&r.ok){imgsMetaKnown[id]=migNow;cfPutPath(`srFiles/imgs/_meta/${fbKeyEncode(id)}`, migNow).catch(()=>{});} return r;})));
       const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
       imgs=mergedImgs;
       try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
@@ -2343,6 +2393,22 @@ async function jbPullFiles(rim){
       if(legacyKeys.length&&migOk){
         await cfDeletePath('sr/imgs').catch(()=>{});
         jbStat('✅ 사진 정리 완료 ('+toMigrate.length+'건)','#0d9e72');
+      }
+      if(isColdStart||needBackfill){
+        // 방금 전체를 받았으니, 이 시점 기준 타임스탬프로 메타(변경시각)를 서버에 채워둔다.
+        // (기존에 이미 메타가 있는 사진은 그대로 두고, 메타가 없는 사진만 채움)
+        // 이렇게 해두면 이 기기를 포함한 모든 기기가 다음부터 증분 동기화(바뀐 사진만 받기)를 쓸 수 있다.
+        const now=Date.now();
+        const metaWrites=[];
+        Object.keys(imgs).forEach(id=>{
+          if(imgsMetaKnown[id]===undefined){
+            imgsMetaKnown[id]=now;
+            metaWrites.push(cfPutPath(`srFiles/imgs/_meta/${fbKeyEncode(id)}`, now).catch(()=>{}));
+          }
+        });
+        try{ await Promise.all(metaWrites); }catch(e){}
+        try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+        localStorage.setItem('sr-imgs-meta-backfilled','v1');
       }
     }catch(e){}
     window._filesStage='after-imgs';
