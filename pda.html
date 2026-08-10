@@ -369,6 +369,17 @@ document.addEventListener('contextmenu', e => {
   const tag = e.target.tagName;
   if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
 });
+// 화면을 껐다 켜면(잠금해제 등) 남아있던 선택 영역 때문에 잘라내기/복사 툴바가 뜨는 문제 방지 -
+// 화면이 다시 보일 때마다 선택 영역을 강제로 해제
+function clearStaleSelection() {
+  const sel = window.getSelection();
+  if (sel && sel.removeAllRanges) sel.removeAllRanges();
+  const ae = document.activeElement;
+  if (ae && ae.tagName !== 'INPUT' && ae.tagName !== 'TEXTAREA' && ae.blur) ae.blur();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) clearStaleSelection(); });
+window.addEventListener('pageshow', clearStaleSelection);
+window.addEventListener('focus', clearStaleSelection);
 let inv = [];
 let txs = [];
 let accounts = [];
