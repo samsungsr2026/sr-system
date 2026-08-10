@@ -369,11 +369,14 @@ document.addEventListener('contextmenu', e => {
   const tag = e.target.tagName;
   if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
 });
-// 화면을 껐다 켜면(잠금해제 등) 포커스가 남아있던 입력창에 안드로이드가 잘라내기/복사 툴바를 자동으로
-// 복원하는 문제 방지 - 화면이 꺼지기 "전"에 입력창 포커스를 미리 해제해서 복원할 상태 자체를 없앰
+// 화면을 껐다 켜면(잠금해제 등) 포커스가 남아있던 입력창에 안드로이드가 잘라내기/복사/웹검색 툴바를
+// 자동으로 복원하는 문제 방지 - 화면이 꺼지기 "전"에 선택영역을 접고 포커스를 미리 해제
 function blurActiveInput() {
   const ae = document.activeElement;
-  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.blur) ae.blur();
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+    try { const p = ae.value.length; ae.setSelectionRange(p, p); } catch(e) {}
+    if (ae.blur) ae.blur();
+  }
 }
 function clearStaleSelection() {
   const sel = window.getSelection();
@@ -389,6 +392,21 @@ window.addEventListener('pagehide', blurActiveInput);
 window.addEventListener('blur', blurActiveInput);
 window.addEventListener('pageshow', clearStaleSelection);
 window.addEventListener('focus', clearStaleSelection);
+
+// 입력창은 실제로 탭해서 쓸 때만 편집 가능하게 하고, 평소(특히 화면이 꺼져있는 동안)엔 readonly로
+// 잠가둠 - 안드로이드는 "편집 가능 + 포커스 있는" 입력창에만 선택 툴바를 복원하므로, 이렇게 하면
+// 화면을 켰을 때 복원할 대상 자체가 없어짐. 탭(터치)하거나 포커스가 가는 순간 즉시 잠금 해제됨.
+function setupInputReadonlyGuard() {
+  document.querySelectorAll('input[type="text"], input[type="number"], input[type="password"], textarea').forEach(el => {
+    el.setAttribute('readonly', '');
+    const unlock = () => el.removeAttribute('readonly');
+    el.addEventListener('touchstart', unlock, {passive: true});
+    el.addEventListener('mousedown', unlock);
+    el.addEventListener('focus', unlock);
+    el.addEventListener('blur', () => el.setAttribute('readonly', ''));
+  });
+}
+setupInputReadonlyGuard();
 let inv = [];
 let txs = [];
 let accounts = [];
