@@ -399,6 +399,8 @@ window.addEventListener('focus', clearStaleSelection);
 function setupInputReadonlyGuard() {
   document.querySelectorAll('input[type="text"], input[type="number"], input[type="password"], textarea').forEach(el => {
     el.setAttribute('readonly', '');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('autocorrect', 'off');
     const unlock = () => el.removeAttribute('readonly');
     el.addEventListener('touchstart', unlock, {passive: true});
     el.addEventListener('mousedown', unlock);
