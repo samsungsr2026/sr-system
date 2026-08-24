@@ -409,6 +409,24 @@ function setupInputReadonlyGuard() {
   });
 }
 setupInputReadonlyGuard();
+
+// 바코드/번호 스캔용 입력창(로그인ID, 입고/위치/출고/재고조사 코드)은 텍스트가 선택되는 순간
+// 안드로이드가 잘라내기·복사·모두선택 툴바를 띄우므로, 선택이 생기자마자 즉시 커서로 접어버려
+// 선택 상태 자체가 유지되지 않게 함 (툴바는 선택 영역이 있을 때만 뜨므로 이렇게 하면 원천 차단됨)
+(function(){
+  const CODE_INPUT_IDS = ['login-id', 'in-code', 'loc-code', 'out-code', 'recon-code'];
+  document.addEventListener('selectionchange', () => {
+    const ae = document.activeElement;
+    if (!ae || !CODE_INPUT_IDS.includes(ae.id)) return;
+    try {
+      if (ae.selectionStart !== ae.selectionEnd) {
+        const p = ae.selectionEnd;
+        ae.setSelectionRange(p, p);
+      }
+    } catch (e) {}
+  });
+})();
+
 let inv = [];
 let txs = [];
 let accounts = [];
