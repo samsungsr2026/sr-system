@@ -164,9 +164,9 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="3" x2="12" y2="21"></line></svg>
       입고 등록
     </button>
-    <button class="tab" onclick="switchTab('worker')" id="tab-worker">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-      생산자 등록
+    <button class="tab" onclick="switchTab('prod')" id="tab-prod">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9l-7 5v-5l-7 5v-9l-6 4z"></path></svg>
+      금일 생산현황
     </button>
     <button class="tab" onclick="switchTab('out')" id="tab-out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="16 7 12 3 8 7"></polyline><line x1="12" y1="3" x2="12" y2="21"></line></svg>
@@ -230,23 +230,27 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     </div>
   </div>
 
-  <!-- 생산자 등록 탭 -->
-  <div class="page" id="page-worker">
+  <!-- 생산현황 등록 탭 -->
+  <div class="page" id="page-prod">
     <div class="card">
-      <div class="card-title">생산자 등록</div>
+      <div class="card-title">생산 현황 등록</div>
       <div class="fg">
-        <label class="label">이름</label>
-        <div style="display:flex;gap:8px">
-          <input class="inp" type="text" id="worker-name" placeholder="생산자 이름 입력" autocomplete="off" autocapitalize="off"
-            style="flex:1"
-            onkeydown="if(event.key==='Enter')addWorkerPda();">
-          <button id="btn-worker-add" onclick="addWorkerPda();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">등록</button>
-        </div>
+        <label class="label">작업자</label>
+        <select class="inp" id="prod-worker" onchange="prodWorkerChanged()">
+          <option value="">-- 작업자 선택 --</option>
+        </select>
       </div>
+      <div class="fg">
+        <label class="label">금형번호</label>
+        <input class="inp" type="text" id="prod-mold" placeholder="찍고 있는 금형번호 입력" autocomplete="off" autocapitalize="off"
+          inputmode="numeric" onkeydown="if(event.key==='Enter')doRegProd();">
+      </div>
+      <button class="btn btn-in" id="btn-prod-reg" onclick="doRegProd()">🏭 등록</button>
+      <button class="btn btn-cancel" id="btn-prod-cancel" style="display:none" onclick="cancelProdEdit()">수정 취소</button>
     </div>
-    <div class="card">
-      <div class="card-title">등록된 생산자 (<span id="worker-count">0</span>명)</div>
-      <div id="worker-list"></div>
+    <div class="card" id="prod-list-card" style="display:none">
+      <div class="card-title" id="prod-list-title">등록 내역</div>
+      <div id="prod-list"></div>
     </div>
   </div>
 
@@ -418,7 +422,7 @@ setupInputReadonlyGuard();
 // 안드로이드가 잘라내기·복사·모두선택 툴바를 띄우므로, 선택이 생기자마자 즉시 커서로 접어버려
 // 선택 상태 자체가 유지되지 않게 함 (툴바는 선택 영역이 있을 때만 뜨므로 이렇게 하면 원천 차단됨)
 (function(){
-  const CODE_INPUT_IDS = ['login-id', 'in-code', 'out-code', 'recon-code'];
+  const CODE_INPUT_IDS = ['login-id', 'in-code', 'out-code', 'recon-code', 'prod-mold'];
   document.addEventListener('selectionchange', () => {
     const ae = document.activeElement;
     if (!ae || !CODE_INPUT_IDS.includes(ae.id)) return;
@@ -443,6 +447,24 @@ let foundOutItem = null;
 let outEditingTxId = null; // 출고 등록 내역 중 수정 중인 tx의 id
 let _lastOutSave = 0; // 방금 이 폰에서 출고 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
 let orders = []; // 발주서 (미발행 알림용 - PDA에서는 조회만 함)
+let production = [];
+let prodEditingId = null;
+let _lastProdSave = 0; // 방금 등록/수정/삭제한 직후엔 주기적 재조회가 되돌리지 않도록 함
+
+// 예전 버전(작업자별 1건 객체 {작업자: {moldNo, ts}})으로 저장된 데이터가 남아있을 경우
+// 신규 형식(배열)으로 자동 변환 - 형식이 섞여서 데이터가 사라진 것처럼 보이는 문제 방지
+function migrateProduction(p) {
+  if (Array.isArray(p)) return p;
+  if (p && typeof p === 'object') {
+    return Object.keys(p).map(w => ({
+      id: 'legacy-' + w + '-' + (p[w].ts || Date.now()),
+      worker: w,
+      moldNo: p[w].moldNo,
+      ts: p[w].ts || Date.now()
+    }));
+  }
+  return [];
+}
 
 // ── 초기화 ──────────────────────────────────────────
 async function init() {
@@ -450,19 +472,22 @@ async function init() {
   const li = localStorage.getItem('sr-inv');
   const lt = localStorage.getItem('sr-tx');
   const lw = localStorage.getItem('sr-workers');
+  const lp = localStorage.getItem('sr-production');
   if (li) inv = JSON.parse(li);
   if (lt) txs = JSON.parse(lt);
   if (lw) workers = JSON.parse(lw);
+  if (lp) production = migrateProduction(JSON.parse(lp));
 
   // Firebase에서 최신 데이터 로드
   try {
-    const [ri, rt, ra, rw, ro] = await Promise.all([
-      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('orders')
+    const [ri, rt, ra, rw, rpr, ro] = await Promise.all([
+      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('production'), fbGet('orders')
     ]);
     if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
     if (Array.isArray(ra) && ra.length) accounts = ra;
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
+    if (rpr !== null && rpr !== undefined) { production = migrateProduction(rpr); localStorage.setItem('sr-production', JSON.stringify(production)); }
     if (Array.isArray(ro)) orders = ro;
   } catch(e) {}
 
@@ -480,7 +505,7 @@ async function init() {
 
 function buildWorkerSelect() {
   const list = workers.length ? workers : ['정창식','이창호','안호원','우대웅'];
-  ['in-producer', 'out-producer'].forEach(selId => {
+  ['in-producer', 'out-producer', 'prod-worker'].forEach(selId => {
     const sel = document.getElementById(selId);
     if (!sel) return;
     // 기존 옵션 유지 (첫 번째 "선택 안함" 제외하고 제거)
@@ -620,7 +645,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('on');
   document.getElementById('page-' + tab).classList.add('on');
   if (tab === 'in') { setTimeout(() => document.getElementById('in-code').focus(), 100); renderInList(); }
-  if (tab === 'worker') renderWorkerList();
+  if (tab === 'prod') renderProdList();
   if (tab === 'out') { setTimeout(() => document.getElementById('out-code').focus(), 100); renderOutList(); }
   if (tab === 'recon') setTimeout(() => document.getElementById('recon-code').focus(), 100);
 }
@@ -1337,52 +1362,123 @@ async function pullOrdersFromServer() {
 setInterval(pullOrdersFromServer, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullOrdersFromServer(); });
 
-// ── 생산자 등록 ──────────────────────────────────────────
-function renderWorkerList() {
-  const box = document.getElementById('worker-list');
-  const countEl = document.getElementById('worker-count');
-  if (!box) return;
-  if (countEl) countEl.textContent = workers.length;
-  if (!workers.length) {
-    box.innerHTML = '<div class="empty"><div class="empty-icon">👤</div><div class="empty-text">등록된 생산자가 없습니다</div></div>';
-    return;
+// ── 생산현황 등록 (작업자별 여러 건 등록 가능) ──────────────────────────────
+function prodWorkerChanged() {
+  cancelProdEdit();
+  renderProdList();
+}
+
+// 선택한 작업자의 등록 내역을 보여줌: 오늘 등록한 게 있으면 오늘 것만, 없으면
+// 가장 최근에 등록했던 날(전날 등록 등)의 내역을 먼저 보여주고 수정/삭제할 수 있게 함
+function renderProdList() {
+  const worker = document.getElementById('prod-worker').value;
+  const card = document.getElementById('prod-list-card');
+  const listEl = document.getElementById('prod-list');
+  const titleEl = document.getElementById('prod-list-title');
+  if (!worker) { card.style.display = 'none'; return; }
+
+  const mine = production.filter(p => p.worker === worker).sort((a, b) => b.ts - a.ts);
+  if (!mine.length) { card.style.display = 'none'; return; }
+
+  const today0 = startOfDay(Date.now());
+  const todays = mine.filter(p => p.ts >= today0);
+  let shown, label;
+  if (todays.length) {
+    shown = todays.slice().sort((a, b) => a.ts - b.ts);
+    label = '오늘 등록 내역';
+  } else {
+    // 오늘 등록이 없으면 가장 최근 날짜(전날 등록 등)의 내역을 보여줌
+    const latestDay = startOfDay(mine[0].ts);
+    shown = mine.filter(p => startOfDay(p.ts) === latestDay).sort((a, b) => a.ts - b.ts);
+    const dLabel = new Date(latestDay).toLocaleDateString('ko', { month: 'numeric', day: 'numeric' });
+    label = dLabel + ' 등록 내역 (수정/삭제 가능)';
   }
-  box.innerHTML = workers.map((w, i) => `<div class="prod-item">
-      <div class="prod-item-main"><div class="prod-item-mold">${escHtml(w)}</div></div>
-      <div class="prod-item-actions">
-        <button class="prod-item-btn prod-item-del" onclick="removeWorkerPda(${i})">삭제</button>
-      </div>
-    </div>`).join('');
+
+  card.style.display = 'block';
+  titleEl.textContent = label;
+  listEl.innerHTML = shown.map(p => `<div class="prod-item">
+    <div class="prod-item-main">
+      <div class="prod-item-mold">${escHtml(p.moldNo)}</div>
+      <div class="prod-item-time">${new Date(p.ts).toLocaleString('ko', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+    </div>
+    <div class="prod-item-actions">
+      <button class="prod-item-btn prod-item-edit" onclick="editProdEntry('${p.id}')">수정</button>
+      <button class="prod-item-btn prod-item-del" onclick="deleteProdEntry('${p.id}')">삭제</button>
+    </div>
+  </div>`).join('');
 }
 
-async function addWorkerPda() {
-  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
-  const el = document.getElementById('worker-name');
-  const name = (el.value || '').trim();
-  if (!name) { tst('이름을 입력해주세요'); return; }
-  if (workers.includes(name)) { tst('이미 등록된 이름입니다'); return; }
-  workers.push(name);
-  localStorage.setItem('sr-workers', JSON.stringify(workers));
-  el.value = '';
-  renderWorkerList();
-  buildWorkerSelect();
-  tst('✓ ' + name + ' 등록 완료');
-  try { await fbSet('wk', workers); }
-  catch (e) { tst('⚠️ 서버 저장 실패 - 다시 시도해주세요'); }
+function editProdEntry(id) {
+  const p = production.find(x => String(x.id) === String(id));
+  if (!p) return;
+  prodEditingId = p.id;
+  document.getElementById('prod-mold').value = p.moldNo;
+  document.getElementById('btn-prod-reg').textContent = '✓ 수정 완료';
+  document.getElementById('btn-prod-cancel').style.display = 'block';
+  document.getElementById('prod-mold').focus();
 }
 
-async function removeWorkerPda(idx) {
+function cancelProdEdit() {
+  prodEditingId = null;
+  document.getElementById('prod-mold').value = '';
+  document.getElementById('btn-prod-reg').textContent = '🏭 등록';
+  document.getElementById('btn-prod-cancel').style.display = 'none';
+}
+
+async function saveProduction() {
+  _lastProdSave = Date.now();
+  localStorage.setItem('sr-production', JSON.stringify(production));
+  try { await fbSet('production', production); } catch(e) {}
+}
+
+// PC 대시보드에서 다른 사람이 삭제/수정한 내역이 폰에도 반영되도록
+// 주기적으로(15초) + 화면 복귀 시 production만 가볍게 다시 받아옴
+async function pullProductionFromServer() {
+  if (Date.now() - _lastProdSave < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
+  try {
+    const rpr = await fbGet('production');
+    if (rpr !== null && rpr !== undefined) {
+      production = migrateProduction(rpr);
+      localStorage.setItem('sr-production', JSON.stringify(production));
+      if (document.getElementById('page-prod').classList.contains('on')) renderProdList();
+    }
+  } catch(e) {}
+}
+setInterval(pullProductionFromServer, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
+
+async function deleteProdEntry(id) {
   if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
-  if (workers.length <= 1) { tst('최소 1명은 있어야 합니다'); return; }
-  const name = workers[idx];
-  if (!confirm(name + ' 을(를) 삭제하시겠습니까?')) return;
-  workers.splice(idx, 1);
-  localStorage.setItem('sr-workers', JSON.stringify(workers));
-  renderWorkerList();
-  buildWorkerSelect();
-  tst(name + ' 삭제 완료');
-  try { await fbSet('wk', workers); }
-  catch (e) { tst('⚠️ 서버 저장 실패 - 다시 시도해주세요'); }
+  if (!confirm('이 등록 내역을 삭제하시겠습니까?')) return;
+  production = production.filter(x => String(x.id) !== String(id));
+  await saveProduction();
+  if (prodEditingId && String(prodEditingId) === String(id)) cancelProdEdit();
+  renderProdList();
+  tst('삭제되었습니다');
+}
+
+async function doRegProd() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  const worker = document.getElementById('prod-worker').value;
+  const mold = document.getElementById('prod-mold').value.trim();
+  if (!worker) { tst('작업자를 선택해주세요'); return; }
+  if (!mold) { tst('금형번호를 입력해주세요'); return; }
+
+  if (prodEditingId) {
+    const p = production.find(x => String(x.id) === String(prodEditingId));
+    if (p) { p.moldNo = mold; p.ts = Date.now(); }
+    await saveProduction();
+    tst(`✅ ${worker} → ${mold} 수정완료`);
+    cancelProdEdit();
+  } else {
+    production.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), worker, moldNo: mold, ts: Date.now() });
+    await saveProduction();
+    tst(`✅ ${worker} → ${mold} 등록완료`);
+    document.getElementById('prod-mold').value = '';
+  }
+
+  renderProdList();
+  document.getElementById('prod-mold').focus();
 }
 
 // ── 토스트 ──────────────────────────────────────────
