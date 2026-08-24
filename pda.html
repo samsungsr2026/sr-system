@@ -152,7 +152,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     <div class="fg"><label class="label">비밀번호</label><input class="inp" type="password" id="login-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="login-btn" onclick="doLogin()">로그인</button>
     <div style="text-align:center;margin-top:16px">
-      <button style="background:none;border:none;color:#8090b8;font-size:13px;cursor:pointer" onclick="guestMode()">위치 조회만 할게요 (비로그인)</button>
+      <button style="background:none;border:none;color:#8090b8;font-size:13px;cursor:pointer" onclick="guestMode()">조회만 할게요 (비로그인)</button>
     </div>
   </div>
 </div>
@@ -164,9 +164,9 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="3" x2="12" y2="21"></line></svg>
       입고 등록
     </button>
-    <button class="tab" onclick="switchTab('loc')" id="tab-loc">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-      위치 조회
+    <button class="tab" onclick="switchTab('worker')" id="tab-worker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      생산자 등록
     </button>
     <button class="tab" onclick="switchTab('out')" id="tab-out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="16 7 12 3 8 7"></polyline><line x1="12" y1="3" x2="12" y2="21"></line></svg>
@@ -230,19 +230,23 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     </div>
   </div>
 
-  <!-- 위치 조회 탭 -->
-  <div class="page" id="page-loc">
+  <!-- 생산자 등록 탭 -->
+  <div class="page" id="page-worker">
     <div class="card">
-      <div class="card-title">위치 검색</div>
-      <div style="display:flex;gap:8px">
-        <input class="inp" type="text" id="loc-code" placeholder="금형번호 또는 부품번호" autocomplete="off" autocapitalize="off"
-          style="flex:1" inputmode="numeric"
-          onkeydown="if(event.key==='Enter')doLocSearch(this.value);">
-        <button id="btn-loc-search" onclick="this.focus();doLocSearch(document.getElementById('loc-code').value);" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer">검색</button>
+      <div class="card-title">생산자 등록</div>
+      <div class="fg">
+        <label class="label">이름</label>
+        <div style="display:flex;gap:8px">
+          <input class="inp" type="text" id="worker-name" placeholder="생산자 이름 입력" autocomplete="off" autocapitalize="off"
+            style="flex:1"
+            onkeydown="if(event.key==='Enter')addWorkerPda();">
+          <button id="btn-worker-add" onclick="addWorkerPda();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">등록</button>
+        </div>
       </div>
     </div>
-    <div id="loc-results">
-      <div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>
+    <div class="card">
+      <div class="card-title">등록된 생산자 (<span id="worker-count">0</span>명)</div>
+      <div id="worker-list"></div>
     </div>
   </div>
 
@@ -414,7 +418,7 @@ setupInputReadonlyGuard();
 // 안드로이드가 잘라내기·복사·모두선택 툴바를 띄우므로, 선택이 생기자마자 즉시 커서로 접어버려
 // 선택 상태 자체가 유지되지 않게 함 (툴바는 선택 영역이 있을 때만 뜨므로 이렇게 하면 원천 차단됨)
 (function(){
-  const CODE_INPUT_IDS = ['login-id', 'in-code', 'loc-code', 'out-code', 'recon-code'];
+  const CODE_INPUT_IDS = ['login-id', 'in-code', 'out-code', 'recon-code'];
   document.addEventListener('selectionchange', () => {
     const ae = document.activeElement;
     if (!ae || !CODE_INPUT_IDS.includes(ae.id)) return;
@@ -593,7 +597,7 @@ function guestMode() {
   curUser = null;
   sessionStorage.removeItem('pda-curuser');
   showApp();
-  switchTab('loc');
+  switchTab('in');
 }
 
 function doLogin() {
@@ -616,7 +620,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('on');
   document.getElementById('page-' + tab).classList.add('on');
   if (tab === 'in') { setTimeout(() => document.getElementById('in-code').focus(), 100); renderInList(); }
-  if (tab === 'loc') setTimeout(() => document.getElementById('loc-code').focus(), 100);
+  if (tab === 'worker') renderWorkerList();
   if (tab === 'out') { setTimeout(() => document.getElementById('out-code').focus(), 100); renderOutList(); }
   if (tab === 'recon') setTimeout(() => document.getElementById('recon-code').focus(), 100);
 }
@@ -1333,84 +1337,52 @@ async function pullOrdersFromServer() {
 setInterval(pullOrdersFromServer, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullOrdersFromServer(); });
 
-// ── 위치 조회 ──────────────────────────────────────────
-let locSearchGen = 0;
-function doLocSearch(val) {
-  const loc = document.getElementById('loc-code');
-
-  const q = (val || '').trim();
-  const box = document.getElementById('loc-results');
-  locSearchGen++; // 검색이 바뀔 때마다 증가 - 이전 검색의 사진 로딩 결과가 뒤늦게 와도 무시하기 위함
-  if (!q) {
-    box.innerHTML = '<div class="empty"><div class="empty-icon">📍</div><div class="empty-text">금형번호 또는 부품번호를 입력하세요</div></div>';
+// ── 생산자 등록 ──────────────────────────────────────────
+function renderWorkerList() {
+  const box = document.getElementById('worker-list');
+  const countEl = document.getElementById('worker-count');
+  if (!box) return;
+  if (countEl) countEl.textContent = workers.length;
+  if (!workers.length) {
+    box.innerHTML = '<div class="empty"><div class="empty-icon">👤</div><div class="empty-text">등록된 생산자가 없습니다</div></div>';
     return;
   }
-  const qu = q.toUpperCase();
-  let list = inv.filter(d =>
-    d.id.toUpperCase().includes(qu) ||
-    d.name.toUpperCase().includes(qu) ||
-    (d.classNo || '').toUpperCase().includes(qu)
-  ).sort((a, b) => {
-    if (a.id.toUpperCase() === qu) return -1;
-    if (b.id.toUpperCase() === qu) return 1;
-    return a.id.localeCompare(b.id);
-  }).slice(0, 20);
-
-  // 바코드 스캐너가 "-" 등 구분자를 빼고 읽어서 일반 검색으로 못 찾는 경우, 구분자를 무시하고 한 번 더 시도
-  if (!list.length) {
-    const nq = normCode(q);
-    if (nq) {
-      list = inv.filter(d =>
-        normCode(d.id).includes(nq) || (d.classNo && normCode(d.classNo).includes(nq))
-      ).sort((a, b) => {
-        if (normCode(a.id) === nq) return -1;
-        if (normCode(b.id) === nq) return 1;
-        return a.id.localeCompare(b.id);
-      }).slice(0, 20);
-    }
-  }
-
-  if (!list.length) {
-    box.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">검색 결과 없음</div></div>';
-    return;
-  }
-
-  box.innerHTML = list.map((d, i) => {
-    const isLow = d.qty <= d.min;
-    return `<div class="loc-card">
-      <div class="loc-pos">${d.location || '📭 위치 미등록'}</div>
-      <div class="loc-name">${d.name}</div>
-      <div class="loc-detail">
-        금형번호: <b>${d.id}</b><br>
-        부품번호: <b>${d.classNo || '-'}</b>${d.producer ? `<br>생산자: <b>${d.producer}</b>` : ''}${d.moldLoc ? `<br>금형창고: <b>${d.moldLoc}</b>` : ''}
+  box.innerHTML = workers.map((w, i) => `<div class="prod-item">
+      <div class="prod-item-main"><div class="prod-item-mold">${escHtml(w)}</div></div>
+      <div class="prod-item-actions">
+        <button class="prod-item-btn prod-item-del" onclick="removeWorkerPda(${i})">삭제</button>
       </div>
-      <div class="loc-stock ${isLow ? 'low' : 'ok'}">재고 ${d.qty.toLocaleString()}${d.unit}${isLow ? ' ⚠️' : ' ✓'}</div>
-      <div class="loc-photo-wrap" id="loc-photo-${i}"></div>
-    </div>`;
-  }).join('');
-
-  loadLocPhotos(list, locSearchGen);
+    </div>`).join('');
 }
 
-// 검색 결과에 나온 품목들의 사진을 비동기로 불러와 채워넣음 (검색이 바뀐 뒤 도착한 결과는 무시)
-function loadLocPhotos(list, gen) {
-  list.forEach((d, i) => {
-    fetchImgFor(d.id).then(src => {
-      if (gen !== locSearchGen) return;
-      const wrap = document.getElementById('loc-photo-' + i);
-      if (!wrap) return;
-      if (src) {
-        wrap.innerHTML = '';
-        const img = document.createElement('img');
-        img.className = 'loc-photo';
-        img.src = src;
-        img.onclick = () => viewBigImg(src);
-        wrap.appendChild(img);
-      } else {
-        wrap.innerHTML = '<div class="loc-photo-empty">📷 등록된 사진 없음</div>';
-      }
-    });
-  });
+async function addWorkerPda() {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  const el = document.getElementById('worker-name');
+  const name = (el.value || '').trim();
+  if (!name) { tst('이름을 입력해주세요'); return; }
+  if (workers.includes(name)) { tst('이미 등록된 이름입니다'); return; }
+  workers.push(name);
+  localStorage.setItem('sr-workers', JSON.stringify(workers));
+  el.value = '';
+  renderWorkerList();
+  buildWorkerSelect();
+  tst('✓ ' + name + ' 등록 완료');
+  try { await fbSet('wk', workers); }
+  catch (e) { tst('⚠️ 서버 저장 실패 - 다시 시도해주세요'); }
+}
+
+async function removeWorkerPda(idx) {
+  if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
+  if (workers.length <= 1) { tst('최소 1명은 있어야 합니다'); return; }
+  const name = workers[idx];
+  if (!confirm(name + ' 을(를) 삭제하시겠습니까?')) return;
+  workers.splice(idx, 1);
+  localStorage.setItem('sr-workers', JSON.stringify(workers));
+  renderWorkerList();
+  buildWorkerSelect();
+  tst(name + ' 삭제 완료');
+  try { await fbSet('wk', workers); }
+  catch (e) { tst('⚠️ 서버 저장 실패 - 다시 시도해주세요'); }
 }
 
 // ── 토스트 ──────────────────────────────────────────
