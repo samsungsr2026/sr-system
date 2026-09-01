@@ -2787,8 +2787,12 @@ async function jbPull() {
     }
     if(Array.isArray(rs)&&rs.length>0){SUPPLIERS=rs;try{localStorage.setItem('sr-suppliers',JSON.stringify(SUPPLIERS));}catch(e){}}
     if(rsi&&typeof rsi==='object'&&!Array.isArray(rsi)){SUPPLIER_ITEMS=rsi;try{localStorage.setItem('sr-supplier-items',JSON.stringify(SUPPLIER_ITEMS));}catch(e){}}
-    // 제품 사진/도면/첨부파일 동기화는 핵심 데이터 fetch와 무관하게 독립적으로 동작 (jbPullFiles)
-    await jbPullFiles(rim);
+    // 제품 사진/도면/첨부파일 동기화는 핵심 데이터 fetch와 완전히 무관하게 독립적으로 동작해야 함.
+    // 2026-09: 그동안 여기서 await로 기다리고 있어서, 사진 동기화 쪽에서 예외가 나거나(특히 밀린
+    // 사진이 많아 오래 걸릴 때) 그 에러/지연이 이 함수의 catch(e)로 그대로 전파되어 핵심 데이터는
+    // 멀쩡한데도 "오프라인 모드"로 잘못 표시되는 문제가 있었음. await를 빼서 완전히 분리한다
+    // (실패해도 이 catch로 절대 전파되지 않도록 자체 .catch()로 흡수).
+    jbPullFiles(rim).catch(()=>{});
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     // 단, 삭제된 항목은 tombstone(_deleted) 키 목록으로 걸러내어 union 병합으로 되살아나지 않게 한다.
     {
