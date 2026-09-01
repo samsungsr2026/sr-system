@@ -2373,13 +2373,21 @@ async function jbPullFiles(rim){
         if(changedIds.length){
           jbStat('📷 사진 변경분 받는 중... (0/'+changedIds.length+')','#0d6efd');
           let done=0;
-          await Promise.all(changedIds.map(async id=>{
-            const data=await cfGetPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`);
-            if(data!==null&&data!==undefined)remoteImgs[id]=data;
-            imgsMetaKnown[id]=remoteMeta[id];
-            done++; jbStat('📷 사진 변경분 받는 중... ('+done+'/'+changedIds.length+')','#0d6efd');
-          }));
-          try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+          // 2026-09: 밀린 변경분이 많을 때 전부 한꺼번에 Promise.all로 동시에 쏘면, 느린/불안정한 회선에서
+          // 순간적으로 요청이 몰려 회선이 막히고 그 여파로 같은 시점의 다른 요청(핵심 데이터 sr.json 등)까지
+          // 타임아웃 나서 "오프라인"으로 잘못 표시되는 문제가 실제 발생함. 몇 개씩 나눠(배치) 순차 처리하고,
+          // 배치마다 진행분을 저장해서 중간에 끊겨도 처음부터 다시 받지 않도록 함.
+          const IMG_SYNC_BATCH=6;
+          for(let bi=0; bi<changedIds.length; bi+=IMG_SYNC_BATCH){
+            const chunk=changedIds.slice(bi, bi+IMG_SYNC_BATCH);
+            await Promise.all(chunk.map(async id=>{
+              const data=await cfGetPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`);
+              if(data!==null&&data!==undefined)remoteImgs[id]=data;
+              imgsMetaKnown[id]=remoteMeta[id];
+              done++; jbStat('📷 사진 변경분 받는 중... ('+done+'/'+changedIds.length+')','#0d6efd');
+            }));
+            try{localStorage.setItem('sr-imgs-meta',JSON.stringify(imgsMetaKnown));}catch(e){}
+          }
         }
       }
       // pending(방금 삭제표시를 해제했지만 서버 반영 확정 전) 품목은 원격 목록에 남아있어도 union으로 되살리지 않는다.
@@ -2403,7 +2411,15 @@ async function jbPullFiles(rim){
       if(toMigrate.length)jbStat('📷 사진 정리 중... (0/'+toMigrate.length+')','#0d6efd');
       let migDone=0;
       const migNow=Date.now();
-      const migResults=await Promise.all(toMigrate.map(id=>cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); if(r&&r.ok){imgsMetaKnown[id]=migNow;cfPutPath(`srFiles/imgs/_meta/${fbKeyEncode(id)}`, migNow).catch(()=>{});} return r;})));
+      // 2026-09: 레거시 사진이 많이 남아있을 때 전부 한꺼번에 동시 업로드하면 회선이 순간적으로 막히는
+      // 문제가 있어(위 증분 다운로드와 동일 원인), 여기도 배치로 나눠 순차 처리한다.
+      const migResults=[];
+      const MIG_BATCH=6;
+      for(let mi=0; mi<toMigrate.length; mi+=MIG_BATCH){
+        const chunk=toMigrate.slice(mi, mi+MIG_BATCH);
+        const chunkResults=await Promise.all(chunk.map(id=>cfPutPath(`srFiles/imgs/_repo/${fbKeyEncode(id)}`, mergedImgs[id]).then(r=>{migDone++; if(toMigrate.length)jbStat('📷 사진 정리 중... ('+migDone+'/'+toMigrate.length+')','#0d6efd'); if(r&&r.ok){imgsMetaKnown[id]=migNow;cfPutPath(`srFiles/imgs/_meta/${fbKeyEncode(id)}`, migNow).catch(()=>{});} return r;})));
+        migResults.push(...chunkResults);
+      }
       const migOk=toMigrate.every((id,i)=>migResults[i]&&migResults[i].ok);
       imgs=mergedImgs;
       try{localStorage.setItem('sr-imgs',JSON.stringify(imgs));}catch(e){}
