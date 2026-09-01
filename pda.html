@@ -187,7 +187,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
             style="flex:1" inputmode="numeric"
-            onfocus="this.select()" onclick="this.select()"
+            onfocus="selAll(this)" onclick="selAll(this)"
             onkeydown="if(event.key==='Enter')doInSearch();">
           <button id="btn-in-search" onclick="this.focus();doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
@@ -264,7 +264,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="out-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
             style="flex:1" inputmode="numeric"
-            onfocus="this.select()" onclick="this.select()"
+            onfocus="selAll(this)" onclick="selAll(this)"
             onkeydown="if(event.key==='Enter')doOutSearch();">
           <button id="btn-out-search" onclick="this.focus();doOutSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
@@ -369,6 +369,16 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
 <script>
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
+// 바코드 검색란 탭/포커스 시 기존 값 전체 선택 - 안드로이드에서는 포커스와 동시에 가상 키보드가 뜨면서
+// 그 타이밍에 select()가 즉시 풀려버리는 경우가 있어, 살짝 지연을 준 뒤 다시 선택한다.
+function selAll(el){
+  try{
+    el.select();
+    setTimeout(function(){
+      try{ el.select(); el.setSelectionRange(0, (el.value||'').length); }catch(e){}
+    }, 50);
+  }catch(e){}
+}
 // app.html과 동일 - 코드 버전이 바뀌면 이 기기의 예전 캐시/플래그를 자동 정리해서 수동 초기화 없이
 // 다음 접속 때 깨끗한 상태로 시작하게 함 (2026-09, tx→/srTx 분리 배포 대응).
 const APP_DATA_VERSION = 'txsplit-2026-09-01';
