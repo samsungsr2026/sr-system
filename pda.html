@@ -216,6 +216,10 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
           <option value="">-- 선택 안함 --</option>
         </select>
       </div>
+      <div class="fg">
+        <label class="label">위치</label>
+        <input class="inp" type="text" id="in-location" readonly disabled style="background:#f0f0f0;color:#555">
+      </div>
       <button class="btn btn-in" id="btn-in-reg" onclick="doRegIn()">⬇ 입고 등록</button>
       <button class="btn btn-cancel" onclick="resetInForm()">취소</button>
     </div>
@@ -885,7 +889,7 @@ function selectInItem(id) {
   box.style.display = 'block';
   document.getElementById('in-found-name').textContent = it.name;
   document.getElementById('in-found-info').innerHTML =
-    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span><br>위치: <span>${it.location || '-'}</span>`;
+    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
   formCard.style.display = 'block';
   document.getElementById('in-qty').value = 1;
   // 해당 품목의 기존 생산자 자동 선택
@@ -897,6 +901,7 @@ function selectInItem(id) {
     sel.value = '';
   }
   document.getElementById('in-qty').select();
+  document.getElementById('in-location').value = it.location || '-';
   tst('✓ ' + it.name);
 }
 
@@ -992,6 +997,7 @@ function resetInForm() {
   document.getElementById('in-code').value = '';
   document.getElementById('in-qty').value = 1;
   document.getElementById('in-producer').value = '';
+  document.getElementById('in-location').value = '';
   document.getElementById('in-found').style.display = 'none';
   document.getElementById('in-form-card').style.display = 'none';
   document.getElementById('in-pick-list').innerHTML = '';
@@ -1015,13 +1021,14 @@ function editInTx(id) {
   document.getElementById('in-found').style.display = 'block';
   document.getElementById('in-found-name').textContent = it.name;
   document.getElementById('in-found-info').innerHTML =
-    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span><br>위치: <span>${it.location || '-'}</span>`;
+    `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
   document.getElementById('in-form-card').style.display = 'block';
   document.getElementById('in-qty').value = tx.qty;
 
   const sel = document.getElementById('in-producer');
   const opt = Array.from(sel.options).find(o => o.value === tx.w);
   sel.value = opt ? tx.w : '';
+  document.getElementById('in-location').value = it.location || '-';
 
   document.getElementById('btn-in-reg').textContent = '✓ 입고 수정 완료';
   document.getElementById('in-qty').focus();
