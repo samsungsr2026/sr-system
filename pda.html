@@ -481,7 +481,7 @@ async function init() {
   // Firebase에서 최신 데이터 로드
   try {
     const [ri, rt, ra, rw, rpr, ro] = await Promise.all([
-      fbGet('inv'), fbGet('tx'), fbGet('accounts'), fbGet('wk'), fbGet('production'), fbGet('orders')
+      fbGet('inv'), fbGetPath('srTx'), fbGet('accounts'), fbGet('wk'), fbGet('production'), fbGet('orders')
     ]);
     if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
     if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
@@ -550,6 +550,26 @@ async function fbGetPath(path) {
     return data;
   }catch(e){ return null; }
 }
+// fbGetPath와 달리 "네트워크/요청 실패"와 "서버에 진짜 데이터가 없음(null)"을 구분해서 반환한다.
+// tx 레거시 경로(/sr/tx) 이전 여부를 판단할 때, 요청 실패를 "비어있음"으로 오인하면 이전을
+// 건너뛰고 완료 플래그를 세워버려서 실제로는 있는 거래내역을 영영 못 받아오는 문제가 생길 수 있음.
+async function fbGetPathChecked(path) {
+  try{
+    const headers={'X-Firebase-ETag':'true'};
+    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
+    const r = await fetch(`${FB}/${path}.json`, {headers});
+    if(r.status===304){ return {ok:true, data:_fbEtagDataCache[path]}; }
+    if (!r.ok) return {ok:false, data:null};
+    const data=await r.json();
+    const etag=r.headers.get('ETag');
+    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
+    return {ok:true, data};
+  }catch(e){ return {ok:false, data:null}; }
+}
+async function fbDeletePath(path) {
+  try{ const r = await fetch(`${FB}/${path}.json`, {method:'DELETE'}); return r.ok; }
+  catch(e){ return false; }
+}
 
 // 제품 사진(imgs) 저장 경로의 키 인코딩과 짝을 맞춤 (app.html의 fbKeyEncode와 동일한 규칙)
 function fbKeyEncode(id) {
@@ -597,6 +617,26 @@ async function fbSet(key, data) {
     return await put();
   } catch (e) {
     // 창고 현장의 불안정한 네트워크를 감안해 짧은 대기 후 1회 재시도
+    await new Promise(res => setTimeout(res, 900));
+    return await put();
+  }
+}
+// 거래내역(tx) 전용 저장 - app.html과 동일하게 /sr 트리 밖의 독립 경로(/srTx)에 저장한다 (2026-09).
+// tx는 계속 누적되는 배열이라 /sr/tx에 있으면 PC 쪽 jbPull()의 /sr.json 통째 조회가 계속 커져서
+// 결국 "오프라인"으로 실패하는 원인이 됨 - PDA도 반드시 이 경로로 써야 PC 쪽 수정 효과가 유지됨.
+async function fbSetTx(data) {
+  const put = async () => {
+    const r = await fetch(`${FB}/srTx.json`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error('fbSetTx HTTP ' + r.status);
+    return r;
+  };
+  try {
+    return await put();
+  } catch (e) {
     await new Promise(res => setTimeout(res, 900));
     return await put();
   }
@@ -782,7 +822,7 @@ async function doReconSave() {
   localStorage.setItem('sr-tx', JSON.stringify(txs));
 
   try {
-    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
     tst(`✅ 재고조사 반영완료 · ${oldQty}${inv[idx].unit} → ${newQty}${inv[idx].unit}`);
   } catch(e) {
     // 재시도까지 실패한 경우 - 서버에 실제로 반영되지 않았으므로 성공처럼 보이면 안 됨
@@ -892,7 +932,7 @@ async function doRegIn() {
     localStorage.setItem('sr-tx', JSON.stringify(txs));
 
     try {
-      await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+      await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
       tst(`✅ 입고 수정완료 · 현재 ${inv[newIdx].qty}${foundItem.unit}`);
     } catch(e) {
       tst('✅ 저장됨 (오프라인, 수정)');
@@ -927,7 +967,7 @@ async function doRegIn() {
 
   // Firebase 저장
   try {
-    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
     tst(`✅ 입고완료 +${qty}${foundItem.unit} · 현재 ${inv[idx].qty}${foundItem.unit}`);
   } catch(e) {
     tst(`✅ 저장됨 (오프라인) +${qty}${foundItem.unit}`);
@@ -1005,7 +1045,7 @@ async function deleteInTx(id) {
   localStorage.setItem('sr-tx', JSON.stringify(txs));
 
   try {
-    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
   } catch(e) {}
 
   tst('삭제되었습니다 (재고 차감됨)');
@@ -1042,10 +1082,37 @@ function renderInList() {
 
 // PC 대시보드 등 다른 곳에서 입고 내역을 수정/삭제한 경우에도 폰에 반영되도록
 // 주기적으로(15초) + 화면 복귀 시 tx만 가볍게 다시 받아옴
+// 2026-09: tx 저장 위치가 /sr/tx(레거시)에서 /sr 트리 밖의 독립 경로(/srTx)로 바뀜(app.html과 동일).
+// 최초 1회, 레거시에 남아있던 데이터를 /srTx로 이전한 뒤 레거시는 삭제한다(여러 기기 중 하나만
+// 성공해도 서버 전체에 반영되므로 이 기기에서 실패해도 무방함).
+let _txMigrationDonePda = localStorage.getItem('sr-tx-migrated-v1') === '1';
 async function pullTxFromServer() {
   if (Date.now() - Math.max(_lastInSave, _lastOutSave) < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
   try {
-    const rt = await fbGet('tx');
+    if (!_txMigrationDonePda) {
+      const { ok: legacyOk, data: legacy } = await fbGetPathChecked('sr/tx');
+      if (legacyOk) {
+        if (Array.isArray(legacy) && legacy.length > 0) {
+          try {
+            const r = await fetch(`${FB}/srTx.json`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(legacy) });
+            if (r.ok) {
+              await fbDeletePath('sr/tx');
+              txs = legacy;
+              localStorage.setItem('sr-tx', JSON.stringify(txs));
+              _txMigrationDonePda = true;
+              localStorage.setItem('sr-tx-migrated-v1', '1');
+              if (document.getElementById('page-in').classList.contains('on')) renderInList();
+              if (document.getElementById('page-out').classList.contains('on')) renderOutList();
+              return;
+            }
+          } catch(e) {}
+        } else {
+          _txMigrationDonePda = true;
+          localStorage.setItem('sr-tx-migrated-v1', '1');
+        }
+      }
+    }
+    const rt = await fbGetPath('srTx');
     if (Array.isArray(rt)) {
       txs = rt;
       localStorage.setItem('sr-tx', JSON.stringify(txs));
@@ -1167,7 +1234,7 @@ async function doRegOut() {
     localStorage.setItem('sr-tx', JSON.stringify(txs));
 
     try {
-      await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+      await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
       tst(`✅ 출고 수정완료 · 현재 ${inv[newIdx].qty}${foundOutItem.unit}`);
     } catch(e) {
       tst('✅ 저장됨 (오프라인, 수정)');
@@ -1207,7 +1274,7 @@ async function doRegOut() {
 
   // Firebase 저장
   try {
-    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
     tst(`✅ 출고완료 -${qty}${foundOutItem.unit} · 현재 ${inv[idx].qty}${foundOutItem.unit}`);
   } catch(e) {
     tst(`✅ 저장됨 (오프라인) -${qty}${foundOutItem.unit}`);
@@ -1285,7 +1352,7 @@ async function deleteOutTx(id) {
   localStorage.setItem('sr-tx', JSON.stringify(txs));
 
   try {
-    await Promise.all([fbSet('inv', inv), fbSet('tx', txs)]);
+    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
   } catch(e) {}
 
   tst('삭제되었습니다 (재고 복구됨)');
