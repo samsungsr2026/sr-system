@@ -2087,6 +2087,27 @@ async function cfSet(key, data) {
     }, 1500);
   });
 }
+// 거래내역(tx) 전용 저장 - /sr 트리 바깥의 독립 경로(/srTx)에 저장한다 (2026-09).
+// tx는 입출고가 있을 때마다 계속 누적되는 배열이라, 예전처럼 /sr/tx(핵심 데이터 하위)에 있으면
+// jbPull()이 통째로 받아오는 /sr.json 자체가 tx 크기만큼 계속 커진다(실제로 36MB까지 커져서
+// 느린 회선에서 jbPull()이 타임아웃/실패해 "오프라인"으로 뜨는 원인이 됨). tx를 /sr 트리 밖으로
+// 완전히 분리해서 jbPull()의 핵심 데이터 조회 크기와 무관하게 만든다.
+async function cfSetTx(data) {
+  return new Promise(resolve => {
+    const tk='tx_main';
+    if (_fbTimers[tk]) clearTimeout(_fbTimers[tk]);
+    _fbTimers[tk] = setTimeout(async () => {
+      try {
+        const r = await fetch(`${FB}/srTx.json`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
+        });
+        resolve(r.ok);
+      } catch(e) { resolve(false); }
+    }, 1500);
+  });
+}
 // 대용량 첨부파일 전용 저장 경로 (/srFiles) - 핵심 데이터(/sr)와 분리해서,
 // 첨부파일이 커지더라도 재고 등 핵심 동기화(jbPull의 /sr.json 통째 조회)가 느려지거나 실패하지 않도록 함
 async function cfGetFile(key) {
@@ -2289,7 +2310,7 @@ async function sv(retryCount) {
     // cfSet은 실패 시 예외를 던지지 않고 false를 반환하므로, 반드시 반환값을 확인해야
     // 실패한 저장을 "저장됨"으로 오인해 잠시 후 자동 동기화가 예전 서버 데이터로
     // 덮어써버리는(위치/품명 등이 예전 값으로 되돌아가는) 문제를 막을 수 있음
-    const results = await Promise.all([cfSet('inv',invToSend), cfSet('tx',txs), cfSet('orders',ordersToSend)]);
+    const results = await Promise.all([cfSet('inv',invToSend), cfSetTx(txs), cfSet('orders',ordersToSend)]);
     const allOk = results.every(r=>r===true);
     _lastSave = Date.now();
     if(allOk){
@@ -2544,17 +2565,48 @@ async function jbPullInv(){
 }
 
 // 거래내역(tx)도 재고(inv)와 마찬가지로 핵심 데이터 전체(/sr.json) fetch와 무관하게
-// 가볍고 빠르게 /sr/tx 경로만 독립적으로 받아온다.
-// (오늘 입고/출고 같은 대시보드 통계는 거래내역에 의존하는데, 모바일 등 느린 연결에서
-//  무거운 jbPull()이 늦게 끝나거나 실패하면 옛 데이터/0으로 보이는 문제를 방지)
+// 가볍고 빠르게 독립적으로 받아온다.
+// 2026-09: tx는 예전엔 /sr/tx(핵심 데이터 하위)에 저장되어 있었는데, 계속 누적되는 배열이라
+// jbPull()의 /sr.json 통째 조회 자체가 36MB까지 커져서 느린 회선에서 "오프라인"으로 실패하는
+// 원인이 되었음. tx를 /sr 트리 바깥의 독립 경로(/srTx)로 완전히 옮겨서 jbPull()의 조회 크기와
+// 무관하게 만듦. 최초 1회, 레거시 /sr/tx에 남아있던 데이터를 /srTx로 이전한 뒤 레거시는 삭제한다
+// (기기별 localStorage 플래그로 한 번만 시도 - 여러 기기 중 어느 하나만 성공해도 서버 전체에
+//  반영되므로 특정 기기에서 실패해도 무방함. cfGetPathChecked로 "진짜 비어있음"과 "요청 실패"를
+//  구분해서, 네트워크 오류를 서버가 비어있다고 오인해 이전을 건너뛰는 일이 없도록 함).
 let _txPullBusy=false;
+let _txMigrationDone = localStorage.getItem('sr-tx-migrated-v1')==='1';
 async function jbPullTx(){
   if(_txPullBusy)return;
   if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
+  if(_invSaving||Date.now()-_lastSave<8000)return; // 방금 저장한 직후엔 불러오기를 건너뜀 (저장 중 충돌로 되돌아가는 사고 방지)
   _txPullBusy=true;
   try{
-    const rt=await fetchTimeoutETag(`${FB}/sr/tx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
-    if(Array.isArray(rt)){
+    if(!_txMigrationDone){
+      const {ok:legacyOk, data:legacy}=await cfGetPathChecked('sr/tx');
+      if(legacyOk){
+        if(Array.isArray(legacy)&&legacy.length>0){
+          const put=await cfPutPath('srTx', legacy);
+          if(put.ok){
+            await cfDeletePath('sr/tx').catch(()=>{});
+            txs=legacy;
+            try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
+            _txMigrationDone=true;
+            localStorage.setItem('sr-tx-migrated-v1','1');
+            if(tab==='dash')render();
+            _txPullBusy=false;
+            return;
+          }
+          // 이전 쓰기 실패 시 플래그를 세우지 않고 다음 폴링에서 재시도
+        } else {
+          // 레거시가 비어있음(정상 응답) - 이전할 데이터가 없으므로 다시 확인할 필요 없음
+          _txMigrationDone=true;
+          localStorage.setItem('sr-tx-migrated-v1','1');
+        }
+      }
+      // legacyOk===false(요청 실패)면 플래그를 세우지 않고 다음 폴링에서 다시 확인
+    }
+    const rt=await fetchTimeoutETag(`${FB}/srTx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(Array.isArray(rt)&&Date.now()-_lastSave>=8000){
       txs=rt;
       try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
       if(tab==='dash')render();
@@ -2662,7 +2714,7 @@ async function jbPull() {
       jbStat('📤 초기 데이터 업로드 중...','#c07800');
       await fetch(`${FB}/sr.json`, {method:'PUT', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          inv, tx:txs, orders, purchases, purchaseVendors,
+          inv, orders, purchases, purchaseVendors,
           wk:WK, accounts, notices, dailyreport:dailyReports,
           changelog:changeLogs, suppliers:SUPPLIERS, supplierItems:SUPPLIER_ITEMS,
           vendors, vendorOrders, vendorOrdersDeleted, repairs, gauges, pending: pendingChanges, pendingDeleted,
@@ -2671,6 +2723,9 @@ async function jbPull() {
           molds, moldsDeleted
         })
       });
+      // tx(거래내역)는 /sr 트리가 아닌 독립 경로(/srTx)에 저장하므로 위 통짜 업로드에 포함하지 않고 따로 올림
+      if(Array.isArray(txs)&&txs.length) await cfPutPath('srTx', txs).catch(()=>{});
+      _txMigrationDone=true; localStorage.setItem('sr-tx-migrated-v1','1');
       jbStat('✅ 초기 업로드 완료','#0d9e72');
       return;
     }
@@ -2681,7 +2736,7 @@ async function jbPull() {
       return;
     }
     // ── Firebase 데이터를 그대로 사용 (Firebase = 단일 진실 공급원) ──
-    const ri=fbAll['inv'],    rt=fbAll['tx'],
+    const ri=fbAll['inv'],
           ro=fbAll['orders'], rp=fbAll['purchases'],
           rpv=fbAll['purchaseVendors'], rw=fbAll['wk'],
           ra=fbAll['accounts'], rn=fbAll['notices'],
@@ -2696,7 +2751,7 @@ async function jbPull() {
           rLegacySI=fbAll['selfInspections']; // 예전 버전 데이터 (있으면 1회 이전용)
 
     if(Array.isArray(ri)&&ri.length>0&&!_invSaving&&Date.now()-_lastSave>=8000){inv=ri;snapshotInvBaseline();try{localStorage.setItem('sr-inv',JSON.stringify(inv));}catch(e){}}
-    if(Array.isArray(rt)){txs=rt;try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}}
+    // tx(거래내역)는 이제 /sr 트리 밖 독립 경로(/srTx)에서 jbPullTx()가 전담 동기화함 - 여기서는 처리하지 않음
     if(Array.isArray(ro)&&!_invSaving&&Date.now()-_lastSave>=8000){orders=ro;snapshotOrdersBaseline();try{localStorage.setItem('sr-orders',JSON.stringify(orders));}catch(e){}}
     if(rpr!==null&&rpr!==undefined&&Date.now()-_lastProdSave>=8000){production=migrateProduction(rpr);try{localStorage.setItem('sr-production',JSON.stringify(production));}catch(e){}}
     if(Array.isArray(rmr)&&Date.now()-_lastMrSave>=8000){moldReports=rmr;try{localStorage.setItem('sr-moldreport',JSON.stringify(moldReports));}catch(e){}}
