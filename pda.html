@@ -187,6 +187,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="in-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
             style="flex:1" inputmode="numeric"
+            onfocus="this.select()" onclick="this.select()"
             onkeydown="if(event.key==='Enter')doInSearch();">
           <button id="btn-in-search" onclick="this.focus();doInSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
@@ -263,6 +264,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
         <div style="display:flex;gap:8px">
           <input class="inp" type="text" id="out-code" placeholder="바코드 스캔 또는 번호 입력" autocomplete="off" autocapitalize="off"
             style="flex:1" inputmode="numeric"
+            onfocus="this.select()" onclick="this.select()"
             onkeydown="if(event.key==='Enter')doOutSearch();">
           <button id="btn-out-search" onclick="this.focus();doOutSearch();" style="background:#1a6bff;color:#fff;border:none;border-radius:10px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap">검색</button>
         </div>
