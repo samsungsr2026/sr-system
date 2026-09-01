@@ -6702,6 +6702,12 @@ function printBarcodes(){
           </div>
         </div>
       </div>
+      <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
+        <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">위&nbsp;&nbsp;치</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
+          <span style="font-size:${autoFs(it.location||'-',145,14)}px;font-weight:800;color:#111;white-space:nowrap">${it.location||'-'}</span>
+        </div>
+      </div>
       <div style="height:25%;min-height:25%;max-height:25%;border-bottom:1.5px solid #111;display:flex;flex-shrink:0;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111">QR코드</div>
         <div style="flex:1;display:flex;align-items:stretch;justify-content:center;padding:0">
