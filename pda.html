@@ -367,6 +367,19 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
 <script>
 const FB = 'https://samsumgsr-b2757-default-rtdb.asia-southeast1.firebasedatabase.app';
+// app.html과 동일 - 코드 버전이 바뀌면 이 기기의 예전 캐시/플래그를 자동 정리해서 수동 초기화 없이
+// 다음 접속 때 깨끗한 상태로 시작하게 함 (2026-09, tx→/srTx 분리 배포 대응).
+const APP_DATA_VERSION = 'txsplit-2026-09-01';
+(function(){
+  try{
+    if(localStorage.getItem('sr-app-data-version')!==APP_DATA_VERSION){
+      Object.keys(localStorage).forEach(function(k){
+        if(k.indexOf('sr-etag:')===0) localStorage.removeItem(k);
+      });
+      localStorage.setItem('sr-app-data-version', APP_DATA_VERSION);
+    }
+  }catch(e){}
+})();
 
 // 텍스트 선택/잘라내기·복사 툴바가 절대 뜨지 않도록 JS 레벨에서도 이중 차단 (일부 안드로이드 웹뷰는 CSS만으로 안 막힘)
 document.addEventListener('selectstart', e => {
