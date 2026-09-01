@@ -6646,7 +6646,7 @@ function addBcItem(id){
   // 라벨에 들어갈 값을 복사해서 저장 (출력 목록에서 개별 수정 가능)
   // 수량 기본값 = 제품의 포장단위(없으면 10)
   const defQty=(it.packUnit&&it.packUnit>0)?it.packUnit:10;
-  bcItems.push({id,name:it.name,classNo:it.classNo||'',moldNo:it.id,qty:defQty});
+  bcItems.push({id,name:it.name,classNo:it.classNo||'',moldNo:it.id,qty:defQty,loc:it.location||''});
   render();
   tst('✓ 출력 목록에 추가됐습니다 (포장단위 '+defQty+'EA)');
 }
@@ -6658,7 +6658,7 @@ function printBarcodes(){
   const allLabels=[];
   bcItems.forEach(b=>{
     // 출력 목록에서 수정된 값을 그대로 사용
-    const lbl={name:b.name||'',classNo:b.classNo||'',id:b.moldNo||'',printQty:b.qty||1,packUnit:b.packUnit||1};
+    const lbl={name:b.name||'',classNo:b.classNo||'',id:b.moldNo||'',printQty:b.qty||1,packUnit:b.packUnit||1,location:b.loc||''};
     for(let i=0;i<8*sheets;i++) allLabels.push({...lbl});
   });
 
@@ -6694,18 +6694,21 @@ function printBarcodes(){
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">금형번호</div>
         <div style="flex:1;display:flex;overflow:hidden">
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1.5px solid #111">
-            <span style="font-size:${autoFs(it.id||'-',70,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap">${it.id||'-'}</span>
+            <span style="font-size:${autoFs(it.id||'-',70,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;text-shadow:0.4px 0 0 currentColor,-0.4px 0 0 currentColor,0 0.4px 0 currentColor,0 -0.4px 0 currentColor">${it.id||'-'}</span>
           </div>
           <div style="width:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;border-right:1.5px solid #111;white-space:nowrap">수량</div>
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">
-            <span style="font-size:${autoFs(String(it.printQty)+' EA',55,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap">${it.printQty} EA</span>
+            <span style="font-size:${autoFs(String(it.printQty)+' EA',55,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;text-shadow:0.4px 0 0 currentColor,-0.4px 0 0 currentColor,0 0.4px 0 currentColor,0 -0.4px 0 currentColor">${it.printQty} EA</span>
           </div>
         </div>
       </div>
       <div style="height:25%;min-height:25%;max-height:25%;border-bottom:1.5px solid #111;display:flex;flex-shrink:0;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111">QR코드</div>
-        <div style="flex:1;display:flex;align-items:stretch;justify-content:center;padding:0">
+        <div style="width:70px;flex-shrink:0;display:flex;align-items:stretch;justify-content:center;padding:0;border-right:1.5px solid #111">
           <div class="qrbox" data-val="${qrVal}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"></div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
+          <span style="font-size:${autoFs(it.location||'-',110,14)}px;font-weight:800;color:#111;white-space:nowrap">${it.location||'-'}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;flex-shrink:1;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.18em;color:#111">MADE IN KOREA</div>
