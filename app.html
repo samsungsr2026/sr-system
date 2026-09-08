@@ -459,11 +459,13 @@ select.fi option{background:#fff;color:#111}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><line x1="14" y1="14" x2="14" y2="14"></line><line x1="14" y1="17.5" x2="14" y2="17.5"></line><line x1="17.5" y1="14" x2="17.5" y2="14"></line><line x1="21" y1="14" x2="21" y2="14"></line><line x1="17.5" y1="17.5" x2="17.5" y2="17.5"></line><line x1="21" y1="21" x2="21" y2="21"></line><line x1="14" y1="21" x2="14" y2="21"></line><line x1="17.5" y1="21" x2="17.5" y2="21"></line><line x1="21" y1="17.5" x2="21" y2="17.5"></line></svg>
       🏷️ 제품 태그
     </button>
+    <button id="manual-sync-btn" onclick="manualSyncAll()" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
+      🔄 최신 데이터 업로드
+    </button>
     <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
       <span id="jb-sync" style="font-size: 11px; color: rgb(13, 158, 114); white-space: nowrap;">✅ 오후 12:11 동기화</span>
-      <button onclick="jbPull()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">🔄 새로고침</button>
       <div id="top-auth" style="display:flex;align-items:center;gap:8px">
         <span style="background:var(--bg3);color:var(--text3);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border)">👁️ 조회 전용</span>
         <button onclick="openLogin()" style="background:var(--blue);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer">🔐 관리자 로그인</button></div>
@@ -13509,26 +13511,40 @@ window.addEventListener('scroll', ()=>{
   btn.style.display=((tab==='inv'||tab==='alert')&&window.scrollY>300)?'flex':'none';
   btn.style.alignItems='center';btn.style.justifyContent='center';
 });
-setInterval(jbPull, 60000); // 재고/거래/발주/생산/성형일보는 이미 전용 폴링이 커버하므로, 나머지(거래처/수리이력/측정기 등)를 포함한 전체 재확인 주기는 60초로 완화해 대역폭 절약
-setInterval(()=>jbPullFiles(), 30000);
-setInterval(()=>jbPullInv(), 300000); // 상시 켜두는 화면(모니터/태블릿)이 많아 대역폭 절약을 위해 15초→5분으로 완화(2026-09)
-setInterval(()=>jbPullTx(), 300000); // 상시 켜두는 화면(모니터/태블릿)이 많아 대역폭 절약을 위해 15초→5분으로 완화(2026-09)
-setInterval(()=>jbPullOrders(), 300000); // 상시 켜두는 화면(모니터/태블릿)이 많아 대역폭 절약을 위해 15초→5분으로 완화(2026-09)
-setInterval(()=>jbPullProduction(), 300000); // 상시 켜두는 화면(모니터/태블릿)이 많아 대역폭 절약을 위해 15초→5분으로 완화(2026-09)
+// 2026-09: 상시 켜두는 화면(모니터/태블릿)이 많아 대역폭 절약을 위해 자동 폴링을 전부 끄고, 완전 수동(버튼) 방식으로 전환.
+// PDA는 그대로 자동 저장 방식 유지 - 이 부분은 PC 화면 "확인(읽기)" 전용.
+// setInterval(jbPull, 60000);
+// setInterval(()=>jbPullFiles(), 30000);
+// setInterval(()=>jbPullInv(), 300000);
+// setInterval(()=>jbPullTx(), 300000);
+// setInterval(()=>jbPullOrders(), 300000);
+// setInterval(()=>jbPullProduction(), 300000);
 // setInterval(()=>jbPullMoldReport(), 15000); // 2026-09: 성형일보 폴링 일시 비활성화(요청 시 다시 켜기)
-// 모바일은 화면이 꺼지거나 앱이 백그라운드로 가면 setInterval이 멈추거나 크게 느려짐.
-// 화면(탭)이 다시 보이게 될 때 즉시 한 번 동기화해서 옛 데이터가 그대로 떠 있는 문제를 방지.
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    jbPullInv();
-    jbPullTx();
-    jbPullOrders();
-    jbPullProduction();
-    jbPullMoldReport();
-    jbPull();
-    jbPullFiles();
+// 완전 수동 전환(2026-09)으로 탭 복귀 시 자동 동기화도 껐습니다. "최신 데이터 업로드" 버튼으로만 갱신됩니다.
+// document.addEventListener('visibilitychange', () => {
+//   if (document.visibilityState === 'visible') {
+//     jbPullInv();
+//     jbPullTx();
+//     jbPullOrders();
+//     jbPullProduction();
+//     jbPullMoldReport();
+//     jbPull();
+//     jbPullFiles();
+//   }
+// });
+async function manualSyncAll(){
+  // "최신 데이터 업로드" 버튼: 자동 폴링을 끈 대신, 누르는 순간 모든 항목을 한 번에 받아옴
+  jbStat('🔄 최신 데이터 받는 중...', '#0d6efd');
+  try{
+    await Promise.all([jbPull(), jbPullFiles(), jbPullInv(), jbPullTx(), jbPullOrders(), jbPullProduction()]);
+    const t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    jbStat('✅ '+t+' 최신 데이터 반영됨', '#0d9e72');
+  }catch(e){
+    jbStat('⚠️ 데이터 받기 실패 - 다시 시도해주세요', '#dc3545');
   }
-});
+  render();
+}
+manualSyncAll(); // 페이지를 처음 열 때는 한 번만 자동으로 최신 데이터를 받아옴 (이후부터는 반복 자동확인 없이 버튼으로만)
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
 document.addEventListener('click',function(e){
   if(e.target&&(e.target.tagName==='INPUT')&&
