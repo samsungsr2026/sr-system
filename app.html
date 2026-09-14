@@ -6922,7 +6922,7 @@ window.onload=function(){
       if(!cellW){ // 측정 실패 시 글자 수 기반 폴백
         var L=(span.textContent||'').length;
         var fz0=(L<=4?20:L<=8?16:L<=14?12:9);
-        span.style.fontSize=(isHalf?fz0/2:fz0)+'px';
+        span.style.fontSize=(isHalf?fz0*0.65:fz0)+'px';
         return;
       }
       var target=cellW*0.88;          /* 목표 너비 = 칸의 88% */
@@ -6938,7 +6938,7 @@ window.onload=function(){
         fz-=0.5;span.style.fontSize=fz+'px';guard++;
       }
       if(isHalf){
-        fz=fz/2;
+        fz=fz*0.65;
         span.style.fontSize=fz+'px';
       }
     });
