@@ -866,7 +866,7 @@ let noticeEditingId=null;
 let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 // 근태신청: 간단한 신청 목록 (연차/반차/조퇴 등). 핸드폰에서 간단히 작성.
 let attendanceReqs=JSON.parse(localStorage.getItem('sr-attendance')||'[]');
-let attMonthFilter=new Date().toISOString().slice(0,7); // 근태신청 월별 보기 필터 (YYYY-MM), ''이면 전체
+let attMonthFilter=''; // 근태신청 월별 보기 필터 (YYYY-MM), ''이면 전체
 function saveAttendance(){
   _lastAttSave=Date.now();
   localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));
@@ -9401,6 +9401,12 @@ function rAttendance(){
   const statusLabel={pending:'⏳ 승인대기',approved:'✅ 승인됨',rejected:'🚫 거부됨'};
   const allList=(attendanceReqs||[]).slice().sort((a,b)=>b.ts-a.ts);
   const list=attMonthFilter?allList.filter(a=>(a.date||'').slice(0,7)===attMonthFilter):allList;
+  const monthSet=new Set(allList.map(a=>(a.date||'').slice(0,7)).filter(Boolean));
+  if(attMonthFilter)monthSet.add(attMonthFilter); // 선택된 달에 데이터가 없어도 옵션에는 남겨둠
+  const monthOpts=Array.from(monthSet).sort().reverse().map(m=>{
+    const [y,mo]=m.split('-');
+    return `<option value="${m}" ${attMonthFilter===m?'selected':''}>${y}년 ${parseInt(mo,10)}월</option>`;
+  }).join('');
   const curName=(typeof curUser!=='undefined'&&curUser)?curUser.name:'';
   const hourOpts=Array.from({length:24},(_,h)=>String(h).padStart(2,'0')).map(h=>`<option>${h}</option>`).join('');
   const minOpts=['00','10','20','30','40','50'].map(m=>`<option>${m}</option>`).join('');
@@ -9460,8 +9466,10 @@ function rAttendance(){
 
   <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div class="card-title" style="margin-bottom:0;white-space:nowrap">📅 월별 보기</div>
-    <input type="month" class="fi" id="at-month-filter" value="${attMonthFilter}" style="width:auto;flex:0 0 auto" onchange="attMonthFilter=this.value;render()">
-    <button class="btn" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);padding:8px 14px;font-size:13px" onclick="attMonthFilter='';render()">전체보기</button>
+    <select class="fi" id="at-month-filter" style="width:auto;flex:0 0 auto" onchange="attMonthFilter=this.value;render()">
+      <option value="" ${!attMonthFilter?'selected':''}>전체</option>
+      ${monthOpts}
+    </select>
     <span style="font-size:12px;color:var(--text3);margin-left:auto">${attMonthFilter?attMonthFilter+' · ':''}${list.length}건</span>
   </div>
 
