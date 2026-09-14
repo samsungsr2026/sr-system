@@ -6691,10 +6691,7 @@ function printBarcodes(){
   const makeLabel=(it)=>{
     if(!it) return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box"></div>`;
     const qrVal=(it.classNo||it.id||'-');
-    function autoFs(text, maxPx, fsPx){
-      var est = text.length * fsPx * 0.65;
-      return est > maxPx ? Math.floor(fsPx * maxPx / est) : fsPx;
-    }
+    const bold='font-weight:900;text-shadow:0.4px 0 0 currentColor,-0.4px 0 0 currentColor,0 0.4px 0 currentColor,0 -0.4px 0 currentColor';
     return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">업체명</div>
@@ -6703,31 +6700,31 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">품&nbsp;&nbsp;명</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:${autoFs(it.name,145,22)}px;font-weight:800;color:#111;white-space:nowrap">${it.name}</span>
+          <span class="fit" style="${bold};color:#111">${it.name}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:${autoFs(it.classNo||'-',145,22)}px;font-family:monospace;font-weight:700;color:#111;white-space:nowrap">${it.classNo||'-'}</span>
+          <span class="fit" style="font-family:monospace;${bold};color:#111">${it.classNo||'-'}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">금형번호</div>
         <div style="flex:1;display:flex;overflow:hidden">
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1.5px solid #111">
-            <span style="font-size:${autoFs(it.id||'-',70,22)}px;font-family:monospace;font-weight:900;color:#111;white-space:nowrap;text-shadow:0.4px 0 0 currentColor,-0.4px 0 0 currentColor,0 0.4px 0 currentColor,0 -0.4px 0 currentColor">${it.id||'-'}</span>
+            <span class="fit" style="font-family:monospace;${bold};color:#111">${it.id||'-'}</span>
           </div>
           <div style="width:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;border-right:1.5px solid #111;white-space:nowrap">수량</div>
           <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">
-            <span style="font-size:${autoFs(String(it.printQty)+' EA',55,22)}px;font-family:monospace;color:#111;white-space:nowrap"><span style="font-weight:900;text-shadow:0.4px 0 0 currentColor,-0.4px 0 0 currentColor,0 0.4px 0 currentColor,0 -0.4px 0 currentColor">${it.printQty}</span> EA</span>
+            <span class="fit" style="font-family:monospace;${bold};color:#111">${it.printQty} EA</span>
           </div>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">위&nbsp;&nbsp;치</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span style="font-size:${autoFs(it.location||'-',145,14)}px;font-weight:800;color:#111;white-space:nowrap">${it.location||'-'}</span>
+          <span class="fit" style="${bold};color:#111">${it.location||'-'}</span>
         </div>
       </div>
       <div style="height:25%;min-height:25%;max-height:25%;border-bottom:1.5px solid #111;display:flex;flex-shrink:0;overflow:hidden">
