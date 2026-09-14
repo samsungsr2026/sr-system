@@ -6691,7 +6691,8 @@ function printBarcodes(){
   const makeLabel=(it)=>{
     if(!it) return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box"></div>`;
     const qrVal=(it.classNo||it.id||'-');
-    const bold='font-weight:400';
+    const normal='font-weight:400';
+    const bold='font-weight:700';
     return `<div style="border:2px solid #111;background:#fff;width:100%;height:100%;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column">
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">업체명</div>
@@ -6700,13 +6701,13 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">품&nbsp;&nbsp;명</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span class="fit" style="${bold};color:#111">${it.name}</span>
+          <span class="fit" style="${normal};color:#111">${it.name}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span class="fit" style="font-family:monospace;${bold};color:#111">${it.classNo||'-'}</span>
+          <span class="fit" style="font-family:monospace;${normal};color:#111">${it.classNo||'-'}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
@@ -6724,7 +6725,7 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">위&nbsp;&nbsp;치</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span class="fit" style="${bold};color:#111">${it.location||'-'}</span>
+          <span class="fit half" style="${normal};color:#111">${it.location||'-'}</span>
         </div>
       </div>
       <div style="height:25%;min-height:25%;max-height:25%;border-bottom:1.5px solid #111;display:flex;flex-shrink:0;overflow:hidden">
@@ -6913,13 +6914,15 @@ window.onload=function(){
   // 값 글씨를 칸 크기에 맞춰 자동 확대/축소 (레이아웃 확정 후 실행)
   function fitAll(){
     document.querySelectorAll('.fit').forEach(function(span){
+      var isHalf=span.classList.contains('half');
       var cell=span.closest('td')||span.parentElement;
       if(!cell)return;
       var cellW=cell.clientWidth;
       var cellH=cell.clientHeight;
       if(!cellW){ // 측정 실패 시 글자 수 기반 폴백
         var L=(span.textContent||'').length;
-        span.style.fontSize=(L<=4?20:L<=8?16:L<=14?12:9)+'px';
+        var fz0=(L<=4?20:L<=8?16:L<=14?12:9);
+        span.style.fontSize=(isHalf?fz0/2:fz0)+'px';
         return;
       }
       var target=cellW*0.88;          /* 목표 너비 = 칸의 88% */
@@ -6933,6 +6936,10 @@ window.onload=function(){
       guard=0;
       while((span.scrollWidth>maxW||fz>maxFz)&&fz>5&&guard<400){
         fz-=0.5;span.style.fontSize=fz+'px';guard++;
+      }
+      if(isHalf){
+        fz=fz/2;
+        span.style.fontSize=fz+'px';
       }
     });
   }
