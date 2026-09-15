@@ -5242,9 +5242,21 @@ function doIO2(type){
   if(type==='in')inv[idx].qty+=qty;else inv[idx].qty-=qty;
   txs.unshift({id:Date.now(),type,iid,qty,w,ts:Date.now(),memo});
   addLog('io',(type==='in'?'입고':'출고')+' — '+inv[idx].name, `수량: ${type==='in'?'+':'-'}${qty}${inv[idx].unit} / 담당: ${w}${memo?' / '+memo:''}`, iid);
-  sv();manIOSelected[type]=null;
+  sv();
   tst(type==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);
-  go('dash');
+  // 페이지 이탈 없이 폼만 초기화 → 연속으로 여러 건 등록 가능
+  manIOSelected[type]=null;
+  ioSq[type]='';
+  const codeInp=document.getElementById(type==='in'?'ii-code':'oi-code');
+  if(codeInp){codeInp.value='';codeInp.focus();}
+  const info=document.getElementById(type==='in'?'ii-info':'oi-info');
+  if(info)info.style.display='none';
+  const qEl=document.getElementById(type==='in'?'iq':'oq');
+  if(qEl)qEl.value='';
+  const mEl=document.getElementById(type==='in'?'im':'om');
+  if(mEl)mEl.value='';
+  const resBox=document.getElementById('io-result-'+type);
+  if(resBox)resBox.innerHTML='';
 }
 
 function rScanIO(){
@@ -5326,7 +5338,18 @@ function doScanIO(){
   if(scanType==='in')inv[idx].qty+=qty;else inv[idx].qty-=qty;
   txs.unshift({id:Date.now(),type:scanType,iid:scanId,qty,w,ts:Date.now(),memo:'[스캔]'+memo});
   addLog('io',(scanType==='in'?'입고':'출고')+' — '+inv[idx].name, `수량: ${scanType==='in'?'+':'-'}${qty}${inv[idx].unit} / 담당: ${w}${memo?' / [스캔]'+memo:' [스캔]'}`, scanId);
-  sv();scanId=null;tst(scanType==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);go('dash');
+  sv();
+  tst(scanType==='in'?`✓ 입고완료 (+${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`:`✓ 출고완료 (-${qty}${inv[idx].unit}) · 현재 ${inv[idx].qty}${inv[idx].unit}`);
+  // 페이지 이탈 없이 폼만 초기화 → 연속 스캔 등록 가능
+  scanId=null;
+  const codeInp=document.getElementById('sc-code');
+  if(codeInp){codeInp.value='';codeInp.focus();}
+  const r=document.getElementById('scan-res');
+  if(r)r.style.display='none';
+  const qEl=document.getElementById('sc-qty');
+  if(qEl)qEl.value='1';
+  const mEl=document.getElementById('sc-memo');
+  if(mEl)mEl.value='';
 }
 
 function rExIO(){
