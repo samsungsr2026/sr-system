@@ -13649,13 +13649,15 @@ tick();setInterval(tick,30000);
 // 초기 히스토리 상태 등록
 history.replaceState({tab:'dash'}, '', '#dash');
 render();dots();
-window.addEventListener('load', () => setTimeout(jbPull, 800)); // 이후 서버 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500)); // 사진/도면/첨부파일은 핵심 데이터와 무관하게 독립적으로 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300)); // 재고는 가장 먼저, 가장 가볍게 독립적으로 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullTx(), 300)); // 거래내역(오늘 입고/출고 등)도 재고처럼 가볍고 빠르게 독립적으로 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullOrders(), 300)); // 발주서(전체 발주서/미출력 등)도 가볍고 빠르게 독립적으로 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullProduction(), 300)); // 금일 생산 현황도 가볍고 빠르게 독립적으로 동기화
-window.addEventListener('load', () => setTimeout(()=>jbPullMoldReport(), 300)); // 성형일보도 가볍고 빠르게 독립적으로 동기화
+// 2026-09: 아래 개별 window 'load' 자동 동기화는 완전 수동 전환(manualSyncAll)과 중복이라 비활성화.
+// manualSyncAll()이 페이지 진입 시 1회 호출되어 이 항목들을 전부 포함해서 받아온다.
+// window.addEventListener('load', () => setTimeout(jbPull, 800));
+// window.addEventListener('load', () => setTimeout(()=>jbPullFiles(), 500));
+// window.addEventListener('load', () => setTimeout(()=>jbPullInv(), 300));
+// window.addEventListener('load', () => setTimeout(()=>jbPullTx(), 300));
+// window.addEventListener('load', () => setTimeout(()=>jbPullOrders(), 300));
+// window.addEventListener('load', () => setTimeout(()=>jbPullProduction(), 300));
+// window.addEventListener('load', () => setTimeout(()=>jbPullMoldReport(), 300)); // 2026-09: 성형일보 비활성화
 // 제품조회/재고알림 화면에서 스크롤을 내리면 맨 위로 가기 버튼 표시
 window.addEventListener('scroll', ()=>{
   const btn=document.getElementById('scroll-top-btn');
