@@ -6767,6 +6767,13 @@ function addBcItem(id){
   tst('✓ 출력 목록에 추가됐습니다 (포장단위 '+defQty+'EA)');
 }
 
+// 인쇄 팝업창에서 인쇄(또는 인쇄창 닫기) 완료 시 호출 — 출력 목록을 비우고 화면을 갱신
+function clearBcPrintList(){
+  if(!bcItems.length)return;
+  bcItems=[];
+  if(tab==='barcode')render();
+  tst('✓ 출력 완료 · 목록이 초기화되었습니다');
+}
 function printBarcodes(){
   if(!bcItems.length){tst('출력할 품목을 추가해주세요');return;}
 
@@ -7042,6 +7049,12 @@ window.onload=function(){
     setTimeout(function(){ fitAll(); window.print(); },700);
   }
   tryQR();
+  // 인쇄창이 닫히면(인쇄 완료 또는 취소) 원래 화면의 출력 목록을 비운다
+  window.onafterprint=function(){
+    try{
+      if(window.opener&&!window.opener.closed&&window.opener.clearBcPrintList)window.opener.clearBcPrintList();
+    }catch(e){}
+  };
 };
 <\/script>
 </body></html>`;
