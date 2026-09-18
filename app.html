@@ -9518,7 +9518,7 @@ function rAttendance(){
   const statusBg={pending:'var(--amber-bg)',approved:'var(--green-bg)',rejected:'var(--red-bg)'};
   const statusColor={pending:'var(--amber)',approved:'var(--green)',rejected:'var(--red)'};
   const statusLabel={pending:'⏳ 승인대기',approved:'✅ 승인됨',rejected:'🚫 거부됨'};
-  const allList=(attendanceReqs||[]).slice().sort((a,b)=>b.ts-a.ts);
+  const allList=(attendanceReqs||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts-a.ts));
   const list=attMonthFilter?allList.filter(a=>(a.date||'').slice(0,7)===attMonthFilter):allList;
   const monthSet=new Set(allList.map(a=>(a.date||'').slice(0,7)).filter(Boolean));
   if(attMonthFilter)monthSet.add(attMonthFilter); // 선택된 달에 데이터가 없어도 옵션에는 남겨둠
