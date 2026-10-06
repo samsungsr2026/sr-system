@@ -544,53 +544,51 @@ function buildWorkerSelect() {
   });
 }
 
-// 대역폭 절약용 ETag 캐시 - 안 바뀐 데이터는 304(본문 없음)로 응답받아 재다운로드를 피함
-let _fbEtagCache={}, _fbEtagDataCache={};
-async function fbGet(key) {
-  const path='sr/'+key;
-  try{
-    const headers={'X-Firebase-ETag':'true'};
-    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
-    const r = await fetch(`${FB}/${path}.json`, {headers});
-    if(r.status===304)return _fbEtagDataCache[path];
-    if (!r.ok) return null;
-    const data=await r.json();
-    const etag=r.headers.get('ETag');
-    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
-    return data;
-  }catch(e){ return null; }
+// 대역폭 절약용 ETag 캐시 - 안 바뀐 데이터는 304(본문 없음)로 응답받아 재다운로드를 피함.
+// 새로고침/화면 켤 때마다 초기화되지 않도록 IndexedDB에 ETag+본문(문자열)을 영구 보관한다.
+let _etagDb=null, _fbEtagMem={};
+function etagDb(){
+  if(_etagDb)return _etagDb;
+  _etagDb=new Promise(res=>{
+    try{
+      const q=indexedDB.open('sr-etag-cache',1);
+      q.onupgradeneeded=()=>{ try{q.result.createObjectStore('c');}catch(e){} };
+      q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); q.onblocked=()=>res(null);
+    }catch(e){res(null);}
+  });
+  return _etagDb;
 }
-
+async function etagGet(k){
+  const db=await etagDb(); if(!db)return null;
+  return new Promise(res=>{ try{ const q=db.transaction('c').objectStore('c').get(k); q.onsuccess=()=>res(q.result||null); q.onerror=()=>res(null); }catch(e){res(null);} });
+}
+function etagPut(k,v){
+  etagDb().then(db=>{ if(!db)return; try{ db.transaction('c','readwrite').objectStore('c').put(v,k); }catch(e){} }).catch(()=>{});
+}
+// 반환 {ok, data}. ok:false = 요청 실패(서버가 비어있다는 뜻이 아님)
+async function etagFetchPath(path){
+  try{
+    const url=`${FB}/${path}.json`;
+    let rec=_fbEtagMem[path];
+    if(rec===undefined){ rec=await etagGet(url); _fbEtagMem[path]=rec||null; }
+    const headers={'X-Firebase-ETag':'true'};
+    if(rec&&rec.etag)headers['If-None-Match']=rec.etag;
+    const r=await fetch(url,{headers});
+    if(r.status===304&&rec&&typeof rec.text==='string')return {ok:true, data:JSON.parse(rec.text)};
+    if(!r.ok)return {ok:false, data:null};
+    const text=await r.text();
+    const etag=r.headers.get('ETag');
+    if(etag){ rec={etag,text}; _fbEtagMem[path]=rec; etagPut(url,rec); }
+    return {ok:true, data:JSON.parse(text)};
+  }catch(e){ return {ok:false, data:null}; }
+}
+async function fbGet(key) { return (await etagFetchPath('sr/'+key)).data; }
 // 임의 경로(예: srFiles/... )를 읽기 위한 범용 함수 (fbGet과 동일한 ETag 캐시 사용 - 대역폭 절약)
-async function fbGetPath(path) {
-  try{
-    const headers={'X-Firebase-ETag':'true'};
-    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
-    const r = await fetch(`${FB}/${path}.json`, {headers});
-    if(r.status===304)return _fbEtagDataCache[path];
-    if (!r.ok) return null;
-    const data=await r.json();
-    const etag=r.headers.get('ETag');
-    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
-    return data;
-  }catch(e){ return null; }
-}
+async function fbGetPath(path) { return (await etagFetchPath(path)).data; }
 // fbGetPath와 달리 "네트워크/요청 실패"와 "서버에 진짜 데이터가 없음(null)"을 구분해서 반환한다.
 // tx 레거시 경로(/sr/tx) 이전 여부를 판단할 때, 요청 실패를 "비어있음"으로 오인하면 이전을
 // 건너뛰고 완료 플래그를 세워버려서 실제로는 있는 거래내역을 영영 못 받아오는 문제가 생길 수 있음.
-async function fbGetPathChecked(path) {
-  try{
-    const headers={'X-Firebase-ETag':'true'};
-    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
-    const r = await fetch(`${FB}/${path}.json`, {headers});
-    if(r.status===304){ return {ok:true, data:_fbEtagDataCache[path]}; }
-    if (!r.ok) return {ok:false, data:null};
-    const data=await r.json();
-    const etag=r.headers.get('ETag');
-    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
-    return {ok:true, data};
-  }catch(e){ return {ok:false, data:null}; }
-}
+async function fbGetPathChecked(path) { return await etagFetchPath(path); }
 async function fbDeletePath(path) {
   try{ const r = await fetch(`${FB}/${path}.json`, {method:'DELETE'}); return r.ok; }
   catch(e){ return false; }
@@ -1113,6 +1111,7 @@ function renderInList() {
 // 성공해도 서버 전체에 반영되므로 이 기기에서 실패해도 무방함).
 let _txMigrationDonePda = localStorage.getItem('sr-tx-migrated-v1') === '1';
 async function pullTxFromServer() {
+  if (document.hidden) return; // 화면이 꺼져 있거나 백그라운드일 땐 받지 않음(다시 보이면 visibilitychange가 즉시 받음)
   if (Date.now() - Math.max(_lastInSave, _lastOutSave) < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
   try {
     if (!_txMigrationDonePda) {
@@ -1147,7 +1146,7 @@ async function pullTxFromServer() {
     }
   } catch(e) {}
 }
-setInterval(pullTxFromServer, 15000);
+setInterval(pullTxFromServer, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullTxFromServer(); });
 
 function startOfDay(ts) {
@@ -1527,6 +1526,7 @@ async function saveProduction() {
 // PC 대시보드에서 다른 사람이 삭제/수정한 내역이 폰에도 반영되도록
 // 주기적으로(15초) + 화면 복귀 시 production만 가볍게 다시 받아옴
 async function pullProductionFromServer() {
+  if (document.hidden) return;
   if (Date.now() - _lastProdSave < 8000) return; // 방금 이 폰에서 저장한 직후엔 덮어쓰지 않음
   try {
     const rpr = await fbGet('production');
@@ -1537,7 +1537,7 @@ async function pullProductionFromServer() {
     }
   } catch(e) {}
 }
-setInterval(pullProductionFromServer, 15000);
+setInterval(pullProductionFromServer, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
 
 async function deleteProdEntry(id) {

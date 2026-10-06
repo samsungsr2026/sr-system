@@ -462,6 +462,10 @@ select.fi option{background:#fff;color:#111}
     <button id="manual-sync-btn" onclick="manualSyncAll()" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
       🔄 최신 데이터 업로드
     </button>
+    <button id="files-sync-btn" onclick="manualFilesSync()" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
+      📎 사진·도면 받기
+    </button>
+    <button id="net-tally-btn" onclick="tst('📊 이 화면을 연 뒤 받은 데이터: 약 '+netTallyText(),4000)" title="이 화면을 연 뒤 Firebase에서 받은 데이터 합계" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;padding:0 10px">📊</button>
     <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
@@ -2064,35 +2068,49 @@ function fetchTimeout(url, ms, options){
 // inv/tx/orders/production/moldreport/핵심(sr.json) 폴링도 사진/도면과 동일하게 ETag 조건부 GET을 적용.
 // 15~30초마다 여러 기기에서 반복 요청되는데, 안 바뀐 경우 304(본문 없음)로 응답받아 대역폭을 아낀다.
 // 기존 호출부(.then(r=>r.ok?r.json():null)) 패턴을 그대로 쓸 수 있도록 Response와 비슷한 형태로 반환한다.
+// ETag 캐시(IndexedDB 영구 저장): 새로고침/재접속 후 첫 요청에도 If-None-Match를 보내 안 바뀌었으면 304(본문 0바이트).
+// localStorage(약 5MB)는 쉽게 가득 차므로 큰 본문은 IndexedDB에 문자열로 보관한다(저장 실패해도 동작엔 영향 없음).
+let _etagDb=null, _fbEtagMem={};
+let _netTotal=0; // 이 화면을 연 뒤 Firebase에서 실제로 받은 본문 크기 합계(바이트 근사)
+function netTallyText(){ return _netTotal>=1048576?(_netTotal/1048576).toFixed(1)+'MB':Math.round(_netTotal/1024)+'KB'; }
+function etagDb(){
+  if(_etagDb)return _etagDb;
+  _etagDb=new Promise(res=>{
+    try{
+      const q=indexedDB.open('sr-etag-cache',1);
+      q.onupgradeneeded=()=>{ try{q.result.createObjectStore('c');}catch(e){} };
+      q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); q.onblocked=()=>res(null);
+    }catch(e){res(null);}
+  });
+  return _etagDb;
+}
+async function etagGet(k){
+  const db=await etagDb(); if(!db)return null;
+  return new Promise(res=>{ try{ const q=db.transaction('c').objectStore('c').get(k); q.onsuccess=()=>res(q.result||null); q.onerror=()=>res(null); }catch(e){res(null);} });
+}
+function etagPut(k,v){
+  etagDb().then(db=>{ if(!db)return; try{ db.transaction('c','readwrite').objectStore('c').put(v,k); }catch(e){} }).catch(()=>{});
+}
+// 조건부 GET. 반환: {ok, text}  (ok:false = 요청 실패, text는 JSON 문자열)
+async function etagRead(url, ms){
+  let rec=_fbEtagMem[url];
+  if(rec===undefined){ rec=await etagGet(url); _fbEtagMem[url]=rec||null; }
+  const headers={'X-Firebase-ETag':'true'};
+  if(rec&&rec.etag)headers['If-None-Match']=rec.etag;
+  const r=ms?await fetchTimeout(url, ms, {headers}):await fetch(url,{headers});
+  if(r.status===304&&rec&&typeof rec.text==='string')return {ok:true, text:rec.text, cached:true};
+  if(!r.ok)return {ok:false};
+  const text=await r.text();
+  _netTotal+=text.length;
+  const etag=r.headers.get('ETag');
+  if(etag){ rec={etag,text}; _fbEtagMem[url]=rec; etagPut(url,rec); }
+  return {ok:true, text, cached:false};
+}
 async function fetchTimeoutETag(url, ms){
   try{
-    // 페이지를 새로고침하면 이 캐시(_fbEtagCache/_fbEtagDataCache)는 메모리라서 초기화되어,
-    // 매번 새로고침할 때마다 서버에서 전체 데이터를 처음부터 다시 받아오는 문제가 있었음(2026-08 실제 발생).
-    // localStorage에 이전 ETag와 마지막 데이터를 함께 저장해두면, 새로고침 직후 첫 요청에도
-    // If-None-Match를 보낼 수 있어 데이터가 안 바뀌었으면 304로 대역폭을 아낄 수 있음.
-    // 사진/도면(srFiles) 등 큰 바이너리 데이터는 이 함수를 쓰지 않으므로(별도 cfGetPathChecked 경로) 영향 없음.
-    if(_fbEtagCache[url]===undefined){
-      try{
-        const cached=localStorage.getItem('sr-etag:'+url);
-        if(cached){
-          const parsed=JSON.parse(cached);
-          _fbEtagCache[url]=parsed.etag;
-          _fbEtagDataCache[url]=parsed.data;
-        }
-      }catch(e){}
-    }
-    const headers={'X-Firebase-ETag':'true'};
-    if(_fbEtagCache[url])headers['If-None-Match']=_fbEtagCache[url];
-    const r=await fetchTimeout(url, ms, {headers});
-    if(r.status===304){ return {ok:true, json:async()=>_fbEtagDataCache[url]}; }
-    if(!r.ok) return {ok:false, json:async()=>null};
-    const data=await r.json();
-    const etag=r.headers.get('ETag');
-    if(etag){
-      _fbEtagCache[url]=etag; _fbEtagDataCache[url]=data;
-      try{ localStorage.setItem('sr-etag:'+url, JSON.stringify({etag,data})); }catch(e){}
-    }
-    return {ok:true, json:async()=>data};
+    const x=await etagRead(url, ms);
+    if(!x.ok)return {ok:false, json:async()=>null};
+    return {ok:true, json:async()=>JSON.parse(x.text)};
   }catch(e){ return {ok:false, json:async()=>null}; }
 }
 
@@ -2218,7 +2236,8 @@ async function cfGetPath(path){
   try{
     const r = await fetch(`${FB}/${path}.json`);
     if(!r.ok) return null;
-    return await r.json();
+    const t=await r.text(); _netTotal+=t.length;
+    return JSON.parse(t);
   }catch(e){ return null; }
 }
 // cfGetPath와 달리 "네트워크/요청 실패"와 "서버에 진짜 데이터가 없음(null)"을 구분해서 반환한다.
@@ -2230,18 +2249,11 @@ async function cfGetPath(path){
 // 실제 Firebase 무료 한도(다운로드 대역폭)를 초과시킨 핵심 원인이었음(2026-07 실제 발생: 1.18TB 초과).
 // Firebase Realtime DB는 X-Firebase-ETag 헤더로 조건부 GET(If-None-Match)을 지원한다 - 데이터가 안
 // 바뀌었으면 304(본문 없음)로 응답해서 대역폭을 거의 안 씀. 바뀐 경우에만 실제 데이터를 받는다.
-let _fbEtagCache={}, _fbEtagDataCache={};
 async function cfGetPathChecked(path){
   try{
-    const headers={'X-Firebase-ETag':'true'};
-    if(_fbEtagCache[path])headers['If-None-Match']=_fbEtagCache[path];
-    const r = await fetch(`${FB}/${path}.json`, {headers});
-    if(r.status===304){ return {ok:true, data:_fbEtagDataCache[path], notModified:true}; }
-    if(!r.ok) return {ok:false, data:null};
-    const data=await r.json();
-    const etag=r.headers.get('ETag');
-    if(etag){ _fbEtagCache[path]=etag; _fbEtagDataCache[path]=data; }
-    return {ok:true, data, notModified:false};
+    const x=await etagRead(`${FB}/${path}.json`);
+    if(!x.ok) return {ok:false, data:null};
+    return {ok:true, data:JSON.parse(x.text), notModified:!!x.cached};
   }catch(e){ return {ok:false, data:null}; }
 }
 // repoKey의 전체 보관함을 읽어 {repo:[...], deleted:[...], ok} 형태(배열)로 반환
@@ -2898,7 +2910,9 @@ async function jbPull() {
     // 사진이 많아 오래 걸릴 때) 그 에러/지연이 이 함수의 catch(e)로 그대로 전파되어 핵심 데이터는
     // 멀쩡한데도 "오프라인 모드"로 잘못 표시되는 문제가 있었음. await를 빼서 완전히 분리한다
     // (실패해도 이 catch로 절대 전파되지 않도록 자체 .catch()로 흡수).
-    jbPullFiles(rim).catch(()=>{});
+    // 2026-10: 사진/도면/첨부 동기화는 더 이상 매 동기화마다 자동 실행하지 않음(다운로드 절약).
+    // "📎 사진·도면 받기" 버튼(manualFilesSync)으로만 받는다. 단, /sr/imgs에 예전 방식 사진이 남아있으면 이전 처리를 위해 1회 실행.
+    if(rim&&typeof rim==='object'&&Object.keys(rim).length>0)jbPullFiles(rim).catch(()=>{});
     // 외주업체/발주내역: 덮어쓰지 않고 병합 (다른 기기/탭에서 추가된 데이터가 사라지지 않도록)
     // 단, 삭제된 항목은 tombstone(_deleted) 키 목록으로 걸러내어 union 병합으로 되살아나지 않게 한다.
     {
@@ -3399,7 +3413,8 @@ async function renderPdfInModal(dataUrl, title, itemId){
   }
 }
 // 도면 보기 - 이미지는 확대뷰, PDF는 앱 내 모달에서 바로 렌더링, 그 외 파일은 다운로드 안내
-function viewDraw(itemId){
+async function viewDraw(itemId){
+  if(!(await ensureDrawData(itemId)))return;
   const d=getDraw(itemId);
   if(!d)return;
   if(d.isImage){
@@ -3423,7 +3438,8 @@ function viewDraw(itemId){
   }catch(e){tst('파일을 열 수 없습니다');}
 }
 // 도면 파일 다운로드
-function downloadDraw(itemId){
+async function downloadDraw(itemId){
+  if(!(await ensureDrawData(itemId)))return;
   const d=getDraw(itemId);
   if(!d)return;
   const a=document.createElement('a');
@@ -10276,7 +10292,7 @@ function opD(id){
       </div>
       <div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:5px;font-weight:600">📐 제품 도면</div>
-        ${drw?(drw.isImage?`
+        ${drw?((drw.isImage&&drw.data)?`
         <div class="img-drop" data-item="${it.id}" data-kind="draw" style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:#fff">
           <img src="${drw.data}" onclick="viewDraw('${it.id}')"
             style="width:100%;height:90px;object-fit:contain;cursor:zoom-in;display:block;background:#fff">
@@ -10521,9 +10537,10 @@ function addAttach(itemId, inputEl){
   load(0);
 }
 
-function openAttach(itemId, idx){
+async function openAttach(itemId, idx){
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
+  if(!f.gdrive&&!f.data&&f.id){ if(!(await ensureAttachData(f)))return; }
   if(f.gdrive||!f.data){
     const url=f.link||f.dlLink;
     if(!url){tst('파일을 열 수 없습니다 (데이터 없음)');return;}
@@ -10543,9 +10560,10 @@ function openAttach(itemId, idx){
     win.document.close();
   }catch(e){tst('파일을 열 수 없습니다');}
 }
-function dlAttach(itemId, idx){
+async function dlAttach(itemId, idx){
   const f=(attaches[itemId]||[])[idx];
   if(!f)return;
+  if(!f.gdrive&&!f.data&&f.id){ if(!(await ensureAttachData(f)))return; }
   if(f.gdrive||!f.data){
     const url=f.dlLink||f.link;
     if(!url){tst('파일을 다운로드할 수 없습니다 (데이터 없음)');return;}
@@ -13753,16 +13771,56 @@ window.addEventListener('scroll', ()=>{
 //   }
 // });
 async function manualSyncAll(){
-  // "최신 데이터 업로드" 버튼: 자동 폴링을 끈 대신, 누르는 순간 모든 항목을 한 번에 받아옴
+  // "최신 데이터 업로드" 버튼: 자동 폴링을 끈 대신, 누르는 순간 핵심 데이터를 한 번 받아옴.
+  // jbPull(/sr.json)이 재고/발주/생산을 모두 포함하므로 중복으로 또 받지 않는다(실패했을 때만 개별 경로로 보충).
+  // 사진/도면/첨부는 여기서 받지 않음 → "📎 사진·도면 받기" 또는 항목을 클릭할 때만 받는다.
+  const n0=_netTotal;
   jbStat('🔄 최신 데이터 받는 중...', '#0d6efd');
   try{
-    await Promise.all([jbPull(), jbPullFiles(), jbPullInv(), jbPullTx(), jbPullOrders(), jbPullProduction()]);
+    window._jbStage='pre';
+    await Promise.all([jbPull(), jbPullTx()]);
+    if(window._jbStage==='fetched:null'){
+      await Promise.all([jbPullInv(), jbPullOrders(), jbPullProduction()]);
+    }
     const t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-    jbStat('✅ '+t+' 최신 데이터 반영됨', '#0d9e72');
+    const got=_netTotal-n0;
+    jbStat('✅ '+t+' 반영됨 (받은 데이터 '+(got>=1048576?(got/1048576).toFixed(1)+'MB':Math.round(got/1024)+'KB')+')', '#0d9e72');
   }catch(e){
     jbStat('⚠️ 데이터 받기 실패 - 다시 시도해주세요', '#dc3545');
   }
   render();
+}
+// "📎 사진·도면 받기": 제품 사진/도면/첨부 목록을 서버와 맞춤(안 바뀐 것은 다시 받지 않음)
+async function manualFilesSync(){
+  const n0=_netTotal;
+  jbStat('📎 사진·도면 확인 중...', '#0d6efd');
+  try{
+    await jbPullFiles();
+    const got=_netTotal-n0;
+    jbStat('✅ 사진·도면 반영됨 (받은 데이터 '+(got>=1048576?(got/1048576).toFixed(1)+'MB':Math.round(got/1024)+'KB')+')', '#0d9e72');
+  }catch(e){
+    jbStat('⚠️ 사진·도면 받기 실패 - 다시 시도해주세요', '#dc3545');
+  }
+  render();
+}
+// 도면/첨부 1건의 실제 데이터(base64)가 로컬에 없으면(저장공간 절약으로 제외됨) 그 1건만 서버에서 받아온다.
+async function ensureDrawData(itemId){
+  const d=draws[itemId];
+  if(!d||typeof d==='string'||d.data)return !!d;
+  tst('⏳ 도면 받는 중...',2000);
+  const v=await cfGetPath(`srFiles/draws/_repo/${fbKeyEncode(itemId)}`);
+  if(v&&typeof v==='object'&&v.data){ draws[itemId]=v; return true; }
+  if(typeof v==='string'&&v){ draws[itemId]=v; return true; }
+  tst('⚠️ 도면을 받지 못했습니다. 잠시 후 다시 시도해주세요',3000);
+  return false;
+}
+async function ensureAttachData(f){
+  if(!f||f.data||f.gdrive||!f.id)return !!(f&&f.data);
+  tst('⏳ 파일 받는 중...',2000);
+  const v=await cfGetPath(`srFiles/attaches/_repo/${encodeURIComponent(String(f.id))}`);
+  if(v&&typeof v==='object'&&v.data){ f.data=v.data; return true; }
+  tst('⚠️ 파일을 받지 못했습니다. 잠시 후 다시 시도해주세요',3000);
+  return false;
 }
 manualSyncAll(); // 페이지를 처음 열 때는 한 번만 자동으로 최신 데이터를 받아옴 (이후부터는 반복 자동확인 없이 버튼으로만)
 // 모든 input[type=number,text,date] 클릭 시 전체 선택
