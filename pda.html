@@ -140,6 +140,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
     <div class="topbar-title">⭐ 삼성SR PDA</div>
     <div class="topbar-sub">재고관리 단말기</div>
   </div>
+  <button id="pda-sync-btn" onclick="pdaSyncAll()" style="flex:0 0 auto;margin:0 8px 0 auto;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);border-radius:8px;color:#fff;font-size:12px;font-weight:700;padding:7px 10px;font-family:inherit">🔄 최신 데이터</button>
   <div class="topbar-right" id="user-info">로딩중...</div>
 </div>
 
@@ -500,21 +501,20 @@ async function init() {
   const lp = localStorage.getItem('sr-production');
   if (li) inv = JSON.parse(li);
   if (lt) txs = JSON.parse(lt);
+  _txBaseIds = new Set((txs || []).filter(Boolean).map(t => String(t.id)));
   if (lw) workers = JSON.parse(lw);
   if (lp) production = migrateProduction(JSON.parse(lp));
 
   // Firebase에서 최신 데이터 로드
   try {
-    const [ri, rt, ra, rw, rpr, ro] = await Promise.all([
-      fbGet('inv'), fbGetPath('srTx'), fbGet('accounts'), fbGet('wk'), fbGet('production'), fbGet('orders')
-    ]);
-    if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
-    if (Array.isArray(rt)) { txs = rt; localStorage.setItem('sr-tx', JSON.stringify(txs)); }
+    // 2026-10: 시작할 때는 로그인/작업자 목록(작은 데이터)만 받는다. 재고·거래내역·발주서는
+    // "🔄 최신 데이터" 버튼을 누를 때만 받는다(이 단말기는 입고 위주라 데이터 사용량 절약).
+    const [ra, rw] = await Promise.all([fbGet('accounts'), fbGet('wk')]);
     if (Array.isArray(ra) && ra.length) accounts = ra;
     if (Array.isArray(rw) && rw.length) { workers = rw; localStorage.setItem('sr-workers', JSON.stringify(workers)); }
-    if (rpr !== null && rpr !== undefined) { production = migrateProduction(rpr); localStorage.setItem('sr-production', JSON.stringify(production)); }
-    if (Array.isArray(ro)) orders = ro;
   } catch(e) {}
+  // 이 단말기에 재고 데이터가 아예 없으면(최초 사용) 한 번은 받아와야 검색이 가능함
+  if (!Array.isArray(inv) || inv.length === 0) { try { await pdaSyncAll(true); } catch(e) {} }
 
   // 생산자/담당자 드롭다운 채우기
   buildWorkerSelect();
@@ -647,7 +647,26 @@ async function fbSet(key, data) {
 // 거래내역(tx) 전용 저장 - app.html과 동일하게 /sr 트리 밖의 독립 경로(/srTx)에 저장한다 (2026-09).
 // tx는 계속 누적되는 배열이라 /sr/tx에 있으면 PC 쪽 jbPull()의 /sr.json 통째 조회가 계속 커져서
 // 결국 "오프라인"으로 실패하는 원인이 됨 - PDA도 반드시 이 경로로 써야 PC 쪽 수정 효과가 유지됨.
+// 2026-10: 자동 폴링을 없앴기 때문에 이 폰의 txs가 오래된 상태일 수 있다 → 저장 직전에 서버 최신 거래내역을 받아
+// 병합한 뒤 저장한다(다른 기기가 그 사이 추가한 거래내역을 덮어써 지우지 않도록).
+// 기준(_txBaseIds)=마지막으로 서버/로컬과 맞춘 시점의 id 목록. 이 폰에서 지운 항목은 되살리지 않고,
+// 기준에 없던 서버 항목(다른 기기가 추가)은 유지한다. 서버 확인에 실패하면 덮어쓰지 않고 오류를 던진다.
+let _txBaseIds = new Set();
 async function fbSetTx(data) {
+  const cur = await fbGetPathChecked('srTx');
+  if (!cur.ok) throw new Error('fbSetTx: 서버 거래내역 확인 실패');
+  const S = Array.isArray(cur.data) ? cur.data.filter(Boolean) : [];
+  if (S.length > 0) {
+    const L = data.filter(Boolean);
+    const lIds = new Set(L.map(t => String(t.id)));
+    const sIds = new Set(S.map(t => String(t.id)));
+    const keepL = L.filter(t => sIds.has(String(t.id)) || !_txBaseIds.has(String(t.id))); // 서버에 없는데 기준에 있던 것 = 다른 기기에서 삭제됨
+    const addS = S.filter(t => !lIds.has(String(t.id)) && !_txBaseIds.has(String(t.id))); // 다른 기기가 새로 추가한 것
+    const merged = keepL.concat(addS).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    data.splice(0, data.length, ...merged);
+  }
+  _txBaseIds = new Set(data.filter(Boolean).map(t => String(t.id)));
+  try { localStorage.setItem('sr-tx', JSON.stringify(data)); } catch(e) {}
   const put = async () => {
     const r = await fetch(`${FB}/srTx.json`, {
       method: 'PUT',
@@ -708,7 +727,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('on');
   document.getElementById('page-' + tab).classList.add('on');
   if (tab === 'in') { setTimeout(() => document.getElementById('in-code').focus(), 100); renderInList(); }
-  if (tab === 'prod') renderProdList();
+  if (tab === 'prod') { renderProdList(); pullProductionFromServer(); } // 생산현황은 이 탭을 열 때만 받음
   if (tab === 'out') { setTimeout(() => document.getElementById('out-code').focus(), 100); renderOutList(); }
   if (tab === 'recon') setTimeout(() => document.getElementById('recon-code').focus(), 100);
 }
@@ -1140,14 +1159,33 @@ async function pullTxFromServer() {
     const rt = await fbGetPath('srTx');
     if (Array.isArray(rt)) {
       txs = rt;
+      _txBaseIds = new Set(txs.filter(Boolean).map(t => String(t.id)));
       localStorage.setItem('sr-tx', JSON.stringify(txs));
       if (document.getElementById('page-in').classList.contains('on')) renderInList();
       if (document.getElementById('page-out').classList.contains('on')) renderOutList();
     }
   } catch(e) {}
 }
-setInterval(pullTxFromServer, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pullTxFromServer(); });
+// 자동 폴링 제거(2026-10): 입출고 데이터는 "🔄 최신 데이터" 버튼 또는 저장 직전 최신 재고 확인 때만 받음
+async function pullInvFromServer() {
+  const ri = await fbGet('inv');
+  if (Array.isArray(ri) && ri.length) { inv = ri; localStorage.setItem('sr-inv', JSON.stringify(inv)); }
+}
+let _pdaSyncBusy = false;
+async function pdaSyncAll(silent) {
+  if (_pdaSyncBusy) return;
+  _pdaSyncBusy = true;
+  const btn = document.getElementById('pda-sync-btn');
+  if (btn) btn.textContent = '⏳ 받는 중...';
+  try {
+    await Promise.all([pullInvFromServer(), pullTxFromServer(), pullOrdersFromServer()]);
+    if (document.getElementById('page-in').classList.contains('on')) renderInList();
+    if (document.getElementById('page-out').classList.contains('on')) renderOutList();
+    checkUnprintedOrders();
+    if (!silent) tst('✅ 입출고·발주서 최신 반영');
+  } catch(e) { if (!silent) tst('⚠️ 받기 실패 - 다시 시도해주세요'); }
+  finally { _pdaSyncBusy = false; if (btn) btn.textContent = '🔄 최신 데이터'; }
+}
 
 function startOfDay(ts) {
   const d = new Date(ts);
@@ -1451,8 +1489,6 @@ async function pullOrdersFromServer() {
     }
   } catch(e) {}
 }
-setInterval(pullOrdersFromServer, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pullOrdersFromServer(); });
 
 // ── 생산현황 등록 (작업자별 여러 건 등록 가능) ──────────────────────────────
 function prodWorkerChanged() {
@@ -1537,8 +1573,6 @@ async function pullProductionFromServer() {
     }
   } catch(e) {}
 }
-setInterval(pullProductionFromServer, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pullProductionFromServer(); });
 
 async function deleteProdEntry(id) {
   if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
