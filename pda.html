@@ -940,84 +940,105 @@ function adjQty(d) {
   el.value = Math.max(1, v + d);
 }
 
+// ── 입고 재고 반영: 품목 1개의 수량만 서버에서 "조건부 저장"으로 정확히 증감 (2026-10) ──
+// 기존 방식(재고 전체 배열을 받아 +수량 후 통째로 PUT)은
+//  ① 입고를 연달아 빠르게 찍으면 앞 건 저장이 끝나기 전에 뒤 건이 옛 재고를 받아 덮어써서 앞 건 수량이 사라지고
+//  ② 저장 실패 시 "저장됨(오프라인)"으로 표시만 하고 재전송하지 않아 수량이 빠지는 문제가 있었다.
+// 새 방식: 해당 품목 1개 경로(/sr/inv/{번호})만 읽고(ETag) → 수량 증감 → if-match 조건부 저장.
+// 그 사이 다른 기기가 같은 품목을 바꿨으면 서버가 412로 거절 → 최신값으로 다시 계산해 재시도. 다른 품목은 건드리지 않음.
+async function fbAdjustInvQty(itemId, delta, producer) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const all = await etagFetchPath('sr/inv');
+    if (!all.ok || !Array.isArray(all.data)) throw new Error('재고 조회 실패');
+    const arr = all.data;
+    const idx = arr.findIndex(i => i && i.id === itemId);
+    if (idx < 0) throw new Error('품목 없음');
+    const url = `${FB}/sr/inv/${idx}.json`;
+    const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' }, cache: 'no-store' });
+    if (!g.ok) throw new Error('품목 조회 실패 HTTP ' + g.status);
+    const etag = g.headers.get('ETag');
+    const it = await g.json();
+    if (!it || it.id !== itemId) { _fbEtagMem['sr/inv'] = undefined; continue; } // 그 사이 목록 순서가 바뀜 → 다시 찾기
+    it.qty = Math.max(0, (Number(it.qty) || 0) + delta);
+    if (producer) it.producer = producer;
+    const body = JSON.stringify(it);
+    let r;
+    try {
+      r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': etag || '' }, body });
+    } catch (e) {
+      // 조건부 저장 헤더가 차단되는 환경 대비: 품목 1개 경로에 일반 저장 (전체 재고를 덮어쓰지는 않음)
+      r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    }
+    if (r.status === 412) { await new Promise(res => setTimeout(res, 200 + Math.random() * 400)); continue; } // 다른 기기가 먼저 바꿈 → 재시도
+    if (!r.ok) throw new Error('재고 저장 실패 HTTP ' + r.status);
+    arr[idx] = it;
+    inv = arr;
+    try { localStorage.setItem('sr-inv', JSON.stringify(inv)); } catch (e) {}
+    return it;
+  }
+  throw new Error('재고 저장 충돌 반복');
+}
+let _inBusy = false; // 입고 버튼 연타로 중복 등록/동시 저장되는 것 방지
+
 async function doRegIn() {
+  if (_inBusy) { tst('저장 중입니다. 잠시만요'); return; }
   if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
   if (!foundItem) { tst('먼저 품목을 검색하세요'); return; }
   const qty = parseInt(document.getElementById('in-qty').value);
   if (!qty || qty < 1) { tst('수량을 확인해주세요'); return; }
   const producer = document.getElementById('in-producer').value;
   const memo = '';
-
-  if (inEditingTxId) {
-    const tx = txs.find(t => String(t.id) === String(inEditingTxId));
-    if (!tx) { tst('수정할 내역을 찾을 수 없습니다'); resetInForm(); return; }
-    // 서버 최신 재고를 다시 받아온 뒤 그 위에 반영 (PC 등 다른 기기에서 방금 바뀐 위치/생산자 등이 덮어써지지 않도록)
-    try {
-      const freshInv = await fbGet('inv');
-      if (Array.isArray(freshInv) && freshInv.length > 0) inv = freshInv;
-    } catch(e) {}
-    // 기존 입고 수량을 재고에서 되돌린 뒤 새 값을 적용 (품목이 바뀐 경우도 처리)
-    const oldIdx = inv.findIndex(i => i.id === tx.iid);
-    if (oldIdx >= 0) inv[oldIdx].qty -= tx.qty;
-    const newIdx = inv.findIndex(i => i.id === foundItem.id);
-    if (newIdx < 0) { tst('품목을 찾을 수 없습니다'); return; }
-    inv[newIdx].qty += qty;
-    if (producer) inv[newIdx].producer = producer;
-
-    tx.iid = foundItem.id;
-    tx.qty = qty;
-    tx.w = producer || curUser.name;
-    tx.memo = memo ? '[PDA] ' + memo : '[PDA]';
-    tx.ts = Date.now();
-
-    _lastInSave = Date.now();
-    localStorage.setItem('sr-inv', JSON.stringify(inv));
-    localStorage.setItem('sr-tx', JSON.stringify(txs));
-
-    try {
-      await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
-      tst(`✅ 입고 수정완료 · 현재 ${inv[newIdx].qty}${foundItem.unit}`);
-    } catch(e) {
-      tst('✅ 저장됨 (오프라인, 수정)');
+  const btn = document.getElementById('btn-in-reg');
+  const btnText = btn.textContent;
+  _inBusy = true; btn.disabled = true; btn.textContent = '⏳ 저장 중...';
+  _lastInSave = Date.now();
+  try {
+    if (inEditingTxId) {
+      const tx = txs.find(t => String(t.id) === String(inEditingTxId));
+      if (!tx) { tst('수정할 내역을 찾을 수 없습니다'); resetInForm(); return; }
+      const oldIid = tx.iid, oldQty = tx.qty;
+      // 기존 입고 수량을 되돌린 뒤 새 값을 적용 (품목이 바뀐 경우도 처리)
+      try { await fbAdjustInvQty(oldIid, -oldQty); }
+      catch (e) { tst('❌ 저장 실패 - 네트워크 확인 후 다시 눌러주세요'); return; }
+      let it;
+      try { it = await fbAdjustInvQty(foundItem.id, qty, producer); }
+      catch (e) {
+        try { await fbAdjustInvQty(oldIid, oldQty); } catch (_) {} // 되돌린 것 원복
+        tst('❌ 저장 실패 - 네트워크 확인 후 다시 눌러주세요'); return;
+      }
+      tx.iid = foundItem.id;
+      tx.qty = qty;
+      tx.w = producer || curUser.name;
+      tx.memo = memo ? '[PDA] ' + memo : '[PDA]';
+      tx.ts = Date.now();
+      try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
+      try { await fbSetTx(txs); tst(`✅ 입고 수정완료 · 현재 ${it.qty}${foundItem.unit}`); }
+      catch (e) { tst(`✅ 재고 반영됨 · 내역은 다음 저장 때 전송`); }
+      resetInForm();
+      renderInList();
+      return;
     }
 
+    // 재고 먼저 서버에 정확히 반영 → 성공했을 때만 입고 내역 기록
+    let it;
+    try { it = await fbAdjustInvQty(foundItem.id, qty, producer); }
+    catch (e) {
+      tst(e.message === '품목 없음' ? '품목을 찾을 수 없습니다' : '❌ 입고 저장 실패 - 네트워크 확인 후 다시 눌러주세요');
+      return; // 폼 유지 → 그대로 다시 누르면 됨
+    }
+    const workerName = producer || curUser.name;
+    const tx = {id: Date.now(), type: 'in', iid: foundItem.id, qty, w: workerName, ts: Date.now(), memo: memo ? '[PDA] ' + memo : '[PDA]'};
+    txs.unshift(tx);
+    try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
+    try { await fbSetTx(txs); tst(`✅ 입고완료 +${qty}${foundItem.unit} · 현재 ${it.qty}${foundItem.unit}`); }
+    catch (e) { tst(`✅ 재고 반영됨 +${qty}${foundItem.unit} · 내역은 다음 저장 때 전송`); }
     resetInForm();
     renderInList();
-    return;
+  } finally {
+    _lastInSave = Date.now();
+    _inBusy = false; btn.disabled = false;
+    if (btn.textContent === '⏳ 저장 중...') btn.textContent = inEditingTxId ? '✓ 입고 수정 완료' : btnText;
   }
-
-  // 서버 최신 재고를 다시 받아온 뒤 그 위에 반영 (PC 등 다른 기기에서 방금 바뀐 위치/생산자 등이 덮어써지지 않도록)
-  try {
-    const freshInv = await fbGet('inv');
-    if (Array.isArray(freshInv) && freshInv.length > 0) inv = freshInv;
-  } catch(e) {}
-
-  const idx = inv.findIndex(i => i.id === foundItem.id);
-  if (idx < 0) { tst('품목을 찾을 수 없습니다'); return; }
-
-  inv[idx].qty += qty;
-  // 생산자 선택 시 품목 생산자 업데이트
-  if (producer) inv[idx].producer = producer;
-
-  const workerName = producer || curUser.name;
-  const tx = {id: Date.now(), type: 'in', iid: foundItem.id, qty, w: workerName, ts: Date.now(), memo: memo ? '[PDA] ' + memo : '[PDA]'};
-  txs.unshift(tx);
-
-  _lastInSave = Date.now();
-  // 로컬 저장
-  localStorage.setItem('sr-inv', JSON.stringify(inv));
-  localStorage.setItem('sr-tx', JSON.stringify(txs));
-
-  // Firebase 저장
-  try {
-    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
-    tst(`✅ 입고완료 +${qty}${foundItem.unit} · 현재 ${inv[idx].qty}${foundItem.unit}`);
-  } catch(e) {
-    tst(`✅ 저장됨 (오프라인) +${qty}${foundItem.unit}`);
-  }
-
-  resetInForm();
-  renderInList();
 }
 
 function resetInForm() {
@@ -1067,32 +1088,24 @@ function editInTx(id) {
 
 // 입고 등록 내역의 "삭제" 버튼 클릭 시 - 재고에서 차감 후 내역 삭제
 async function deleteInTx(id) {
+  if (_inBusy) { tst('저장 중입니다. 잠시만요'); return; }
   if (!curUser) { tst('로그인이 필요합니다'); showLogin(); return; }
   const tx = txs.find(t => String(t.id) === String(id));
   if (!tx) return;
   if (!confirm('이 입고 등록 내역을 삭제하시겠습니까?\n(재고 수량에서 해당 입고분이 차감됩니다)')) return;
-
-  // 서버 최신 재고를 다시 받아온 뒤 그 위에 반영 (PC 등 다른 기기에서 방금 바뀐 위치/생산자 등이 덮어써지지 않도록)
+  _inBusy = true; _lastInSave = Date.now();
   try {
-    const freshInv = await fbGet('inv');
-    if (Array.isArray(freshInv) && freshInv.length > 0) inv = freshInv;
-  } catch(e) {}
-
-  const idx = inv.findIndex(i => i.id === tx.iid);
-  if (idx >= 0) inv[idx].qty = Math.max(0, inv[idx].qty - tx.qty);
-  txs = txs.filter(t => String(t.id) !== String(id));
-  if (inEditingTxId && String(inEditingTxId) === String(id)) resetInForm();
-
-  _lastInSave = Date.now();
-  localStorage.setItem('sr-inv', JSON.stringify(inv));
-  localStorage.setItem('sr-tx', JSON.stringify(txs));
-
-  try {
-    await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
-  } catch(e) {}
-
-  tst('삭제되었습니다 (재고 차감됨)');
-  renderInList();
+    try { await fbAdjustInvQty(tx.iid, -tx.qty); }
+    catch (e) {
+      if (e.message !== '품목 없음') { tst('❌ 삭제 실패 - 네트워크 확인 후 다시 눌러주세요'); return; }
+    }
+    txs = txs.filter(t => String(t.id) !== String(id));
+    if (inEditingTxId && String(inEditingTxId) === String(id)) resetInForm();
+    try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
+    try { await fbSetTx(txs); } catch (e) {}
+    tst('삭제되었습니다 (재고 차감됨)');
+    renderInList();
+  } finally { _lastInSave = Date.now(); _inBusy = false; }
 }
 
 // 오늘 등록된 입고 내역 목록 표시 (수정/삭제 가능)
