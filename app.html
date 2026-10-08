@@ -2880,6 +2880,67 @@ async function jbPullMoldReport(){
 }
 
 let _jbPullBusy=false;
+// ── 교정성적서/설비대장 보관함: 해당 화면을 열 때만 서버에서 받아 병합(안 바뀌었으면 ETag로 0바이트) ──
+let _gcPullBusy=false,_flPullBusy=false;
+async function pullGaugeCerts(){
+  if(_gcPullBusy)return false; _gcPullBusy=true;
+    // 교정성적서 보관함: 핵심 데이터(/sr.json)와 분리된 별도 경로에서 가져와 병합
+    // (대용량 첨부파일 문제가 재고 등 핵심 동기화 실패로 이어지지 않도록 독립된 try/catch)
+    try{
+      const remote=await cfGetFileRepoFull('gaugeCerts');
+      if(!remote.ok){ _gcPullBusy=false; return false; } // 요청 실패를 '서버 비어있음'으로 오인해 덮어쓰지 않도록 중단
+      let remoteRepo=remote.repo;
+      const remoteDel=remote.deleted;
+      // 이전 방식(전체를 한 번에 저장하던 구조)에 남아있는 데이터가 있으면 항목별로 1회 이전
+      const legacyRepo=(window._legacyGaugeCerts&&window._legacyGaugeCerts['_repo'])||[];
+      if(legacyRepo.length&&!remoteRepo.length){
+        remoteRepo=legacyRepo;
+        legacyRepo.forEach(item=>{ cfAddFileItem('gaugeCerts', item).catch(()=>{}); });
+      }
+      const mergedDel=gcMergeDeleted(gaugeCerts['_deleted'], remoteDel);
+      const mergedRepo=gcApplyTombstones(mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remoteRepo, x=>x.id), mergedDel);
+      const remoteIds=new Set(remoteRepo.map(x=>String(x.id)));
+      const localOnlyNew=mergedRepo.filter(x=>!remoteIds.has(String(x.id))); // 아직 원격에 없는(새로 추가된) 항목만 푸시
+      const delChanged=JSON.stringify(mergedDel)!==JSON.stringify(remoteDel);
+      gaugeCerts['_repo']=mergedRepo;
+      gaugeCerts['_deleted']=mergedDel;
+      localStorage.setItem('sr-gauge-certs',gcRepoForStorage(gaugeCerts));
+      localOnlyNew.forEach(item=>{ cfAddFileItem('gaugeCerts', item).catch(()=>{}); });
+      if(delChanged)cfSetFileDeletedList('gaugeCerts', mergedDel).catch(()=>{});
+    }catch(e){}
+  _gcPullBusy=false; return true;
+}
+async function pullFacilityLedger(){
+  if(_flPullBusy)return false; _flPullBusy=true;
+    // 설비 관리 대장 보관함: 핵심 데이터와 분리된 별도 경로에서 가져와 병합
+    try{
+      const remoteFL=await cfGetFileRepoFull('facilityLedger');
+      if(!remoteFL.ok){ _flPullBusy=false; return false; }
+      const remoteFLRepo=remoteFL.repo;
+      const remoteFLDel=remoteFL.deleted;
+      const mergedFLDel=gcMergeDeleted(facilityLedger['_deleted'], remoteFLDel);
+      const mergedFLRepo=gcApplyTombstones(mergeByKeyRemoteWins(facilityLedger['_repo']||[], remoteFLRepo, x=>x.id), mergedFLDel);
+      const remoteFLIds=new Set(remoteFLRepo.map(x=>String(x.id)));
+      const localOnlyFLNew=mergedFLRepo.filter(x=>!remoteFLIds.has(String(x.id)));
+      const flDelChanged=JSON.stringify(mergedFLDel)!==JSON.stringify(remoteFLDel);
+      facilityLedger['_repo']=mergedFLRepo;
+      facilityLedger['_deleted']=mergedFLDel;
+      localStorage.setItem('sr-facility-ledger',gcRepoForStorage(facilityLedger));
+      localOnlyFLNew.forEach(item=>{ cfAddFileItem('facilityLedger', item).catch(()=>{}); });
+      if(flDelChanged)cfSetFileDeletedList('facilityLedger', mergedFLDel).catch(()=>{});
+    }catch(e){}
+  _flPullBusy=false; return true;
+}
+function ensureTabFiles(t){
+  if(t!=='gauge'&&t!=='repair')return;
+  const f=(t==='gauge')?pullGaugeCerts:pullFacilityLedger;
+  f().then(ok=>{
+    if(!ok||tab!==t)return;
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'))return;
+    render();
+  }).catch(()=>{ if(t==='gauge')_gcPullBusy=false; else _flPullBusy=false; });
+}
 async function jbPull() {
   if(_jbPullBusy)return; // 이전 동기화가 아직 진행 중이면 중복 실행하지 않음 (느린 연결에서 매번 "동기화 중..."으로 되돌아가는 것을 방지)
   if(document.hidden)return; // 탭이 안 보이는 동안에는 폴링을 건너뛰어 대역폭 절약 (다시 보이면 visibilitychange가 즉시 동기화)
@@ -3052,45 +3113,9 @@ async function jbPull() {
       if(pendChanged)cfSet('pending',pendingChanges).catch(()=>{});
       if(pendDelChanged)cfSet('pendingDeleted',pendingDeleted).catch(()=>{});
     }
-    // 교정성적서 보관함: 핵심 데이터(/sr.json)와 분리된 별도 경로에서 가져와 병합
-    // (대용량 첨부파일 문제가 재고 등 핵심 동기화 실패로 이어지지 않도록 독립된 try/catch)
-    try{
-      const remote=await cfGetFileRepoFull('gaugeCerts');
-      let remoteRepo=remote.repo;
-      const remoteDel=remote.deleted;
-      // 이전 방식(전체를 한 번에 저장하던 구조)에 남아있는 데이터가 있으면 항목별로 1회 이전
-      const legacyRepo=(fbAll['gaugeCerts']&&fbAll['gaugeCerts']['_repo'])||[];
-      if(legacyRepo.length&&!remoteRepo.length){
-        remoteRepo=legacyRepo;
-        legacyRepo.forEach(item=>{ cfAddFileItem('gaugeCerts', item).catch(()=>{}); });
-      }
-      const mergedDel=gcMergeDeleted(gaugeCerts['_deleted'], remoteDel);
-      const mergedRepo=gcApplyTombstones(mergeByKeyRemoteWins(gaugeCerts['_repo']||[], remoteRepo, x=>x.id), mergedDel);
-      const remoteIds=new Set(remoteRepo.map(x=>String(x.id)));
-      const localOnlyNew=mergedRepo.filter(x=>!remoteIds.has(String(x.id))); // 아직 원격에 없는(새로 추가된) 항목만 푸시
-      const delChanged=JSON.stringify(mergedDel)!==JSON.stringify(remoteDel);
-      gaugeCerts['_repo']=mergedRepo;
-      gaugeCerts['_deleted']=mergedDel;
-      localStorage.setItem('sr-gauge-certs',gcRepoForStorage(gaugeCerts));
-      localOnlyNew.forEach(item=>{ cfAddFileItem('gaugeCerts', item).catch(()=>{}); });
-      if(delChanged)cfSetFileDeletedList('gaugeCerts', mergedDel).catch(()=>{});
-    }catch(e){}
-    // 설비 관리 대장 보관함: 핵심 데이터와 분리된 별도 경로에서 가져와 병합
-    try{
-      const remoteFL=await cfGetFileRepoFull('facilityLedger');
-      const remoteFLRepo=remoteFL.repo;
-      const remoteFLDel=remoteFL.deleted;
-      const mergedFLDel=gcMergeDeleted(facilityLedger['_deleted'], remoteFLDel);
-      const mergedFLRepo=gcApplyTombstones(mergeByKeyRemoteWins(facilityLedger['_repo']||[], remoteFLRepo, x=>x.id), mergedFLDel);
-      const remoteFLIds=new Set(remoteFLRepo.map(x=>String(x.id)));
-      const localOnlyFLNew=mergedFLRepo.filter(x=>!remoteFLIds.has(String(x.id)));
-      const flDelChanged=JSON.stringify(mergedFLDel)!==JSON.stringify(remoteFLDel);
-      facilityLedger['_repo']=mergedFLRepo;
-      facilityLedger['_deleted']=mergedFLDel;
-      localStorage.setItem('sr-facility-ledger',gcRepoForStorage(facilityLedger));
-      localOnlyFLNew.forEach(item=>{ cfAddFileItem('facilityLedger', item).catch(()=>{}); });
-      if(flDelChanged)cfSetFileDeletedList('facilityLedger', mergedFLDel).catch(()=>{});
-    }catch(e){}
+    // 2026-10: 교정성적서/설비대장 보관함은 첨부파일 원본이 들어 있어 용량이 커서, 동기화 때마다 받지 않고
+    // 해당 화면(측정기관리/설비수리)을 열 때만 받는다(ensureTabFiles). 예전 방식 데이터 이전용으로 값만 보관.
+    window._legacyGaugeCerts=fbAll['gaugeCerts'];
     // 입력 중일 때만 render 스킵 (탭 제한 없음 - 어떤 탭이든 데이터 변경 시 화면 갱신)
     const ae=document.activeElement;
     const isTyping=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
@@ -3644,6 +3669,7 @@ function go(t){
     history.pushState({tab:t}, '', '#'+t);
   }
   render();
+  ensureTabFiles(t);
 }
 
 // 뒤로가기 처리
@@ -3665,6 +3691,7 @@ window.addEventListener('popstate', function(e){
   const mm=document.getElementById('mobile-more-menu');
   if(mm)mm.style.display='none';
   render();
+  ensureTabFiles(t);
 });
 function goIO(type){
   scanType=type;
@@ -13831,6 +13858,7 @@ async function manualSyncAll(){
     if(window._jbStage==='fetched:null'){
       await Promise.all([jbPullInv(), jbPullOrders(), jbPullProduction()]);
     }
+    ensureTabFiles(tab); // 지금 보고 있는 화면이 측정기/설비수리면 그 보관함도 함께 갱신
     const t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
     const got=_netTotal-n0;
     jbStat('✅ '+t+' 반영됨 (받은 데이터 '+(got>=1048576?(got/1048576).toFixed(1)+'MB':Math.round(got/1024)+'KB')+')', '#0d9e72');
