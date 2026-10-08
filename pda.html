@@ -867,10 +867,10 @@ async function doReconSave() {
 
   try {
     await Promise.all([fbSet('inv', inv), fbSetTx(txs)]);
-    tst(`✅ 재고조사 반영완료 · ${oldQty}${inv[idx].unit} → ${newQty}${inv[idx].unit}`);
+    savePop(true, '재고 반영 완료', `${oldQty}${inv[idx].unit} → ${newQty}${inv[idx].unit}`);
   } catch(e) {
     // 재시도까지 실패한 경우 - 서버에 실제로 반영되지 않았으므로 성공처럼 보이면 안 됨
-    tst('⚠️ 서버 저장 실패 · 네트워크를 확인하고 다시 [재고 반영]을 눌러주세요', 4500);
+    savePop(false, '재고 반영 실패', '서버에 저장 안 됨\n네트워크 확인 후 다시 [재고 반영]을 눌러주세요');
   }
 
   reconItem = inv[idx];
@@ -1001,12 +1001,12 @@ async function doRegIn() {
       const oldIid = tx.iid, oldQty = tx.qty;
       // 기존 입고 수량을 되돌린 뒤 새 값을 적용 (품목이 바뀐 경우도 처리)
       try { await fbAdjustInvQty(oldIid, -oldQty); }
-      catch (e) { tst('❌ 저장 실패 - 네트워크 확인 후 다시 눌러주세요'); return; }
+      catch (e) { savePop(false, '입고 수정 실패', '재고 반영 안 됨\n네트워크 확인 후 다시 눌러주세요'); return; }
       let it;
       try { it = await fbAdjustInvQty(foundItem.id, qty, producer); }
       catch (e) {
         try { await fbAdjustInvQty(oldIid, oldQty); } catch (_) {} // 되돌린 것 원복
-        tst('❌ 저장 실패 - 네트워크 확인 후 다시 눌러주세요'); return;
+        savePop(false, '입고 수정 실패', '재고 반영 안 됨\n네트워크 확인 후 다시 눌러주세요'); return;
       }
       tx.iid = foundItem.id;
       tx.qty = qty;
@@ -1014,8 +1014,8 @@ async function doRegIn() {
       tx.memo = memo ? '[PDA] ' + memo : '[PDA]';
       tx.ts = Date.now();
       try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
-      try { await fbSetTx(txs); tst(`✅ 입고 수정완료 · 현재 ${it.qty}${foundItem.unit}`); }
-      catch (e) { tst(`✅ 재고 반영됨 · 내역은 다음 저장 때 전송`); }
+      try { await fbSetTx(txs); savePop(true, '입고 수정 완료', `재고 반영 완료\n현재 재고 ${it.qty}${foundItem.unit}`); }
+      catch (e) { savePop(true, '재고 반영 완료', `현재 재고 ${it.qty}${foundItem.unit}\n(입고 내역은 다음 저장 때 자동 전송)`); }
       resetInForm();
       renderInList();
       return;
@@ -1025,15 +1025,15 @@ async function doRegIn() {
     let it;
     try { it = await fbAdjustInvQty(foundItem.id, qty, producer); }
     catch (e) {
-      tst(e.message === '품목 없음' ? '품목을 찾을 수 없습니다' : '❌ 입고 저장 실패 - 네트워크 확인 후 다시 눌러주세요');
+      savePop(false, '입고 저장 실패', e.message === '품목 없음' ? '품목을 찾을 수 없습니다' : '재고 반영 안 됨\n네트워크 확인 후 다시 눌러주세요');
       return; // 폼 유지 → 그대로 다시 누르면 됨
     }
     const workerName = producer || curUser.name;
     const tx = {id: Date.now(), type: 'in', iid: foundItem.id, qty, w: workerName, ts: Date.now(), memo: memo ? '[PDA] ' + memo : '[PDA]'};
     txs.unshift(tx);
     try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
-    try { await fbSetTx(txs); tst(`✅ 입고완료 +${qty}${foundItem.unit} · 현재 ${it.qty}${foundItem.unit}`); }
-    catch (e) { tst(`✅ 재고 반영됨 +${qty}${foundItem.unit} · 내역은 다음 저장 때 전송`); }
+    try { await fbSetTx(txs); savePop(true, '입고 저장 완료', `재고 반영 완료 +${qty}${foundItem.unit}\n현재 재고 ${it.qty}${foundItem.unit}`); }
+    catch (e) { savePop(true, '재고 반영 완료', `+${qty}${foundItem.unit} · 현재 재고 ${it.qty}${foundItem.unit}\n(입고 내역은 다음 저장 때 자동 전송)`); }
     resetInForm();
     renderInList();
   } finally {
@@ -1099,13 +1099,13 @@ async function deleteInTx(id) {
   try {
     try { await fbAdjustInvQty(tx.iid, -tx.qty); }
     catch (e) {
-      if (e.message !== '품목 없음') { tst('❌ 삭제 실패 - 네트워크 확인 후 다시 눌러주세요'); return; }
+      if (e.message !== '품목 없음') { savePop(false, '삭제 실패', '재고 반영 안 됨\n네트워크 확인 후 다시 눌러주세요'); return; }
     }
     txs = txs.filter(t => String(t.id) !== String(id));
     if (inEditingTxId && String(inEditingTxId) === String(id)) resetInForm();
     try { localStorage.setItem('sr-tx', JSON.stringify(txs)); } catch (e) {}
     try { await fbSetTx(txs); } catch (e) {}
-    tst('삭제되었습니다 (재고 차감됨)');
+    savePop(true, '삭제 완료', '재고에서 차감 반영됨');
     renderInList();
   } finally { _lastInSave = Date.now(); _inBusy = false; }
 }
@@ -1625,6 +1625,27 @@ async function doRegProd() {
 
 // ── 토스트 ──────────────────────────────────────────
 let toastTimer;
+// 2026-10-08: 저장 결과를 화면 가운데 큰 창으로 3초간 표시 (완료=초록, 실패=빨강). 화면을 누르면 바로 닫힘.
+let _popTimer = null;
+function savePop(ok, title, detail) {
+  let el = document.getElementById('save-pop');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'save-pop';
+    el.style.cssText = 'position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px';
+    el.innerHTML = '<div id="save-pop-box" style="width:100%;max-width:340px;border-radius:16px;padding:26px 18px;text-align:center;color:#fff;box-shadow:0 8px 30px rgba(0,0,0,.35)"><div id="save-pop-icon" style="width:64px;height:64px;margin:0 auto;border-radius:50%;background:#fff;font-size:40px;font-weight:900;line-height:64px"></div><div id="save-pop-title" style="font-size:24px;font-weight:800;margin-top:10px"></div><div id="save-pop-detail" style="font-size:16px;font-weight:600;margin-top:10px;line-height:1.5;white-space:pre-line"></div></div>';
+    el.addEventListener('click', () => { el.style.display = 'none'; clearTimeout(_popTimer); });
+    document.body.appendChild(el);
+  }
+  document.getElementById('save-pop-box').style.background = ok ? '#0d9e72' : '#d42048';
+  const ic = document.getElementById('save-pop-icon'); ic.textContent = ok ? '✓' : '✕'; ic.style.color = ok ? '#0d9e72' : '#d42048';
+  document.getElementById('save-pop-title').textContent = title;
+  document.getElementById('save-pop-detail').textContent = detail || '';
+  el.style.display = 'flex';
+  clearTimeout(_popTimer);
+  _popTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
 function tst(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
