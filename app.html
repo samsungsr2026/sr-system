@@ -465,7 +465,7 @@ select.fi option{background:#fff;color:#111}
     <button id="files-sync-btn" onclick="manualFilesSync()" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
       📎 사진·도면 받기
     </button>
-    <button id="net-tally-btn" onclick="tst('📊 이 화면을 연 뒤 받은 데이터: 약 '+netTallyText(),4000)" title="이 화면을 연 뒤 Firebase에서 받은 데이터 합계" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;padding:0 10px">📊</button>
+    <button id="net-tally-btn" onclick="netReport()" title="이 화면을 연 뒤 Firebase에서 받은 데이터 합계" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;padding:0 10px">📊</button>
     <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
@@ -2072,6 +2072,9 @@ function fetchTimeout(url, ms, options){
 // localStorage(약 5MB)는 쉽게 가득 차므로 큰 본문은 IndexedDB에 문자열로 보관한다(저장 실패해도 동작엔 영향 없음).
 let _etagDb=null, _fbEtagMem={};
 let _netTotal=0; // 이 화면을 연 뒤 Firebase에서 실제로 받은 본문 크기 합계(바이트 근사)
+let _netByUrl={}, _netLog=[];
+function netNote(url,bytes,kind){ const k=String(url).replace(FB,'').replace('.json',''); const e=_netByUrl[k]||(_netByUrl[k]={n:0,b:0,c:0}); if(kind==='304')e.c++; else {e.n++;e.b+=bytes;} _netLog.push(new Date().toLocaleTimeString('ko-KR')+' '+k+' '+(kind==='304'?'변경없음(0)':Math.round(bytes/1024)+'KB')); if(_netLog.length>60)_netLog.shift(); }
+function netReport(){ const rows=Object.keys(_netByUrl).map(k=>[k,_netByUrl[k]]).sort((a,b)=>b[1].b-a[1].b).map(([k,e])=>k+': '+(e.b>=1048576?(e.b/1048576).toFixed(1)+'MB':Math.round(e.b/1024)+'KB')+' ('+e.n+'회 받음, '+e.c+'회 변경없음)'); alert('이 화면을 연 뒤 받은 데이터 합계: '+netTallyText()+'\n\n'+(rows.join('\n')||'(없음)')+'\n\n최근 기록:\n'+_netLog.slice(-15).join('\n')); }
 function netTallyText(){ return _netTotal>=1048576?(_netTotal/1048576).toFixed(1)+'MB':Math.round(_netTotal/1024)+'KB'; }
 function etagDb(){
   if(_etagDb)return _etagDb;
@@ -2098,10 +2101,10 @@ async function etagRead(url, ms){
   const headers={'X-Firebase-ETag':'true'};
   if(rec&&rec.etag)headers['If-None-Match']=rec.etag;
   const r=ms?await fetchTimeout(url, ms, {headers}):await fetch(url,{headers});
-  if(r.status===304&&rec&&typeof rec.text==='string')return {ok:true, text:rec.text, cached:true};
+  if(r.status===304&&rec&&typeof rec.text==='string'){ netNote(url,0,'304'); return {ok:true, text:rec.text, cached:true}; }
   if(!r.ok)return {ok:false};
   const text=await r.text();
-  _netTotal+=text.length;
+  _netTotal+=text.length; netNote(url,text.length,'200');
   const etag=r.headers.get('ETag');
   if(etag){ rec={etag,text}; _fbEtagMem[url]=rec; etagPut(url,rec); }
   return {ok:true, text, cached:false};
@@ -2277,7 +2280,7 @@ async function cfGetPath(path){
   try{
     const r = await fetch(`${FB}/${path}.json`);
     if(!r.ok) return null;
-    const t=await r.text(); _netTotal+=t.length;
+    const t=await r.text(); _netTotal+=t.length; netNote(`${FB}/${path}.json`,t.length,'200');
     return JSON.parse(t);
   }catch(e){ return null; }
 }
