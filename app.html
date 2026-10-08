@@ -2149,19 +2149,60 @@ async function cfSet(key, data) {
 // jbPull()이 통째로 받아오는 /sr.json 자체가 tx 크기만큼 계속 커진다(실제로 36MB까지 커져서
 // 느린 회선에서 jbPull()이 타임아웃/실패해 "오프라인"으로 뜨는 원인이 됨). tx를 /sr 트리 밖으로
 // 완전히 분리해서 jbPull()의 핵심 데이터 조회 크기와 무관하게 만든다.
+// 2026-10-08: 거래내역 저장을 "PC가 들고 있는 배열 통째 덮어쓰기"에서 "서버 최신 위에 이 PC 변경분만 병합"으로 변경.
+// 기존 방식은 PC가 '최신 데이터' 버튼을 안 누른 채(수동 동기화) 발주서·재고 등 아무거나 저장하면,
+// 그 사이 PDA에서 등록한 입고/출고 내역을 PC의 옛 목록으로 덮어써서 전부 지워버렸다(10/08 11시 이후 PDA 입고 누락).
+// 기준(_txBaseline) = 마지막으로 서버에서 받은 시점의 내역. 기준 대비 이 PC에서 추가/수정/삭제한 것만 반영하고
+// 나머지는 서버 값을 유지한다. 그 사이 다른 기기가 저장하면 서버가 412로 거절 → 다시 받아 병합 후 재시도.
+let _txBaseline=null, _txForceFull=false;
+function snapshotTxBaseline(){ const m=new Map(); (txs||[]).forEach(t=>{ if(t&&t.id!==undefined) m.set(String(t.id), JSON.stringify(t)); }); _txBaseline=m; }
+async function cfSetTxMerged(){
+  const url=`${FB}/srTx.json`;
+  for(let attempt=0; attempt<5; attempt++){
+    const x=await etagRead(url, 30000).catch(()=>({ok:false}));
+    if(!x.ok) return false; // 서버 확인 실패 시 덮어쓰지 않음
+    const rec=_fbEtagMem[url]; const etag=rec&&rec.etag;
+    let S=null; try{ S=JSON.parse(x.text); }catch(e){ return false; }
+    const SA=Array.isArray(S)?S.filter(Boolean):[];
+    const base=_txBaseline||new Map();
+    const L=(txs||[]).filter(Boolean);
+    let out;
+    if(_txForceFull){ out=L.slice(); }
+    else{
+      const lMap=new Map(L.map(t=>[String(t.id),t]));
+      const seen=new Set(); out=[];
+      SA.forEach(s=>{
+        const id=String(s.id); const l=lMap.get(id);
+        if(l===undefined){ if(!base.has(id)) out.push(s); return; } // 기준에 있었는데 로컬에 없음 = 이 PC에서 삭제
+        seen.add(id);
+        out.push(JSON.stringify(l)!==base.get(id)?l:s); // 이 PC에서 수정한 것만 로컬 값, 나머지는 서버 값
+      });
+      L.forEach(l=>{ const id=String(l.id); if(!seen.has(id)&&!base.has(id)) out.push(l); }); // 이 PC에서 새로 추가
+      out.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    }
+    const body=JSON.stringify(out);
+    let r;
+    try{ r=await fetch(url,{method:'PUT',headers:etag?{'Content-Type':'application/json','if-match':etag}:{'Content-Type':'application/json'},body}); }
+    catch(e){ try{ r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body}); }catch(_){ return false; } }
+    if(r.status===412){ await new Promise(res=>setTimeout(res,300+Math.random()*500)); continue; }
+    if(!r.ok) return false;
+    // 저장하는 사이 이 PC에서 새로 추가된 내역은 다음 저장 때 보내도록 남겨둠
+    const outIds=new Set(out.map(t=>String(t.id)));
+    const extra=(txs||[]).filter(t=>t&&!outIds.has(String(t.id))&&!base.has(String(t.id)));
+    txs=extra.concat(out);
+    const m=new Map(); out.forEach(t=>m.set(String(t.id),JSON.stringify(t))); _txBaseline=m;
+    _txForceFull=false;
+    try{ localStorage.setItem('sr-tx', JSON.stringify(txs)); }catch(e){ try{localStorage.removeItem('sr-tx');}catch(_){} }
+    return true;
+  }
+  return false;
+}
 async function cfSetTx(data) {
   return new Promise(resolve => {
     const tk='tx_main';
     if (_fbTimers[tk]) clearTimeout(_fbTimers[tk]);
     _fbTimers[tk] = setTimeout(async () => {
-      try {
-        const r = await fetch(`${FB}/srTx.json`, {
-          method: 'PUT',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(data)
-        });
-        resolve(r.ok);
-      } catch(e) { resolve(false); }
+      try { resolve(await cfSetTxMerged()); } catch(e) { resolve(false); }
     }, 1500);
   });
 }
@@ -2302,7 +2343,12 @@ async function buildInvToSend(){
       }
       const bIt=baseMap[sIt.id];
       const locallyChanged = JSON.stringify(lIt)!==JSON.stringify(bIt);
-      merged.push(locallyChanged?lIt:sIt);
+      if(locallyChanged&&bIt){
+        // 2026-10-08: 수량은 "이 PC에서 바꾼 만큼(증감분)"만 서버 최신 수량에 더한다.
+        // (PC에서 위치 등만 고쳐 저장해도 그 사이 PDA에서 입고한 수량이 PC의 옛 수량으로 되돌아가던 문제 방지)
+        const d=(Number(lIt.qty)||0)-(Number(bIt.qty)||0);
+        merged.push(Object.assign({}, lIt, {qty: Math.max(0,(Number(sIt.qty)||0)+d)}));
+      } else merged.push(locallyChanged?lIt:sIt);
     });
     inv.forEach(lIt=>{ if(lIt&&lIt.id!==undefined&&!seen.has(lIt.id)) merged.push(lIt); }); // 이 세션에서 새로 추가한 항목
     inv=merged; // 병합 결과를 화면에도 반영 (다른 기기 변경사항이 사라져 보이지 않도록)
@@ -2722,7 +2768,7 @@ async function jbPullTx(){
           const put=await cfPutPath('srTx', legacy);
           if(put.ok){
             await cfDeletePath('sr/tx').catch(()=>{});
-            txs=legacy; _txLoaded=true;
+            txs=legacy; _txLoaded=true; snapshotTxBaseline();
             try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
             _txMigrationDone=true;
             localStorage.setItem('sr-tx-migrated-v1','1');
@@ -2741,7 +2787,7 @@ async function jbPullTx(){
     }
     const rt=await fetchTimeoutETag(`${FB}/srTx.json`, 20000).then(r=>r.ok?r.json():null).catch(()=>null);
     if(Array.isArray(rt)&&Date.now()-_lastSave>=8000){
-      txs=rt; _txLoaded=true;
+      txs=rt; _txLoaded=true; snapshotTxBaseline();
       try{localStorage.setItem('sr-tx',JSON.stringify(txs));}catch(e){}
       if(tab==='dash')render();
     }
@@ -12860,7 +12906,7 @@ function restoreBackup(file){
       }
       // 복원
       if(b.data.inv)inv=b.data.inv;
-      if(b.data.txs){txs=b.data.txs; _txLoaded=true;} // 백업 복원은 의도적 덮어쓰기이므로 거래내역도 서버에 전송
+      if(b.data.txs){txs=b.data.txs; _txLoaded=true; _txForceFull=true;} // 백업 복원은 의도적 덮어쓰기이므로 거래내역도 서버에 전송
       if(b.data.orders)orders=b.data.orders;
       if(b.data.accounts)accounts=b.data.accounts;
       if(b.data.workers)WK=b.data.workers;

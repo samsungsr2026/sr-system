@@ -653,35 +653,37 @@ async function fbSet(key, data) {
 // 기준에 없던 서버 항목(다른 기기가 추가)은 유지한다. 서버 확인에 실패하면 덮어쓰지 않고 오류를 던진다.
 let _txBaseIds = new Set();
 async function fbSetTx(data) {
-  const cur = await fbGetPathChecked('srTx');
-  if (!cur.ok) throw new Error('fbSetTx: 서버 거래내역 확인 실패');
-  const S = Array.isArray(cur.data) ? cur.data.filter(Boolean) : [];
-  if (S.length > 0) {
+  // 2026-10-08: 서버에서 받은 시점(ETag)과 저장 시점 사이에 다른 기기가 저장하면 서버가 412로 거절 → 다시 받아 병합 후 재시도
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const cur = await fbGetPathChecked('srTx');
+    if (!cur.ok) throw new Error('fbSetTx: 서버 거래내역 확인 실패');
+    const rec = _fbEtagMem['srTx']; const etag = rec && rec.etag;
+    const S = Array.isArray(cur.data) ? cur.data.filter(Boolean) : [];
     const L = data.filter(Boolean);
-    const lIds = new Set(L.map(t => String(t.id)));
-    const sIds = new Set(S.map(t => String(t.id)));
-    const keepL = L.filter(t => sIds.has(String(t.id)) || !_txBaseIds.has(String(t.id))); // 서버에 없는데 기준에 있던 것 = 다른 기기에서 삭제됨
-    const addS = S.filter(t => !lIds.has(String(t.id)) && !_txBaseIds.has(String(t.id))); // 다른 기기가 새로 추가한 것
-    const merged = keepL.concat(addS).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    let merged = L;
+    if (S.length > 0) {
+      const lIds = new Set(L.map(t => String(t.id)));
+      const sIds = new Set(S.map(t => String(t.id)));
+      const keepL = L.filter(t => sIds.has(String(t.id)) || !_txBaseIds.has(String(t.id))); // 서버에 없는데 기준에 있던 것 = 다른 기기에서 삭제됨
+      const addS = S.filter(t => !lIds.has(String(t.id)) && !_txBaseIds.has(String(t.id))); // 다른 기기가 새로 추가한 것
+      merged = keepL.concat(addS).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    }
+    const body = JSON.stringify(merged);
+    let r;
+    try {
+      r = await fetch(`${FB}/srTx.json`, { method: 'PUT', headers: etag ? { 'Content-Type': 'application/json', 'if-match': etag } : { 'Content-Type': 'application/json' }, body });
+    } catch (e) {
+      try { r = await fetch(`${FB}/srTx.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }); }
+      catch (_) { await new Promise(res => setTimeout(res, 900)); continue; }
+    }
+    if (r.status === 412) { await new Promise(res => setTimeout(res, 300 + Math.random() * 500)); continue; }
+    if (!r.ok) { await new Promise(res => setTimeout(res, 900)); continue; }
     data.splice(0, data.length, ...merged);
-  }
-  _txBaseIds = new Set(data.filter(Boolean).map(t => String(t.id)));
-  try { localStorage.setItem('sr-tx', JSON.stringify(data)); } catch(e) {}
-  const put = async () => {
-    const r = await fetch(`${FB}/srTx.json`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!r.ok) throw new Error('fbSetTx HTTP ' + r.status);
+    _txBaseIds = new Set(merged.map(t => String(t.id)));
+    try { localStorage.setItem('sr-tx', JSON.stringify(data)); } catch(e) {}
     return r;
-  };
-  try {
-    return await put();
-  } catch (e) {
-    await new Promise(res => setTimeout(res, 900));
-    return await put();
   }
+  throw new Error('fbSetTx 저장 실패');
 }
 
 function showApp() {
