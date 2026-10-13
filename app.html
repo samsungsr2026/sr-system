@@ -7194,11 +7194,12 @@ window.onload=function(){
     setTimeout(function(){ fitAll(); window.print(); },700);
   }
   tryQR();
-  // 인쇄창이 닫히면(인쇄 완료 또는 취소) 원래 화면의 출력 목록을 비운다
+  // 인쇄창이 닫히면(인쇄 완료 또는 취소) 원래 화면의 출력 목록을 비우고, 태그 미리보기 창도 닫는다
   window.onafterprint=function(){
     try{
       if(window.opener&&!window.opener.closed&&window.opener.clearBcPrintList)window.opener.clearBcPrintList();
     }catch(e){}
+    setTimeout(function(){ try{ window.close(); }catch(e){} },300);
   };
 };
 <\/script>
