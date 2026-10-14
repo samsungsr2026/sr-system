@@ -6953,7 +6953,7 @@ function printBarcodes(){
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span class="fit" style="font-family:monospace;${normal};color:#111">${(()=>{const c=String(it.classNo||'').trim();if(!c)return '-';const k=Math.max(c.length-4,0);return c.slice(0,k)+'<b style="font-weight:900">'+c.slice(k)+'</b>';})()}</span>
+          <span class="fit" style="font-family:monospace;${normal};color:#111">${(()=>{const c=String(it.classNo||'').trim();if(!c)return '-';const k=Math.max(c.length-4,0);return (k?'<span class="pn-front" style="font-size:0.8em;font-weight:300">'+c.slice(0,k)+'</span>':'')+'<b style="font-weight:900">'+c.slice(k)+'</b>';})()}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
@@ -7171,6 +7171,9 @@ window.onload=function(){
         span.style.fontSize=(isHalf?fz0*0.65:fz0)+'px';
         return;
       }
+      /* 부품번호 앞자리(축소 표시)는 크기 계산 시 원래 크기로 측정 → 뒷 4자리 크기 기존과 동일 유지 */
+      var pnFront=span.querySelectorAll('.pn-front');
+      pnFront.forEach(function(e){e.style.fontSize='1em';});
       var target=cellW*0.88;          /* 목표 너비 = 칸의 88% */
       var maxW=cellW-3;
       var maxFz=Math.max(cellH-2,8);  /* 칸 높이 한계 (최소 8px 보장) */
@@ -7187,6 +7190,7 @@ window.onload=function(){
         fz=fz*0.65;
         span.style.fontSize=fz+'px';
       }
+      pnFront.forEach(function(e){e.style.fontSize='0.8em';});
     });
   }
   function afterQR(){
