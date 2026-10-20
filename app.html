@@ -2074,7 +2074,8 @@ let _etagDb=null, _fbEtagMem={};
 let _netTotal=0; // 이 화면을 연 뒤 Firebase에서 실제로 받은 본문 크기 합계(바이트 근사)
 let _netByUrl={}, _netLog=[];
 function netNote(url,bytes,kind){ const k=String(url).replace(FB,'').replace('.json',''); const e=_netByUrl[k]||(_netByUrl[k]={n:0,b:0,c:0}); if(kind==='304')e.c++; else {e.n++;e.b+=bytes;} _netLog.push(new Date().toLocaleTimeString('ko-KR')+' '+k+' '+(kind==='304'?'변경없음(0)':Math.round(bytes/1024)+'KB')); if(_netLog.length>60)_netLog.shift(); }
-function netReport(){ const rows=Object.keys(_netByUrl).map(k=>[k,_netByUrl[k]]).sort((a,b)=>b[1].b-a[1].b).map(([k,e])=>k+': '+(e.b>=1048576?(e.b/1048576).toFixed(1)+'MB':Math.round(e.b/1024)+'KB')+' ('+e.n+'회 받음, '+e.c+'회 변경없음)'); alert('이 화면을 연 뒤 받은 데이터 합계: '+netTallyText()+'\n\n'+(rows.join('\n')||'(없음)')+'\n\n최근 기록:\n'+_netLog.slice(-15).join('\n')); }
+function srKeySizes(){ try{ const a=window._lastFbAll; if(!a)return ''; const r=Object.keys(a).map(k=>[k,JSON.stringify(a[k]===undefined?null:a[k]).length]).sort((x,y)=>y[1]-x[1]).slice(0,12); return '\n\n/sr 안의 항목별 크기:\n'+r.map(([k,n])=>k+': '+(n>=1048576?(n/1048576).toFixed(1)+'MB':Math.round(n/1024)+'KB')).join('\n'); }catch(e){return '';} }
+function netReport(){ const rows=Object.keys(_netByUrl).map(k=>[k,_netByUrl[k]]).sort((a,b)=>b[1].b-a[1].b).map(([k,e])=>k+': '+(e.b>=1048576?(e.b/1048576).toFixed(1)+'MB':Math.round(e.b/1024)+'KB')+' ('+e.n+'회 받음, '+e.c+'회 변경없음)'); alert('이 화면을 연 뒤 받은 데이터 합계: '+netTallyText()+'\n\n'+(rows.join('\n')||'(없음)')+srKeySizes()+'\n\n최근 기록:\n'+_netLog.slice(-15).join('\n')); }
 function netTallyText(){ return _netTotal>=1048576?(_netTotal/1048576).toFixed(1)+'MB':Math.round(_netTotal/1024)+'KB'; }
 function etagDb(){
   if(_etagDb)return _etagDb;
@@ -2951,6 +2952,7 @@ async function jbPull() {
     // Firebase에서 모든 데이터 한번에 읽기
     const fbAll = await fetchTimeoutETag(`${FB}/sr.json`, 45000).then(r=>r.ok?r.json():null).catch(()=>null);
     window._jbStage='fetched:'+(fbAll?'ok':'null');
+    window._lastFbAll=fbAll; // 진단용(📊): /sr 안의 항목별 크기를 필요할 때만 계산
     if(!fbAll) { jbStat('⚠️ 오프라인','#c07800'); return; }
     // Firebase가 완전히 비어있을 때만 현재 로컬 데이터를 전체 업로드 (최초 1회 세팅 전용)
     // ⚠️ inv만 비어있는 경우는 일시적 네트워크 오류일 수 있으므로 절대 전체 덮어쓰기 하지 않음
