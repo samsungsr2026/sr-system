@@ -451,10 +451,6 @@ select.fi option{background:#fff;color:#111}
     </div>
   </div>
   <div class="topbar-row2" style="display:flex;align-items:center;gap:6px;width:100%">
-    <button onclick="go(&#39;loc&#39;)" style="flex:1;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-      📍 위치 검색
-    </button>
     <button id="tag-btn" onclick="go(&#39;barcode&#39;)" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;white-space:nowrap;padding:0 12px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><line x1="14" y1="14" x2="14" y2="14"></line><line x1="14" y1="17.5" x2="14" y2="17.5"></line><line x1="17.5" y1="14" x2="17.5" y2="14"></line><line x1="21" y1="14" x2="21" y2="14"></line><line x1="17.5" y1="17.5" x2="17.5" y2="17.5"></line><line x1="21" y1="21" x2="21" y2="21"></line><line x1="14" y1="21" x2="14" y2="21"></line><line x1="17.5" y1="21" x2="17.5" y2="21"></line><line x1="21" y1="17.5" x2="21" y2="17.5"></line></svg>
       🏷️ 제품 태그
@@ -466,7 +462,7 @@ select.fi option{background:#fff;color:#111}
       📎 사진·도면 받기
     </button>
     <button id="net-tally-btn" onclick="netReport()" title="이 화면을 연 뒤 Firebase에서 받은 데이터 합계" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;padding:0 10px">📊</button>
-    <button id="legacy-cleanup-btn" onclick="cleanupLegacySrCopies()" title="마스터 전용: /sr 안의 예전 복사본 정리" style="flex:0 0 auto;height:34px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;padding:0 10px;white-space:nowrap">🧹 예전 복사본 정리</button>
+
     <div class="topbar-right">
     <div class="topbar-right-row">
       <div id="top-status" style="display:flex;gap:8px"></div>
@@ -2076,104 +2072,6 @@ let _netTotal=0; // 이 화면을 연 뒤 Firebase에서 실제로 받은 본문
 let _netByUrl={}, _netLog=[];
 function netNote(url,bytes,kind){ const k=String(url).replace(FB,'').replace('.json',''); const e=_netByUrl[k]||(_netByUrl[k]={n:0,b:0,c:0}); if(kind==='304')e.c++; else {e.n++;e.b+=bytes;} _netLog.push(new Date().toLocaleTimeString('ko-KR')+' '+k+' '+(kind==='304'?'변경없음(0)':Math.round(bytes/1024)+'KB')); if(_netLog.length>60)_netLog.shift(); }
 
-// ── 일회성 정리(마스터 전용): /sr 안에 남아있는 예전 첨부/도면/교정성적서 복사본 삭제 ──
-// 현재 파일은 모두 /srFiles에 저장되고 코드는 /sr/attaches, /sr/draws, /sr/gaugeCerts에 더 이상 쓰지 않는다.
-// 이 복사본이 /sr.json에 섞여 매번 수십 MB씩 다시 받게 만들었음(2026-10 확인: attaches 20.6MB + gaugeCerts 12MB).
-// 안전절차: ① 백업 파일 저장 ② /srFiles에 항목이 빠짐없이 있는지 대조 ③ 전부 있는 항목만 삭제(하나라도 없으면 그 항목은 삭제 안 함)
-async function cleanupLegacySrCopies(){
-  if(!curUser||curUser.role!=='master'){tst('마스터 계정으로 로그인한 뒤 사용하세요');return;}
-  if(!confirm('/sr 안의 예전 복사본(첨부/도면/교정성적서)을 정리합니다.\n\n① 먼저 백업 파일을 PC에 저장하고\n② /srFiles에 모두 있는지 확인한 뒤\n③ 확인된 항목만 삭제합니다.\n\n(약 34MB를 한 번 받습니다) 진행할까요?'))return;
-  const hasData=v=>!!v&&((typeof v==='string'&&v.length>0)||(typeof v==='object'&&!!v.data));
-  try{
-    jbStat('🧹 예전 복사본 확인 중...','#0d6efd');
-    const names=['attaches','draws','gaugeCerts'];
-    const legacy={};
-    for(const n of names){
-      const r=await fetch(`${FB}/sr/${n}.json`); // 항상 서버 최신값(캐시 아님)
-      if(!r.ok)throw new Error(n+' 읽기 실패('+r.status+')');
-      legacy[n]=await r.json();
-    }
-    // ① 백업 저장
-    const blob=new Blob([JSON.stringify({savedAt:new Date().toISOString(),legacy})],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='sr-legacy-backup-'+new Date().toISOString().slice(0,10)+'.json'; document.body.appendChild(a); a.click(); a.remove();
-    // ② 대조: srFiles 쪽 항목 수집
-    const newRoot={};
-    for(const n of names){
-      const x=await cfGetPathChecked('srFiles/'+n);
-      if(!x.ok)throw new Error('srFiles/'+n+' 읽기 실패');
-      newRoot[n]=x.data||{};
-    }
-    const report=[]; const toDelete=[]; let migrate=[];
-    // attaches: 값이 파일 배열(품목ID→[파일]) 또는 파일 객체(파일ID→파일)
-    {
-      const L=legacy.attaches, N=newRoot.attaches;
-      const repo=fbDecodeRepoKeys(N['_repo']||{}), del=new Set((N['_deleted']||[]).map(String));
-      const ids=[]; const noId=[];
-      if(L&&typeof L==='object'){
-        Object.keys(L).forEach(k=>{
-          const v=L[k];
-          if(Array.isArray(v))v.forEach(f=>{ if(!f)return; if(f.id)ids.push({id:String(f.id),data:hasData(f)}); else noId.push(Object.assign({},f,{__k:k})); });
-          else if(v&&typeof v==='object'&&k!=='_repo'&&k!=='_deleted'){ ids.push({id:String(v.id||k),data:hasData(v)}); }
-        });
-        // 일부 버전은 {_repo:{...},_deleted:[...]} 형태로 /sr/attaches 아래에 둠
-        const lr=L['_repo'];
-        if(lr&&typeof lr==='object')Object.keys(lr).forEach(k=>{ const v=lr[k]; if(Array.isArray(v))v.forEach(f=>f&&f.id&&ids.push({id:String(f.id),data:hasData(f)})); else if(v)ids.push({id:String(v.id||k),data:hasData(v)}); });
-      }
-      const missing=ids.filter(x=>!del.has(x.id)&&!(repo[x.id]!==undefined&&(!x.data||hasData(repo[x.id]))));
-      // ID가 없는 예전 파일: 새 경로에서 '파일명+내용(base64)'이 똑같은 항목이 있는지로 대조
-      const repoVals=Object.keys(repo).map(k=>repo[k]).filter(v=>v&&typeof v==='object');
-      const noIdMissing=noId.filter(f=>!(f&&hasData(f)&&repoVals.some(v=>v.name===f.name&&v.data===f.data)));
-      report.push('첨부파일: 예전 '+(ids.length+noId.length)+'건(ID없음 '+noId.length+'건은 파일명+내용으로 대조) / 새 경로에 없음 '+(missing.length+noIdMissing.length)+'건'+(noIdMissing.length?' → '+noIdMissing.map(f=>(f&&f.name)||'?').join(', ')+(missing.length?'':' (이 파일들은 새 경로로 먼저 복사한 뒤 정리)'):''));
-      if(L===null||L===undefined)report[report.length-1]='첨부파일: 예전 복사본 없음(이미 정리됨)';
-      else if(!missing.length){ migrate=noIdMissing; toDelete.push('attaches'); }
-    }
-    // gaugeCerts: {_repo:[{id,...}], _deleted:[...]}
-    {
-      const L=legacy.gaugeCerts, N=newRoot.gaugeCerts;
-      const repo=fbDecodeRepoKeys(N['_repo']||{}), del=new Set((N['_deleted']||[]).map(String));
-      const lr=(L&&L['_repo'])||[]; const arr=Array.isArray(lr)?lr:Object.keys(lr).map(k=>lr[k]);
-      const items=arr.filter(Boolean);
-      const noId=items.filter(f=>!f.id).length;
-      const missing=items.filter(f=>f.id&&!del.has(String(f.id))&&!(repo[String(f.id)]!==undefined&&(!hasData(f)||hasData(repo[String(f.id)]))));
-      report.push('교정성적서: 예전 '+items.length+'건 / 새 경로에 없음 '+missing.length+'건'+(noId?' / ID없음 '+noId+'건':''));
-      if(L===null||L===undefined)report[report.length-1]='교정성적서: 예전 복사본 없음(이미 정리됨)';
-      else if(!missing.length&&!noId)toDelete.push('gaugeCerts');
-    }
-    // draws: {품목ID: 도면(객체 또는 문자열)}
-    {
-      const L=legacy.draws, N=newRoot.draws;
-      const repo=fbDecodeRepoKeys(N['_repo']||{}), del=new Set((N['_deleted']||[]).map(String));
-      const keys=(L&&typeof L==='object')?Object.keys(L).filter(k=>k!=='_repo'&&k!=='_deleted'):[];
-      const missing=keys.filter(k=>{ const id=(()=>{try{return decodeURIComponent(k).replace(/__DOT__/g,'.');}catch(e){return k;}})(); if(del.has(id)||del.has(k))return false; const nv=repo[id]!==undefined?repo[id]:repo[k]; return !(nv!==undefined&&(!hasData(L[k])||hasData(nv))); });
-      report.push('도면: 예전 '+keys.length+'건 / 새 경로에 없음 '+missing.length+'건');
-      if(L===null||L===undefined)report[report.length-1]='도면: 예전 복사본 없음(이미 정리됨)';
-      else if(!missing.length)toDelete.push('draws');
-    }
-    if(!toDelete.length){ jbStat('🧹 삭제할 항목 없음','#c07800'); alert('대조 결과\n\n'+report.join('\n')+'\n\n삭제 가능한 항목이 없어 아무것도 삭제하지 않았습니다.\n(백업 파일은 저장되었습니다)'); return; }
-    if(!confirm('대조 결과\n\n'+report.join('\n')+'\n\n새 경로에 전부 있는(또는 새 경로로 복사 후) 항목만 삭제합니다: '+toDelete.join(', ')+(migrate.length?'\n※ 첨부파일 '+migrate.length+'건은 새 경로에 복사한 뒤 삭제합니다':'')+'\n(백업 파일이 PC에 저장되었는지 확인하세요)\n\n삭제할까요?'))return;
-    const done=[];
-    for(const n of toDelete){
-      if(n==='attaches'&&migrate.length){
-        // 새 경로에 없던 예전 첨부파일은 먼저 새 경로(/srFiles/attaches)로 복사(ID 부여). 하나라도 실패하면 예전 복사본은 삭제하지 않는다.
-        let allOk=true;
-        for(const f0 of migrate){
-          const k=f0.__k; const item=Object.assign({},f0); delete item.__k;
-          item.id=gcNewId(); item.itemId=k; if(!item.ts)item.ts=Date.now();
-          const r=await cfAddFileItem('attaches', item);
-          if(!(r&&r.ok)){ allOk=false; break; }
-        }
-        if(!allOk){ done.push('attaches: 새 경로로 복사 실패 - 삭제하지 않음'); continue; }
-        done.push('attaches: '+migrate.length+'건 새 경로로 복사됨');
-      }
-      const ok=await cfDeletePath('sr/'+n); done.push(n+(ok?' 삭제됨':' 삭제 실패'));
-    }
-    jbStat('✅ 정리 완료','#0d9e72');
-    alert('정리 결과\n\n'+done.join('\n')+'\n\n이제 "🔄 최신 데이터 업로드" 후 📊 버튼에서 /sr 크기를 확인해보세요.');
-  }catch(e){
-    jbStat('⚠️ 정리 중단','#dc3545'); alert('중단되었습니다(아무것도 삭제되지 않았을 수 있음): '+((e&&e.message)||e));
-  }
-}
 function srKeySizes(){ try{ const a=window._lastFbAll; if(!a)return ''; const r=Object.keys(a).map(k=>[k,JSON.stringify(a[k]===undefined?null:a[k]).length]).sort((x,y)=>y[1]-x[1]).slice(0,12); return '\n\n/sr 안의 항목별 크기:\n'+r.map(([k,n])=>k+': '+(n>=1048576?(n/1048576).toFixed(1)+'MB':Math.round(n/1024)+'KB')).join('\n'); }catch(e){return '';} }
 function netReport(){ const rows=Object.keys(_netByUrl).map(k=>[k,_netByUrl[k]]).sort((a,b)=>b[1].b-a[1].b).map(([k,e])=>k+': '+(e.b>=1048576?(e.b/1048576).toFixed(1)+'MB':Math.round(e.b/1024)+'KB')+' ('+e.n+'회 받음, '+e.c+'회 변경없음)'); alert('이 화면을 연 뒤 받은 데이터 합계: '+netTallyText()+'\n\n'+(rows.join('\n')||'(없음)')+srKeySizes()+'\n\n최근 기록:\n'+_netLog.slice(-15).join('\n')); }
 function netTallyText(){ return _netTotal>=1048576?(_netTotal/1048576).toFixed(1)+'MB':Math.round(_netTotal/1024)+'KB'; }
