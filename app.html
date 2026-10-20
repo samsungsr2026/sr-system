@@ -2104,7 +2104,7 @@ async function cleanupLegacySrCopies(){
       if(!x.ok)throw new Error('srFiles/'+n+' 읽기 실패');
       newRoot[n]=x.data||{};
     }
-    const report=[]; const toDelete=[];
+    const report=[]; const toDelete=[]; let migrate=[];
     // attaches: 값이 파일 배열(품목ID→[파일]) 또는 파일 객체(파일ID→파일)
     {
       const L=legacy.attaches, N=newRoot.attaches;
@@ -2113,7 +2113,7 @@ async function cleanupLegacySrCopies(){
       if(L&&typeof L==='object'){
         Object.keys(L).forEach(k=>{
           const v=L[k];
-          if(Array.isArray(v))v.forEach(f=>{ if(!f)return; if(f.id)ids.push({id:String(f.id),data:hasData(f)}); else noId.push(f); });
+          if(Array.isArray(v))v.forEach(f=>{ if(!f)return; if(f.id)ids.push({id:String(f.id),data:hasData(f)}); else noId.push(Object.assign({},f,{__k:k})); });
           else if(v&&typeof v==='object'&&k!=='_repo'&&k!=='_deleted'){ ids.push({id:String(v.id||k),data:hasData(v)}); }
         });
         // 일부 버전은 {_repo:{...},_deleted:[...]} 형태로 /sr/attaches 아래에 둠
@@ -2124,9 +2124,9 @@ async function cleanupLegacySrCopies(){
       // ID가 없는 예전 파일: 새 경로에서 '파일명+내용(base64)'이 똑같은 항목이 있는지로 대조
       const repoVals=Object.keys(repo).map(k=>repo[k]).filter(v=>v&&typeof v==='object');
       const noIdMissing=noId.filter(f=>!(f&&hasData(f)&&repoVals.some(v=>v.name===f.name&&v.data===f.data)));
-      report.push('첨부파일: 예전 '+(ids.length+noId.length)+'건(ID없음 '+noId.length+'건은 파일명+내용으로 대조) / 새 경로에 없음 '+(missing.length+noIdMissing.length)+'건'+(noIdMissing.length?' → '+noIdMissing.map(f=>(f&&f.name)||'?').join(', '):''));
+      report.push('첨부파일: 예전 '+(ids.length+noId.length)+'건(ID없음 '+noId.length+'건은 파일명+내용으로 대조) / 새 경로에 없음 '+(missing.length+noIdMissing.length)+'건'+(noIdMissing.length?' → '+noIdMissing.map(f=>(f&&f.name)||'?').join(', ')+(missing.length?'':' (이 파일들은 새 경로로 먼저 복사한 뒤 정리)'):''));
       if(L===null||L===undefined)report[report.length-1]='첨부파일: 예전 복사본 없음(이미 정리됨)';
-      else if(!missing.length&&!noIdMissing.length)toDelete.push('attaches');
+      else if(!missing.length){ migrate=noIdMissing; toDelete.push('attaches'); }
     }
     // gaugeCerts: {_repo:[{id,...}], _deleted:[...]}
     {
@@ -2151,9 +2151,23 @@ async function cleanupLegacySrCopies(){
       else if(!missing.length)toDelete.push('draws');
     }
     if(!toDelete.length){ jbStat('🧹 삭제할 항목 없음','#c07800'); alert('대조 결과\n\n'+report.join('\n')+'\n\n삭제 가능한 항목이 없어 아무것도 삭제하지 않았습니다.\n(백업 파일은 저장되었습니다)'); return; }
-    if(!confirm('대조 결과\n\n'+report.join('\n')+'\n\n새 경로에 전부 있는 항목만 삭제합니다: '+toDelete.join(', ')+'\n(백업 파일이 PC에 저장되었는지 확인하세요)\n\n삭제할까요?'))return;
+    if(!confirm('대조 결과\n\n'+report.join('\n')+'\n\n새 경로에 전부 있는(또는 새 경로로 복사 후) 항목만 삭제합니다: '+toDelete.join(', ')+(migrate.length?'\n※ 첨부파일 '+migrate.length+'건은 새 경로에 복사한 뒤 삭제합니다':'')+'\n(백업 파일이 PC에 저장되었는지 확인하세요)\n\n삭제할까요?'))return;
     const done=[];
-    for(const n of toDelete){ const ok=await cfDeletePath('sr/'+n); done.push(n+(ok?' 삭제됨':' 삭제 실패')); }
+    for(const n of toDelete){
+      if(n==='attaches'&&migrate.length){
+        // 새 경로에 없던 예전 첨부파일은 먼저 새 경로(/srFiles/attaches)로 복사(ID 부여). 하나라도 실패하면 예전 복사본은 삭제하지 않는다.
+        let allOk=true;
+        for(const f0 of migrate){
+          const k=f0.__k; const item=Object.assign({},f0); delete item.__k;
+          item.id=gcNewId(); item.itemId=k; if(!item.ts)item.ts=Date.now();
+          const r=await cfAddFileItem('attaches', item);
+          if(!(r&&r.ok)){ allOk=false; break; }
+        }
+        if(!allOk){ done.push('attaches: 새 경로로 복사 실패 - 삭제하지 않음'); continue; }
+        done.push('attaches: '+migrate.length+'건 새 경로로 복사됨');
+      }
+      const ok=await cfDeletePath('sr/'+n); done.push(n+(ok?' 삭제됨':' 삭제 실패'));
+    }
     jbStat('✅ 정리 완료','#0d9e72');
     alert('정리 결과\n\n'+done.join('\n')+'\n\n이제 "🔄 최신 데이터 업로드" 후 📊 버튼에서 /sr 크기를 확인해보세요.');
   }catch(e){
