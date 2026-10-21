@@ -780,6 +780,7 @@ function doReconSearch() {
   const code = document.getElementById('recon-code').value.trim();
   const pickBox = document.getElementById('recon-pick-list');
   if (!code) { tst('코드를 입력해주세요'); return; }
+  document.getElementById('recon-code').value = ''; // 조회 후 입력칸 비움 (다음 스캔 바로 가능)
   cancelReconEdit();
 
   const list = matchInv(code);
