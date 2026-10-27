@@ -6950,10 +6950,10 @@ function printBarcodes(){
           <span class="fit" style="${normal};color:#111">${it.name}</span>
         </div>
       </div>
-      <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
+      <div style="flex:1.6;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
         <div style="width:18%;min-width:18%;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#111;white-space:nowrap">부품번호</div>
         <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0 2px">
-          <span class="fit" style="font-family:monospace;${normal};color:#111">${(()=>{const c=String(it.classNo||'').trim();if(!c)return '-';const k=Math.max(c.length-4,0);return (k?'<span class="pn-front" style="font-size:0.8em;font-weight:300">'+c.slice(0,k)+'</span>':'')+'<b style="font-weight:900">'+c.slice(k)+'</b>';})()}</span>
+          <span class="fit" style="font-family:monospace;${normal};color:#111">${(()=>{const c=String(it.classNo||'').trim();if(!c)return '-';const k=Math.max(c.length-4,0);return (k?'<span class="pn-front" style="font-size:0.8em;font-weight:300">'+c.slice(0,k)+'</span>':'')+'<b class="pn-back" style="font-weight:900">'+c.slice(k)+'</b>';})()}</span>
         </div>
       </div>
       <div style="flex:1;min-height:0;border-bottom:1.5px solid #111;display:flex;flex-shrink:1;overflow:hidden">
@@ -7191,6 +7191,18 @@ window.onload=function(){
         span.style.fontSize=fz+'px';
       }
       pnFront.forEach(function(e){e.style.fontSize='0.8em';});
+      /* 부품번호: 앞자리는 기존 크기 유지, 뒤 4자리만 1.5배 (부품번호 칸 1.5배 높이) */
+      var pnBack=span.querySelector('.pn-back');
+      if(pnBack){
+        var base=Math.min(fz,(cellH-2)/1.5);
+        var g2=0;
+        do{
+          span.style.fontSize=base+'px';
+          pnFront.forEach(function(e){e.style.fontSize=(base*0.8)+'px';});
+          pnBack.style.fontSize=(base*1.5)+'px';
+          base-=0.5;g2++;
+        }while(span.scrollWidth>maxW&&base>5&&g2<400);
+      }
     });
   }
   function afterQR(){
