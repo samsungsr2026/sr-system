@@ -8422,7 +8422,7 @@ function getPendingApprovalItems(){
   const isM=isMaster();
   const atPending=(attendanceReqs||[]).filter(a=>(a.status||'pending')==='pending').map(a=>({
     __att:true, id:a.id, type:'attendance',
-    label:(a.name||'-')+' — '+(a.type||'')+' '+(a.date||'')+(a.time?' '+a.time:'')+(a.reason?' · '+a.reason:''),
+    label:(a.name||'-')+' — '+(a.type||'')+' '+(a.date||'')+(a.time?' '+a.time:'')+(isAttOT(a.type)&&a.hours?' '+a.hours+'시간':'')+(a.reason?' · '+a.reason:''),
     requestedBy:a.name||'-', requestedAt:a.ts
   }));
   return (isM?[...pendingChanges,...atPending]:pendingChanges.filter(p=>p.requestedBy===(curUser&&curUser.name))).slice().sort((a,b)=>b.requestedAt-a.requestedAt);
@@ -9662,8 +9662,8 @@ th{background:#f0f0f0;font-weight:700}
 
 // ── 근태신청 (간단 버전) ────────────────────────────────────────────
 function rAttendance(){
-  const typeBg={연차:'var(--blue-bg)',반차:'var(--blue-bg)','조퇴':'var(--amber-bg)','지각':'var(--amber-bg)','외출':'var(--bg3)','기타':'var(--bg3)'};
-  const typeColor={연차:'var(--blue)',반차:'var(--blue)','조퇴':'var(--amber)','지각':'var(--amber)','외출':'var(--text2)','기타':'var(--text2)'};
+  const typeBg={연차:'var(--blue-bg)',반차:'var(--blue-bg)','조퇴':'var(--amber-bg)','지각':'var(--amber-bg)','외출':'var(--bg3)','기타':'var(--bg3)','특근':'var(--green-bg)','잔업':'var(--purple-bg)'};
+  const typeColor={연차:'var(--blue)',반차:'var(--blue)','조퇴':'var(--amber)','지각':'var(--amber)','외출':'var(--text2)','기타':'var(--text2)','특근':'var(--green)','잔업':'var(--purple)'};
   const statusBg={pending:'var(--amber-bg)',approved:'var(--green-bg)',rejected:'var(--red-bg)'};
   const statusColor={pending:'var(--amber)',approved:'var(--green)',rejected:'var(--red)'};
   const statusLabel={pending:'⏳ 승인대기',approved:'✅ 승인됨',rejected:'🚫 거부됨'};
@@ -9680,7 +9680,7 @@ function rAttendance(){
   const minOpts=['00','10','20','30','40','50'].map(m=>`<option>${m}</option>`).join('');
   return `
   <div class="page-title">근태신청</div>
-  <div class="page-sub">연차 · 반차 · 조퇴 등 근태를 간단히 신청합니다 (신청 후 마스터 승인이 필요합니다)</div>
+  <div class="page-sub">연차 · 반차 · 조퇴 · 특근 · 잔업 등 근태를 간단히 신청합니다 (신청 후 마스터 승인이 필요합니다)</div>
 
   <div class="card" style="margin-bottom:16px;border-color:rgba(26,107,255,.2)">
     <div class="card-title">✏️ 신청 작성</div>
@@ -9695,13 +9695,15 @@ function rAttendance(){
       </div>
       <div class="fg" style="margin-bottom:0">
         <label class="fl">구분</label>
-        <select class="fi" id="at-type">
+        <select class="fi" id="at-type" onchange="onAttTypeChange()">
           <option>연차</option>
           <option>반차</option>
           <option>조퇴</option>
           <option>지각</option>
           <option>외출</option>
           <option>기타</option>
+          <option>특근</option>
+          <option>잔업</option>
         </select>
       </div>
       <div class="fg" style="margin-bottom:0">
@@ -9709,8 +9711,15 @@ function rAttendance(){
         <input type="date" class="fi" id="at-date" value="${new Date().toISOString().slice(0,10)}">
       </div>
     </div>
-    <div class="fg">
-      <label class="fl">시간 (선택, 시작 ~ 종료)</label>
+    <div class="fg" id="at-ot-wrap" style="display:none">
+      <label class="fl">시간 * (특근·잔업 시간)</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="number" class="fi" id="at-ot-hours" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="예: 2" style="max-width:140px">
+        <span style="color:var(--text2);font-weight:700">시간</span>
+      </div>
+    </div>
+    <div class="fg" id="at-time-wrap">
+      <label class="fl">시간 (선택, 시작 ~ 종료 · 점심 12:30~13:30 제외)</label>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <select class="fi" id="at-hour-from" style="flex:1;min-width:64px" onchange="updateAttHoursSum()"><option value="">--</option>${hourOpts}</select>
         <span style="color:var(--text3);font-weight:700">:</span>
@@ -9722,7 +9731,7 @@ function rAttendance(){
       </div>
       <div id="at-hours-sum" style="font-size:12px;color:var(--blue);font-weight:700;margin-top:6px"></div>
     </div>
-    <div class="fg">
+    <div class="fg" id="at-reason-wrap">
       <label class="fl">사유</label>
       <select class="fi" id="at-reason-sel" onchange="document.getElementById('at-reason-custom-wrap').style.display=this.value==='직접입력'?'block':'none'">
         <option>개인사유</option>
@@ -9757,7 +9766,7 @@ function rAttendance(){
             <span style="background:${typeBg[a.type]||'var(--bg3)'};color:${typeColor[a.type]||'var(--text2)'};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700">${a.type||'기타'}</span>
             <span style="background:${statusBg[st]};color:${statusColor[st]};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700">${statusLabel[st]}</span>
             <span style="font-weight:700;font-size:14px">${a.name||''}</span>
-            <span style="font-size:12px;color:var(--text3)">${a.date||''}${a.timeFrom&&a.timeTo?' '+a.timeFrom+'~'+a.timeTo+' (합 '+a.hours+'시간)':(a.time?' '+a.time:'')}</span>
+            <span style="font-size:12px;color:var(--text3)">${a.date||''}${attTimeText(a)}</span>
           </div>
           ${a.reason?`<div style="font-size:13px;color:var(--text2)">${a.reason}</div>`:''}
         </div>
@@ -9773,13 +9782,41 @@ function rAttendance(){
   }).join('')}`;
 }
 
-// 시작~종료 시간(HH:MM) 사이의 시간 차이를 시간 단위(소수점 1자리)로 계산. 종료가 시작보다 빠르면 0 처리.
+// 점심시간(12:30~13:30)과 시작~종료 구간이 겹치는 분 수
+const ATT_LUNCH_FROM=12*60+30, ATT_LUNCH_TO=13*60+30;
+function attLunchOverlapMin(from,to){
+  const [fh,fm]=from.split(':').map(Number);
+  const [th,tm]=to.split(':').map(Number);
+  const f=fh*60+fm, t=th*60+tm;
+  return Math.max(0,Math.min(t,ATT_LUNCH_TO)-Math.max(f,ATT_LUNCH_FROM));
+}
+// 시작~종료 시간(HH:MM) 사이의 시간 차이를 시간 단위(소수점 1자리)로 계산. 점심시간(12:30~13:30) 겹치는 부분은 제외. 종료가 시작보다 빠르면 0 처리.
 function attHoursDiff(from,to){
   const [fh,fm]=from.split(':').map(Number);
   const [th,tm]=to.split(':').map(Number);
   let diff=(th*60+tm)-(fh*60+fm);
+  if(!(diff>0))return 0;
+  diff-=attLunchOverlapMin(from,to);
   if(!(diff>0))diff=0;
   return Math.round(diff/60*10)/10;
+}
+// 특근·잔업은 날짜 + 시간(숫자)만 입력
+function isAttOT(type){return type==='특근'||type==='잔업';}
+// 목록·로그·승인대기에 표시할 시간 문구
+function attTimeText(a){
+  if(isAttOT(a.type)&&a.hours!=null&&a.hours!=='')return ' '+a.hours+'시간';
+  if(a.timeFrom&&a.timeTo)return ' '+a.timeFrom+'~'+a.timeTo+' (합 '+a.hours+'시간)';
+  return a.time?' '+a.time:'';
+}
+// 구분 변경 시: 특근·잔업이면 시간(숫자) 입력만, 그 외는 기존 시작~종료/사유 입력
+function onAttTypeChange(){
+  const ot=isAttOT(document.getElementById('at-type')?.value||'');
+  const show=(id,on)=>{const el=document.getElementById(id);if(el)el.style.display=on?'block':'none';};
+  show('at-ot-wrap',ot);
+  show('at-time-wrap',!ot);
+  show('at-reason-wrap',!ot);
+  if(ot)show('at-reason-custom-wrap',false);
+  else show('at-reason-custom-wrap',document.getElementById('at-reason-sel')?.value==='직접입력');
 }
 // 근태신청 작성 폼에서 시작~종료 선택 시 실시간으로 "합 N시간" 표시
 function updateAttHoursSum(){
@@ -9791,7 +9828,8 @@ function updateAttHoursSum(){
   const tm=document.getElementById('at-min-to')?.value||'';
   if(fh&&fm&&th&&tm){
     const from=fh+':'+fm, to=th+':'+tm;
-    el.textContent='합 '+attHoursDiff(from,to)+'시간 ('+from+' ~ '+to+')';
+    const lunch=attLunchOverlapMin(from,to);
+    el.textContent='합 '+attHoursDiff(from,to)+'시간 ('+from+' ~ '+to+(lunch>0?' · 점심 '+(lunch===60?'1시간':lunch+'분')+' 제외':'')+')';
   }else{
     el.textContent='';
   }
@@ -9811,9 +9849,17 @@ function addAttendanceReq(){
   const reason=reasonSel==='직접입력'?(document.getElementById('at-reason-custom')?.value?.trim()||''):reasonSel;
   if(!name){tst('이름을 선택해주세요');return;}
   if(!date){tst('날짜를 선택해주세요');return;}
-  attendanceReqs.unshift({id:Date.now(),ts:Date.now(),name,type,date,timeFrom,timeTo,hours,reason,status:'pending'});
+  let rec;
+  if(isAttOT(type)){
+    const otHours=parseFloat(document.getElementById('at-ot-hours')?.value||'');
+    if(!(otHours>0)||otHours>24){tst('시간을 입력해주세요');return;}
+    rec={id:Date.now(),ts:Date.now(),name,type,date,timeFrom:'',timeTo:'',hours:Math.round(otHours*10)/10,reason:'',status:'pending'};
+  }else{
+    rec={id:Date.now(),ts:Date.now(),name,type,date,timeFrom,timeTo,hours,reason,status:'pending'};
+  }
+  attendanceReqs.unshift(rec);
   saveAttendance();
-  addLog('other','근태신청 등록 — '+name, `구분: ${type} / 날짜: ${date}${timeFrom&&timeTo?' '+timeFrom+'~'+timeTo+' (합 '+hours+'시간)':''} (승인대기)`);
+  addLog('other','근태신청 등록 — '+name, `구분: ${type} / 날짜: ${date}${attTimeText(rec)} (승인대기)`);
   tst('📨 신청 완료 · 마스터 승인 대기 중');
   render();
 }
@@ -9826,7 +9872,7 @@ function approveAttendance(id){
   a.approvedBy=curUser.name;
   a.approvedAt=Date.now();
   saveAttendance();
-  addLog('other','근태신청 승인 — '+(a.name||''), `구분: ${a.type} / 날짜: ${a.date}${a.timeFrom&&a.timeTo?' '+a.timeFrom+'~'+a.timeTo+' (합 '+a.hours+'시간)':(a.time?' '+a.time:'')}`);
+  addLog('other','근태신청 승인 — '+(a.name||''), `구분: ${a.type} / 날짜: ${a.date}${attTimeText(a)}`);
   tst('✓ 승인 완료');
   render();
 }
@@ -9840,7 +9886,7 @@ function rejectAttendance(id){
   a.approvedBy=curUser.name;
   a.approvedAt=Date.now();
   saveAttendance();
-  addLog('other','근태신청 거부 — '+(a.name||''), `구분: ${a.type} / 날짜: ${a.date}${a.timeFrom&&a.timeTo?' '+a.timeFrom+'~'+a.timeTo+' (합 '+a.hours+'시간)':(a.time?' '+a.time:'')}`);
+  addLog('other','근태신청 거부 — '+(a.name||''), `구분: ${a.type} / 날짜: ${a.date}${attTimeText(a)}`);
   tst('🚫 거부되었습니다');
   render();
 }
