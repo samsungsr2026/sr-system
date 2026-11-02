@@ -440,6 +440,13 @@ async function delAtEntry(id) {
   tst('삭제되었습니다');
 }
 
+// 시간 표시: 특근·잔업은 입력 시간, 시작~종료 입력 건은 구간+합계, 예전 건은 단일 시각
+function atTimeText(a) {
+  if ((a.type === '특근' || a.type === '잔업') && a.hours != null && a.hours !== '') return ' ' + escHtml(String(a.hours)) + '시간';
+  if (a.timeFrom && a.timeTo) return ' ' + escHtml(a.timeFrom) + '~' + escHtml(a.timeTo) + ' (합 ' + escHtml(String(a.hours)) + '시간)';
+  return a.time ? ' ' + escHtml(a.time) : '';
+}
+
 function renderAtList() {
   const list = attendanceReqs.slice().sort((a,b) => b.ts - a.ts).slice(0, 30);
   const card = document.getElementById('at-list-card');
@@ -453,7 +460,7 @@ function renderAtList() {
     return `
     <div class="at-item">
       <div>
-        <div><span class="at-status ${st}">${statusLabel[st]}</span><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}${a.time ? ' ' + escHtml(a.time) : ''}</span></div>
+        <div><span class="at-status ${st}">${statusLabel[st]}</span><span class="at-type">${escHtml(a.type || '기타')}</span><span class="at-name">${escHtml(a.name || '')}</span><span class="at-date">${escHtml(a.date || '')}${atTimeText(a)}</span></div>
         ${a.reason ? '<div class="at-reason">' + escHtml(a.reason) + '</div>' : ''}
       </div>
       <button class="at-del" onclick="delAtEntry('${a.id}')">삭제</button>
