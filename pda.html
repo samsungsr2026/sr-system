@@ -1485,6 +1485,8 @@ function checkUnprintedOrders() {
       <div class="order-alert-item-doc">${o.docNo || '-'} ${o.vendor ? '· ' + o.vendor : ''}</div>
       <div class="order-alert-item-sub">${o.w ? '담당: ' + o.w + ' · ' : ''}${o.due ? '납기: ' + o.due : ''}</div>
     </div>`).join('') + (targets.length > 10 ? `<div class="order-alert-item-sub" style="text-align:center;padding:4px">외 ${targets.length - 10}건 더 있음</div>` : '');
+  // 팝업 뜰 때 이전 글자 선택/입력창 포커스를 지워 안드로이드 복사·공유 툴바가 팝업 위에 남지 않게 함
+  try { blurActiveInput(); const sel = window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch(e) {}
   document.getElementById('order-alert-overlay').classList.add('on');
   window._pdaOrderAlertTargets = targets.map(o => o.docNo);
 }
