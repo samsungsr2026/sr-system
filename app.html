@@ -869,6 +869,7 @@ let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 // 근태신청: 간단한 신청 목록 (연차/반차/조퇴 등). 핸드폰에서 간단히 작성.
 let attendanceReqs=JSON.parse(localStorage.getItem('sr-attendance')||'[]');
 let attMonthFilter=''; // 근태신청 월별 보기 필터 (YYYY-MM), ''이면 전체
+let attOtMonth=new Date().toISOString().slice(0,7); // 특근·잔업 명단별 합계 기간 (YYYY-MM), 'all'이면 전체
 function saveAttendance(){
   _lastAttSave=Date.now();
   localStorage.setItem('sr-attendance',JSON.stringify(attendanceReqs));
@@ -9682,7 +9683,8 @@ function rAttendance(){
   <div class="page-title">근태신청</div>
   <div class="page-sub">연차 · 반차 · 조퇴 · 특근 · 잔업 등 근태를 간단히 신청합니다 (신청 후 마스터 승인이 필요합니다)</div>
 
-  <div class="card" style="margin-bottom:16px;border-color:rgba(26,107,255,.2)">
+  <div class="grid2" style="align-items:start">
+  <div class="card" style="margin-bottom:0;border-color:rgba(26,107,255,.2)">
     <div class="card-title">✏️ 신청 작성</div>
     <div class="grid3" style="margin-bottom:10px">
       <div class="fg" style="margin-bottom:0">
@@ -9745,6 +9747,8 @@ function rAttendance(){
       <button class="btn bbl" onclick="addAttendanceReq()" style="padding:10px 24px">신청</button>
     </div>
   </div>
+  ${rAttOtSummary()}
+  </div>
 
   <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div class="card-title" style="margin-bottom:0;white-space:nowrap">📅 월별 보기</div>
@@ -9780,6 +9784,70 @@ function rAttendance(){
       </div>
     </div>`;
   }).join('')}`;
+}
+
+// 특근·잔업 명단별 합계 (월별 / 전체). 거부된 건은 제외, 승인대기·승인 건 포함
+function rAttOtSummary(){
+  const ot=(attendanceReqs||[]).filter(a=>isAttOT(a.type)&&(a.status||'pending')!=='rejected');
+  const curM=new Date().toISOString().slice(0,7);
+  const monthSet=new Set(ot.map(a=>(a.date||'').slice(0,7)).filter(Boolean));
+  monthSet.add(curM);
+  if(attOtMonth&&attOtMonth!=='all')monthSet.add(attOtMonth);
+  const monthOpts=Array.from(monthSet).sort().reverse().map(m=>{
+    const [y,mo]=m.split('-');
+    return `<option value="${m}" ${attOtMonth===m?'selected':''}>${y}년 ${parseInt(mo,10)}월</option>`;
+  }).join('');
+  const sel=attOtMonth==='all'?ot:ot.filter(a=>(a.date||'').slice(0,7)===attOtMonth);
+  const by={};
+  sel.forEach(a=>{
+    const n=a.name||'-';
+    if(!by[n])by[n]={잔업:0,특근:0,pend:0};
+    const h=parseFloat(a.hours)||0;
+    by[n][a.type]+=h;
+    if((a.status||'pending')==='pending')by[n].pend++;
+  });
+  const r1=v=>Math.round(v*10)/10;
+  const names=Object.keys(by).sort((x,y)=>(by[y].잔업+by[y].특근)-(by[x].잔업+by[x].특근)||x.localeCompare(y));
+  let tj=0,tt=0;
+  names.forEach(n=>{tj+=by[n].잔업;tt+=by[n].특근;});
+  const th='padding:7px 8px;font-size:12px;font-weight:700;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border);text-align:right';
+  const td='padding:7px 8px;font-size:13px;border-bottom:1px solid var(--border);text-align:right';
+  return `
+  <div class="card" style="margin-bottom:0;border-color:rgba(26,107,255,.2)">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0;white-space:nowrap">⏱️ 특근·잔업 합계</div>
+      <select class="fi" style="width:auto;flex:0 0 auto;margin-left:auto" onchange="attOtMonth=this.value;render()">
+        ${monthOpts}
+        <option value="all" ${attOtMonth==='all'?'selected':''}>전체</option>
+      </select>
+    </div>
+    ${!names.length?`<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">${attOtMonth==='all'?'신청된 특근·잔업이 없습니다':'선택한 월에 신청된 특근·잔업이 없습니다'}</div>`:`
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${th};text-align:left">이름</th>
+        <th style="${th}">잔업</th>
+        <th style="${th}">특근</th>
+        <th style="${th}">합계</th>
+      </tr></thead>
+      <tbody>
+        ${names.map(n=>`<tr>
+          <td style="${td};text-align:left;font-weight:600">${n}${by[n].pend?` <span style="font-size:10px;color:var(--amber);font-weight:700">대기 ${by[n].pend}</span>`:''}</td>
+          <td style="${td};color:var(--purple)">${by[n].잔업?r1(by[n].잔업)+'h':'-'}</td>
+          <td style="${td};color:var(--green)">${by[n].특근?r1(by[n].특근)+'h':'-'}</td>
+          <td style="${td};font-weight:700">${r1(by[n].잔업+by[n].특근)}h</td>
+        </tr>`).join('')}
+        <tr style="background:var(--blue-bg)">
+          <td style="${td};text-align:left;font-weight:700">총계 (${names.length}명)</td>
+          <td style="${td};font-weight:700">${r1(tj)}h</td>
+          <td style="${td};font-weight:700">${r1(tt)}h</td>
+          <td style="${td};font-weight:800;color:var(--blue)">${r1(tj+tt)}h</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>`}
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">승인대기 포함 · 거부 건 제외</div>
+  </div>`;
 }
 
 // 점심시간(12:30~13:30)과 시작~종료 구간이 겹치는 분 수
