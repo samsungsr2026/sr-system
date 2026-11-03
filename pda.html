@@ -359,7 +359,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 <div class="order-alert-overlay" id="order-alert-overlay">
   <div class="order-alert-card">
     <div class="order-alert-icon">📋</div>
-    <div class="order-alert-title" id="order-alert-title">미발행 발주서가 있습니다</div>
+    <div class="order-alert-title" id="order-alert-title">새 발주서가 있습니다 · 출력해 주세요</div>
     <div class="order-alert-sub" id="order-alert-sub"></div>
     <div class="order-alert-list" id="order-alert-list"></div>
     <div class="order-alert-btns">
@@ -1505,6 +1505,10 @@ async function pullOrdersFromServer() {
     }
   } catch(e) {}
 }
+// 2026-11: 새 발주서 알림용 - 발주서(orders)만 60초마다 + 화면 다시 켤 때 확인
+// (ETag 캐시로 안 바뀌었으면 304만 받으므로 데이터 사용량 거의 없음. 재고/거래내역 자동 폴링은 그대로 꺼둠)
+setInterval(pullOrdersFromServer, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pullOrdersFromServer(); });
 
 // ── 생산현황 등록 (작업자별 여러 건 등록 가능) ──────────────────────────────
 function prodWorkerChanged() {
