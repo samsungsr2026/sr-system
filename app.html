@@ -2350,7 +2350,8 @@ async function buildInvToSend(){
         // 2026-10-08: 수량은 "이 PC에서 바꾼 만큼(증감분)"만 서버 최신 수량에 더한다.
         // (PC에서 위치 등만 고쳐 저장해도 그 사이 PDA에서 입고한 수량이 PC의 옛 수량으로 되돌아가던 문제 방지)
         const d=(Number(lIt.qty)||0)-(Number(bIt.qty)||0);
-        merged.push(Object.assign({}, lIt, {qty: Math.max(0,(Number(sIt.qty)||0)+d)}));
+        // 2026-11-05: 재고가 마이너스가 되면 0으로 바꾸지 않고 마이너스 그대로 저장
+        merged.push(Object.assign({}, lIt, {qty: (Number(sIt.qty)||0)+d}));
       } else merged.push(locallyChanged?lIt:sIt);
     });
     inv.forEach(lIt=>{ if(lIt&&lIt.id!==undefined&&!seen.has(lIt.id)) merged.push(lIt); }); // 이 세션에서 새로 추가한 항목
@@ -10059,7 +10060,7 @@ function delTodayTx(id,type){
   if(!confirm('이 '+(type==='in'?'입고':'출고')+' 내역을 삭제하시겠습니까?\n(재고 수량이 되돌려집니다)'))return;
   const idx=inv.findIndex(i=>i.id===t.iid);
   if(idx>=0){
-    if(type==='in') inv[idx].qty=Math.max(0,inv[idx].qty-t.qty);
+    if(type==='in') inv[idx].qty-=t.qty; // 마이너스 그대로 유지 (2026-11-05)
     else inv[idx].qty+=t.qty;
   }
   txs=txs.filter(x=>String(x.id)!==String(id));

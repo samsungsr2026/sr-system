@@ -962,7 +962,7 @@ async function fbAdjustInvQty(itemId, delta, producer) {
     const etag = g.headers.get('ETag');
     const it = await g.json();
     if (!it || it.id !== itemId) { _fbEtagMem['sr/inv'] = undefined; continue; } // 그 사이 목록 순서가 바뀜 → 다시 찾기
-    it.qty = Math.max(0, (Number(it.qty) || 0) + delta);
+    it.qty = (Number(it.qty) || 0) + delta; // 마이너스 재고도 그대로 저장 (2026-11-05)
     if (producer) it.producer = producer;
     const body = JSON.stringify(it);
     let r;
