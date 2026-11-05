@@ -1454,7 +1454,7 @@ async function saveMolds(force){
   }catch(e){ jbStat('⚠️ 저장오류','#c07800'); }
 }
 let planSq=''; // 생산계획서 품목 검색어
-let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null,pendStockRecon=null,invSortMode='default';
+let tab='dash',fcat='전체',sq='',ioMode='manual',scanType='in',pendIO=[],pendXL=null,scanId=null,pendStockRecon=null,invSortMode='default',invMoldOnly=false;
 
 // 제품 사진 / 도면 저장소 (품목ID → 데이터)
 let imgs=JSON.parse(localStorage.getItem('sr-imgs')||'{}');     // 제품 사진 (base64 이미지)
@@ -3580,9 +3580,18 @@ function fil(){
   return inv.filter(i=>{
     const stop=isStop(i);
     const stOk = fcat==='전체'||(fcat==='정상'&&st(i)==='ok'&&!stop)||(fcat==='주의'&&st(i)==='med'&&!stop)||(fcat==='부족'&&st(i)==='low'&&!stop)||(fcat==='생산중단'&&stop);
-    const srOk = !sq||ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq)||altMatch(i,sq);
+    // '금형번호만' 옵션: 금형번호(id)에 검색어가 들어간 품목만 조회
+    const srOk = !sq||(invMoldOnly?ciInc(i.id,sq):(ciInc(i.name,sq)||ciInc(i.id,sq)||ciInc(i.material,sq)||ciInc(i.classNo,sq)||ciInc(i.location,sq)||altMatch(i,sq)));
     return stOk&&srOk;
   }).sort((a,b)=>{
+    // '금형번호만' 검색 시: 정확히 일치(52) → 앞부분 일치(520, 52-1) → 포함(152) 순, 같은 순위는 금형번호 순
+    if(invMoldOnly&&sq){
+      const q=String(sq).trim().toLowerCase();
+      const rk=x=>{const v=String(x.id==null?'':x.id).trim().toLowerCase();return v===q?0:v.startsWith(q)?1:2;};
+      const ra=rk(a),rb=rk(b);
+      if(ra!==rb)return ra-rb;
+      return String(a.id).localeCompare(String(b.id),'ko',{numeric:true});
+    }
     if(invSortMode==='qty'){
       // 현재 재고 많은 순
       return b.qty-a.qty;
@@ -5206,8 +5215,9 @@ function rInv(){
   <div style="display:flex;gap:12px;margin-bottom:14px">
     <div class="search-wrap" style="flex:1;margin-bottom:0">
       <svg class="sic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" class="fi" id="inv-search-box" placeholder="품명, 금형번호, 재질, 부품번호 검색..." value="${sq}" inputmode="numeric" onkeyup="invSearch(this.value)" style="padding-left:37px">
+      <input type="text" class="fi" id="inv-search-box" placeholder="${invMoldOnly?'금형번호만 검색 (예: 52)':'품명, 금형번호, 재질, 부품번호 검색...'}" value="${sq}" inputmode="numeric" onkeyup="invSearch(this.value)" style="padding-left:37px">
     </div>
+    <div class="ftab${invMoldOnly?' on':''}" onclick="invMoldOnly=!invMoldOnly;invPage=1;render();setTimeout(()=>{const e=document.getElementById('inv-search-box');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}},0)" style="flex-shrink:0;align-self:center;white-space:nowrap">${invMoldOnly?'✓ ':''}금형번호만</div>
   </div>
   <div class="ftabs">
     ${['전체','정상','주의','부족','생산중단'].map(s=>`<div class="ftab${fcat===s?' on':''}" onclick="fcat='${s}';invPage=1;render()">${s}</div>`).join('')}
