@@ -9827,6 +9827,7 @@ function rAttPager(total){
   <div style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:10px">${s}–${e} / 총 ${total}건</div>`;
 }
 // 사람별 통계 (월별 보기 선택 기간 기준). 거부 건 제외, 승인대기·승인 포함
+const ATT_HOUR_TYPES=['반차','조퇴','지각','외출'];
 function rAttPersonStats(list){
   const cols=['연차','반차','조퇴','지각','외출','기타'];
   const valid=list.filter(a=>(a.status||'pending')!=='rejected');
@@ -9834,16 +9835,35 @@ function rAttPersonStats(list){
   const by={};
   valid.forEach(a=>{
     const n=a.name||'-';
-    if(!by[n])by[n]={cnt:{},잔업:0,특근:0,total:0};
+    if(!by[n])by[n]={cnt:{},hrs:{},miss:{},잔업:0,특근:0,total:0};
     const t=a.type||'기타';
+    const k=cols.includes(t)?t:'기타';
     if(isAttOT(t))by[n][t]+=parseFloat(a.hours)||0;
-    else{const k=cols.includes(t)?t:'기타';by[n].cnt[k]=(by[n].cnt[k]||0)+1;}
+    else{
+      by[n].cnt[k]=(by[n].cnt[k]||0)+1;
+      if(ATT_HOUR_TYPES.includes(k)){
+        const h=parseFloat(a.hours);
+        if(h>0)by[n].hrs[k]=(by[n].hrs[k]||0)+h;
+        else by[n].miss[k]=(by[n].miss[k]||0)+1; // 시간 미입력 건
+      }
+    }
     by[n].total++;
   });
   const r1=v=>Math.round(v*10)/10;
   const names=Object.keys(by).sort((x,y)=>by[y].total-by[x].total||x.localeCompare(y));
-  const tot={cnt:{},잔업:0,특근:0,total:0};
-  names.forEach(n=>{cols.forEach(c=>tot.cnt[c]=(tot.cnt[c]||0)+(by[n].cnt[c]||0));tot.잔업+=by[n].잔업;tot.특근+=by[n].특근;tot.total+=by[n].total;});
+  const tot={cnt:{},hrs:{},miss:{},잔업:0,특근:0,total:0};
+  names.forEach(n=>{cols.forEach(c=>{tot.cnt[c]=(tot.cnt[c]||0)+(by[n].cnt[c]||0);tot.hrs[c]=(tot.hrs[c]||0)+(by[n].hrs[c]||0);tot.miss[c]=(tot.miss[c]||0)+(by[n].miss[c]||0);});tot.잔업+=by[n].잔업;tot.특근+=by[n].특근;tot.total+=by[n].total;});
+  // 연차: 일수 / 반차·조퇴·지각·외출: 시간 합계 (시간 미입력 건은 따로 표시) / 기타: 건수
+  const val=(o,c)=>{
+    if(c==='연차')return o.cnt[c]?o.cnt[c]+'일':0;
+    if(ATT_HOUR_TYPES.includes(c)){
+      if(!o.cnt[c])return 0;
+      const h=o.hrs[c]?r1(o.hrs[c])+'h':'';
+      const m=o.miss[c]?`<span style="font-size:10px;color:var(--text3)"> ${h?'+':''}시간미입력 ${o.miss[c]}건</span>`:'';
+      return (h||'')+m;
+    }
+    return o.cnt[c]?o.cnt[c]+'건':0;
+  };
   const th='padding:7px 8px;font-size:12px;font-weight:700;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border);text-align:center;white-space:nowrap';
   const td='padding:7px 8px;font-size:13px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap';
   const cell=v=>v?v:'<span style="color:var(--text3)">-</span>';
@@ -9865,14 +9885,14 @@ function rAttPersonStats(list){
       <tbody>
         ${names.map(n=>`<tr>
           <td style="${td};text-align:left;font-weight:600">${n}</td>
-          ${cols.map(c=>`<td style="${td}">${cell(by[n].cnt[c]?by[n].cnt[c]+'건':0)}</td>`).join('')}
+          ${cols.map(c=>`<td style="${td}">${cell(val(by[n],c))}</td>`).join('')}
           <td style="${td};color:var(--purple)">${cell(by[n].잔업?r1(by[n].잔업)+'h':0)}</td>
           <td style="${td};color:var(--green)">${cell(by[n].특근?r1(by[n].특근)+'h':0)}</td>
           <td style="${td};font-weight:700">${by[n].total}건</td>
         </tr>`).join('')}
         <tr style="background:var(--blue-bg)">
           <td style="${td};text-align:left;font-weight:700">합계 (${names.length}명)</td>
-          ${cols.map(c=>`<td style="${td};font-weight:700">${cell(tot.cnt[c]?tot.cnt[c]+'건':0)}</td>`).join('')}
+          ${cols.map(c=>`<td style="${td};font-weight:700">${cell(val(tot,c))}</td>`).join('')}
           <td style="${td};font-weight:700">${cell(tot.잔업?r1(tot.잔업)+'h':0)}</td>
           <td style="${td};font-weight:700">${cell(tot.특근?r1(tot.특근)+'h':0)}</td>
           <td style="${td};font-weight:800;color:var(--blue)">${tot.total}건</td>
