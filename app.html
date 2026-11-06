@@ -869,6 +869,7 @@ let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 // 근태신청: 간단한 신청 목록 (연차/반차/조퇴 등). 핸드폰에서 간단히 작성.
 let attendanceReqs=JSON.parse(localStorage.getItem('sr-attendance')||'[]');
 let attMonthFilter=''; // 근태신청 월별 보기 필터 (YYYY-MM), ''이면 전체
+let attPage=1; // 근태신청 목록 페이지 (10건씩)
 let attOtMonth=new Date().toISOString().slice(0,7); // 특근·잔업 명단별 합계 기간 (YYYY-MM), 'all'이면 전체
 function saveAttendance(){
   _lastAttSave=Date.now();
@@ -9763,15 +9764,17 @@ function rAttendance(){
 
   <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div class="card-title" style="margin-bottom:0;white-space:nowrap">📅 월별 보기</div>
-    <select class="fi" id="at-month-filter" style="width:auto;flex:0 0 auto" onchange="attMonthFilter=this.value;render()">
+    <select class="fi" id="at-month-filter" style="width:auto;flex:0 0 auto" onchange="attMonthFilter=this.value;attPage=1;render()">
       <option value="" ${!attMonthFilter?'selected':''}>전체</option>
       ${monthOpts}
     </select>
     <span style="font-size:12px;color:var(--text3);margin-left:auto">${attMonthFilter?attMonthFilter+' · ':''}${list.length}건</span>
   </div>
 
+  ${rAttPersonStats(list)}
+
   ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>${attMonthFilter?'선택한 월에 신청된 근태가 없습니다':'신청된 근태가 없습니다'}</div></div>`:
-  list.map(a=>{
+  attPagedList(list).map(a=>{
     const st=a.status||'pending';
     return `
     <div class="card" style="margin-bottom:10px;padding:14px 16px">
@@ -9794,7 +9797,90 @@ function rAttendance(){
         </div>
       </div>
     </div>`;
-  }).join('')}`;
+  }).join('')+rAttPager(list.length)}`;
+}
+
+const ATT_PAGE_SIZE=10;
+// 현재 페이지(10건) 목록. 페이지 범위를 벗어나면 마지막 페이지로 맞춤
+function attPagedList(list){
+  const pages=Math.max(1,Math.ceil(list.length/ATT_PAGE_SIZE));
+  if(!(attPage>=1))attPage=1;
+  if(attPage>pages)attPage=pages;
+  return list.slice((attPage-1)*ATT_PAGE_SIZE,attPage*ATT_PAGE_SIZE);
+}
+// 페이지 이동 버튼
+function rAttPager(total){
+  const pages=Math.ceil(total/ATT_PAGE_SIZE);
+  if(pages<=1)return '';
+  const btn=(n,label,on,dis)=>`<button ${dis?'disabled':''} onclick="attPage=${n};render();window.scrollTo(0,document.getElementById('at-month-filter')?.getBoundingClientRect().top+window.scrollY-80||0)" style="min-width:36px;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;cursor:${dis?'default':'pointer'};border:1px solid ${on?'var(--blue)':'var(--border)'};background:${on?'var(--blue)':'var(--bg2)'};color:${on?'#fff':(dis?'var(--text3)':'var(--text)')};opacity:${dis?'.5':'1'}">${label}</button>`;
+  let from=Math.max(1,attPage-4), to=Math.min(pages,from+9);
+  from=Math.max(1,to-9);
+  const nums=[];
+  for(let i=from;i<=to;i++)nums.push(btn(i,i,i===attPage,false));
+  const s=(attPage-1)*ATT_PAGE_SIZE+1, e=Math.min(total,attPage*ATT_PAGE_SIZE);
+  return `
+  <div style="display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin:14px 0 6px">
+    ${btn(attPage-1,'◀',false,attPage<=1)}
+    ${nums.join('')}
+    ${btn(attPage+1,'▶',false,attPage>=pages)}
+  </div>
+  <div style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:10px">${s}–${e} / 총 ${total}건</div>`;
+}
+// 사람별 통계 (월별 보기 선택 기간 기준). 거부 건 제외, 승인대기·승인 포함
+function rAttPersonStats(list){
+  const cols=['연차','반차','조퇴','지각','외출','기타'];
+  const valid=list.filter(a=>(a.status||'pending')!=='rejected');
+  if(!valid.length)return '';
+  const by={};
+  valid.forEach(a=>{
+    const n=a.name||'-';
+    if(!by[n])by[n]={cnt:{},잔업:0,특근:0,total:0};
+    const t=a.type||'기타';
+    if(isAttOT(t))by[n][t]+=parseFloat(a.hours)||0;
+    else{const k=cols.includes(t)?t:'기타';by[n].cnt[k]=(by[n].cnt[k]||0)+1;}
+    by[n].total++;
+  });
+  const r1=v=>Math.round(v*10)/10;
+  const names=Object.keys(by).sort((x,y)=>by[y].total-by[x].total||x.localeCompare(y));
+  const tot={cnt:{},잔업:0,특근:0,total:0};
+  names.forEach(n=>{cols.forEach(c=>tot.cnt[c]=(tot.cnt[c]||0)+(by[n].cnt[c]||0));tot.잔업+=by[n].잔업;tot.특근+=by[n].특근;tot.total+=by[n].total;});
+  const th='padding:7px 8px;font-size:12px;font-weight:700;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border);text-align:center;white-space:nowrap';
+  const td='padding:7px 8px;font-size:13px;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap';
+  const cell=v=>v?v:'<span style="color:var(--text3)">-</span>';
+  return `
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0">👥 사람별 통계</div>
+      <span style="font-size:12px;color:var(--text3);margin-left:auto">${attMonthFilter?attMonthFilter:'전체 기간'} · 승인대기 포함 · 거부 제외</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="${th};text-align:left">이름</th>
+        ${cols.map(c=>`<th style="${th}">${c}</th>`).join('')}
+        <th style="${th};color:var(--purple)">잔업</th>
+        <th style="${th};color:var(--green)">특근</th>
+        <th style="${th}">신청 건수</th>
+      </tr></thead>
+      <tbody>
+        ${names.map(n=>`<tr>
+          <td style="${td};text-align:left;font-weight:600">${n}</td>
+          ${cols.map(c=>`<td style="${td}">${cell(by[n].cnt[c]?by[n].cnt[c]+'건':0)}</td>`).join('')}
+          <td style="${td};color:var(--purple)">${cell(by[n].잔업?r1(by[n].잔업)+'h':0)}</td>
+          <td style="${td};color:var(--green)">${cell(by[n].특근?r1(by[n].특근)+'h':0)}</td>
+          <td style="${td};font-weight:700">${by[n].total}건</td>
+        </tr>`).join('')}
+        <tr style="background:var(--blue-bg)">
+          <td style="${td};text-align:left;font-weight:700">합계 (${names.length}명)</td>
+          ${cols.map(c=>`<td style="${td};font-weight:700">${cell(tot.cnt[c]?tot.cnt[c]+'건':0)}</td>`).join('')}
+          <td style="${td};font-weight:700">${cell(tot.잔업?r1(tot.잔업)+'h':0)}</td>
+          <td style="${td};font-weight:700">${cell(tot.특근?r1(tot.특근)+'h':0)}</td>
+          <td style="${td};font-weight:800;color:var(--blue)">${tot.total}건</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>`;
 }
 
 // 특근·잔업 명단별 합계 (월별 / 전체). 거부된 건은 제외, 승인대기·승인 건 포함
