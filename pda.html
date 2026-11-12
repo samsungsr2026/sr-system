@@ -204,8 +204,20 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:url("data:im
 
     <div class="card" id="in-form-card" style="display:none">
       <div class="card-title">입고 정보</div>
+      <div class="fg" style="display:flex;gap:10px">
+        <div style="flex:1;min-width:0">
+          <label class="label">포장단위 수량 (수정 가능)</label>
+          <input class="inp" type="number" id="in-pack" min="0" inputmode="numeric" placeholder="1봉지 수량"
+            style="text-align:center;font-size:20px;font-weight:700" onfocus="this.select()" oninput="calcInQty()">
+        </div>
+        <div style="flex:1;min-width:0">
+          <label class="label">봉지 수량</label>
+          <input class="inp" type="number" id="in-bags" min="0" inputmode="numeric" placeholder="봉지 수"
+            style="text-align:center;font-size:20px;font-weight:700" onfocus="this.select()" oninput="calcInQty()">
+        </div>
+      </div>
       <div class="fg">
-        <label class="label">수량</label>
+        <label class="label">수량 <span id="in-calc-hint" style="font-weight:500;color:#1a6bff"></span></label>
         <div class="qty-wrap">
           <button class="qty-btn" onclick="adjQty(-1)">−</button>
           <input class="inp qty-inp" type="number" id="in-qty" value="1" min="1" inputmode="numeric">
@@ -932,8 +944,15 @@ function selectInItem(id) {
   } else {
     sel.value = '';
   }
-  document.getElementById('in-qty').select();
   document.getElementById('in-location').value = it.location || '-';
+  // 포장단위 수량 표시(이번 입고에 한해 수정 가능) + 봉지 수량 입력 → 수량 자동 계산 (2026-11)
+  const pack = Number(it.packUnit) || 0;
+  document.getElementById('in-pack').value = pack > 0 ? pack : '';
+  document.getElementById('in-bags').value = '';
+  calcInQty();
+  const foc = document.getElementById(pack > 0 ? 'in-bags' : 'in-pack');
+  foc.focus();
+  try { foc.select(); } catch (e) {}
   tst('✓ ' + it.name);
 }
 
@@ -941,6 +960,19 @@ function adjQty(d) {
   const el = document.getElementById('in-qty');
   const v = parseInt(el.value) || 1;
   el.value = Math.max(1, v + d);
+}
+
+// 포장단위 수량 × 봉지 수량 = 입고 수량 자동 계산. 둘 중 하나라도 비어 있으면 수량은 건드리지 않음(직접 입력 가능)
+function calcInQty() {
+  const pack = parseInt(document.getElementById('in-pack').value) || 0;
+  const bags = parseInt(document.getElementById('in-bags').value) || 0;
+  const hint = document.getElementById('in-calc-hint');
+  if (pack > 0 && bags > 0) {
+    document.getElementById('in-qty').value = pack * bags;
+    hint.textContent = `= ${pack.toLocaleString()} × ${bags.toLocaleString()}봉지 (자동계산)`;
+  } else {
+    hint.textContent = '';
+  }
 }
 
 // ── 입고 재고 반영: 품목 1개의 수량만 서버에서 "조건부 저장"으로 정확히 증감 (2026-10) ──
@@ -1049,6 +1081,9 @@ function resetInForm() {
   inEditingTxId = null;
   document.getElementById('in-code').value = '';
   document.getElementById('in-qty').value = 1;
+  document.getElementById('in-pack').value = '';
+  document.getElementById('in-bags').value = '';
+  document.getElementById('in-calc-hint').textContent = '';
   document.getElementById('in-producer').value = '';
   document.getElementById('in-location').value = '';
   document.getElementById('in-found').style.display = 'none';
@@ -1077,6 +1112,9 @@ function editInTx(id) {
     `금형번호: <span>${it.id}</span> · 부품번호: <span>${it.classNo || '-'}</span><br>현재 재고: <span>${it.qty.toLocaleString()}${it.unit}</span>`;
   document.getElementById('in-form-card').style.display = 'block';
   document.getElementById('in-qty').value = tx.qty;
+  document.getElementById('in-pack').value = Number(it.packUnit) > 0 ? Number(it.packUnit) : '';
+  document.getElementById('in-bags').value = '';
+  document.getElementById('in-calc-hint').textContent = '';
 
   const sel = document.getElementById('in-producer');
   const opt = Array.from(sel.options).find(o => o.value === tx.w);
