@@ -9722,14 +9722,22 @@ function rAttendance(){
       </div>
       <div class="fg" style="margin-bottom:0">
         <label class="fl">날짜 *</label>
-        <input type="date" class="fi" id="at-date" value="${new Date().toISOString().slice(0,10)}">
+        <input type="date" class="fi" id="at-date" value="${new Date().toISOString().slice(0,10)}" onchange="updateAttOtRangeInfo()">
       </div>
     </div>
     <div class="fg" id="at-ot-wrap" style="display:none">
       <label class="fl">시간 * (특근·잔업 시간)</label>
       <div style="display:flex;gap:6px;align-items:center">
-        <input type="number" class="fi" id="at-ot-hours" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="예: 2" style="max-width:140px">
+        <input type="number" class="fi" id="at-ot-hours" min="0.5" max="24" step="0.5" inputmode="decimal" placeholder="예: 2" style="max-width:140px" oninput="updateAttOtRangeInfo()">
         <span style="color:var(--text2);font-weight:700">시간</span>
+      </div>
+      <div id="at-ot-range-wrap" style="display:none;margin-top:10px">
+        <label class="fl">종료일 (선택 · 기간으로 신청할 때, 날짜 ~ 종료일 매일 같은 시간)</label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="date" class="fi" id="at-ot-date-to" style="max-width:180px" onchange="updateAttOtRangeInfo()">
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);cursor:pointer"><input type="checkbox" id="at-ot-skip-weekend" checked onchange="updateAttOtRangeInfo()"> 토·일 제외</label>
+        </div>
+        <div id="at-ot-range-info" style="font-size:12px;color:var(--blue);font-weight:700;margin-top:6px"></div>
       </div>
     </div>
     <div class="fg" id="at-time-wrap">
@@ -9998,10 +10006,35 @@ function onAttTypeChange(){
   const ot=isAttOT(document.getElementById('at-type')?.value||'');
   const show=(id,on)=>{const el=document.getElementById(id);if(el)el.style.display=on?'block':'none';};
   show('at-ot-wrap',ot);
+  show('at-ot-range-wrap',(document.getElementById('at-type')?.value||'')==='잔업');
+  updateAttOtRangeInfo();
   show('at-time-wrap',!ot);
   show('at-reason-wrap',!ot);
   if(ot)show('at-reason-custom-wrap',false);
   else show('at-reason-custom-wrap',document.getElementById('at-reason-sel')?.value==='직접입력');
+}
+// 잔업 기간 신청: 시작일~종료일 날짜 목록 (YYYY-MM-DD, 토·일 제외 선택). 최대 62일
+function attDateRange(from,to,skipWeekend){
+  const p=v=>{const [y,m,d]=v.split('-').map(Number);return new Date(y,m-1,d);};
+  const f=p(from), t=p(to), out=[];
+  if(isNaN(f)||isNaN(t)||t<f)return out;
+  for(let d=new Date(f),i=0;d<=t&&i<62;d.setDate(d.getDate()+1),i++){
+    const w=d.getDay();
+    if(skipWeekend&&(w===0||w===6))continue;
+    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  }
+  return out;
+}
+function updateAttOtRangeInfo(){
+  const el=document.getElementById('at-ot-range-info');
+  if(!el)return;
+  const from=document.getElementById('at-date')?.value||'';
+  const to=document.getElementById('at-ot-date-to')?.value||'';
+  if(!from||!to||(document.getElementById('at-type')?.value||'')!=='잔업'){el.textContent='';return;}
+  if(to<from){el.textContent='⚠️ 종료일이 날짜보다 빠릅니다';return;}
+  const days=attDateRange(from,to,document.getElementById('at-ot-skip-weekend')?.checked);
+  const h=parseFloat(document.getElementById('at-ot-hours')?.value||'');
+  el.textContent=days.length+'일'+(h>0?' × '+h+'시간 = 합 '+(Math.round(days.length*h*10)/10)+'시간':'')+' ('+from+' ~ '+to+')';
 }
 // 근태신청 작성 폼에서 시작~종료 선택 시 실시간으로 "합 N시간" 표시
 function updateAttHoursSum(){
@@ -10038,6 +10071,20 @@ function addAttendanceReq(){
   if(isAttOT(type)){
     const otHours=parseFloat(document.getElementById('at-ot-hours')?.value||'');
     if(!(otHours>0)||otHours>24){tst('시간을 입력해주세요');return;}
+    const dateTo=type==='잔업'?(document.getElementById('at-ot-date-to')?.value||''):'';
+    if(dateTo&&dateTo!==date){
+      if(dateTo<date){tst('종료일이 날짜보다 빠릅니다');return;}
+      const days=attDateRange(date,dateTo,document.getElementById('at-ot-skip-weekend')?.checked);
+      if(!days.length){tst('신청할 날짜가 없습니다 (토·일 제외 확인)');return;}
+      const h=Math.round(otHours*10)/10, now=Date.now();
+      const recs=days.map((d,i)=>({id:now+i,ts:now+i,name,type,date:d,timeFrom:'',timeTo:'',hours:h,reason:'',status:'pending'}));
+      attendanceReqs.unshift(...recs.slice().reverse());
+      saveAttendance();
+      addLog('other','근태신청 등록 — '+name, `구분: ${type} / 기간: ${days[0]} ~ ${days[days.length-1]} (${days.length}일 × ${h}시간 = 합 ${Math.round(days.length*h*10)/10}시간) (승인대기)`);
+      tst('📨 '+days.length+'일 신청 완료 · 마스터 승인 대기 중');
+      render();
+      return;
+    }
     rec={id:Date.now(),ts:Date.now(),name,type,date,timeFrom:'',timeTo:'',hours:Math.round(otHours*10)/10,reason:'',status:'pending'};
   }else{
     rec={id:Date.now(),ts:Date.now(),name,type,date,timeFrom,timeTo,hours,reason,status:'pending'};
