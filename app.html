@@ -9837,14 +9837,17 @@ function rAttCalendar(list,typeBg,typeColor){
   const first=new Date(y,m-1,1), days=new Date(y,m,0).getDate(), start=first.getDay();
   const todayStr=(()=>{const d=new Date();return attYm(d)+'-'+String(d.getDate()).padStart(2,'0');})();
   const byDate={};
-  list.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')||(a.ts-b.ts)).forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
+  const tOrd=['연차','반차','조퇴','지각','외출','기타','특근','잔업'];
+  const tIdx=t=>{const i=tOrd.indexOf(t||'기타');return i<0?5:i;};
+  list.slice().sort((a,b)=>tIdx(a.type)-tIdx(b.type)||(a.name||'').localeCompare(b.name||'')||(a.ts-b.ts)).forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
   const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const chip=a=>{
     const st=a.status||'pending';
     const h=(a.hours!=null&&a.hours!==''&&parseFloat(a.hours)>0)?' '+(Math.round(parseFloat(a.hours)*10)/10)+'h':'';
-    const txt=(a.name||'')+' '+(a.type||'기타')+h;
-    const tip=txt+(a.timeFrom&&a.timeTo?' ('+a.timeFrom+'~'+a.timeTo+')':'')+' · '+(st==='pending'?'승인대기':st==='approved'?'승인됨':'거부됨')+(a.reason?' · '+a.reason:'');
-    return `<div title="${esc(tip)}" style="background:${typeBg[a.type]||'var(--bg3)'};color:${typeColor[a.type]||'var(--text2)'};font-size:11px;line-height:1.3;font-weight:700;padding:2px 4px;border-radius:5px;margin-top:3px;word-break:keep-all;overflow-wrap:anywhere;${st==='pending'?'border:1px dashed currentColor;':'border:1px solid transparent;'}${st==='rejected'?'text-decoration:line-through;opacity:.45;':''}">${st==='pending'?'⏳':''}${esc(txt)}</div>`;
+    const txt=(a.name||'')+h; // 구분은 줄 앞에 한 번만 표시
+    const full=(a.name||'')+' '+(a.type||'기타')+h;
+    const tip=full+(a.timeFrom&&a.timeTo?' ('+a.timeFrom+'~'+a.timeTo+')':'')+' · '+(st==='pending'?'승인대기':st==='approved'?'승인됨':'거부됨')+(a.reason?' · '+a.reason:'');
+    return `<div title="${esc(tip)}" style="background:${typeBg[a.type]||'var(--bg3)'};color:${typeColor[a.type]||'var(--text2)'};display:inline-block;font-size:11px;line-height:1.3;font-weight:700;padding:1px 4px;border-radius:5px;word-break:keep-all;overflow-wrap:anywhere;${st==='pending'?'border:1px dashed currentColor;':'border:1px solid transparent;'}${st==='rejected'?'text-decoration:line-through;opacity:.45;':''}">${st==='pending'?'⏳':''}${esc(txt)}</div>`;
   };
   const cells=[];
   for(let i=0;i<start;i++)cells.push('<td style="background:var(--bg3);opacity:.4;border:1px solid var(--border)"></td>');
@@ -9855,7 +9858,7 @@ function rAttCalendar(list,typeBg,typeColor){
     const isToday=ds===todayStr;
     cells.push(`<td style="vertical-align:top;height:86px;padding:3px;border:1px solid var(--border);${isToday?'box-shadow:inset 0 0 0 2px var(--blue);':''}overflow:hidden">
       <div style="font-size:12px;font-weight:700;color:${w===0?'var(--red)':w===6?'var(--blue)':'var(--text2)'}">${d}${isToday?' <span style="font-size:10px;color:var(--blue)">오늘</span>':''}</div>
-      ${items.map(chip).join('')}
+      ${tOrd.concat(['__etc']).map(t=>{const g=items.filter(a=>t==='__etc'?!tOrd.includes(a.type||'기타'):(a.type||'기타')===t);return g.length?`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-top:3px"><span style="font-size:10px;font-weight:800;color:${typeColor[t]||'var(--text2)'};margin-right:1px">${t==='__etc'?'기타':t}</span>${g.map(chip).join('')}</div>`:'';}).join('')}
     </td>`);
   }
   while(cells.length%7)cells.push('<td style="background:var(--bg3);opacity:.4;border:1px solid var(--border)"></td>');
