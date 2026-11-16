@@ -9787,9 +9787,7 @@ function rAttendance(){
     <span style="font-size:12px;color:var(--text3);margin-left:auto">${attMonthFilter?attMonthFilter+' · ':''}${list.length}건</span>
   </div>
 
-  ${rAttPersonStats(list)}
-
-  ${attView==='cal'?rAttCalendar(list,typeBg,typeColor):!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>${attMonthFilter?'선택한 월에 신청된 근태가 없습니다':'신청된 근태가 없습니다'}</div></div>`:
+  ${attView==='cal'?rAttCalendar(list,typeBg,typeColor)+rAttPersonStats(list):rAttPersonStats(list)+(!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>${attMonthFilter?'선택한 월에 신청된 근태가 없습니다':'신청된 근태가 없습니다'}</div></div>`:
   attPagedList(list).map(a=>{
     const st=a.status||'pending';
     return `
@@ -9814,7 +9812,7 @@ function rAttendance(){
         </div>
       </div>
     </div>`;
-  }).join('')+rAttPager(list.length)}`;
+  }).join('')+rAttPager(list.length))}`;
 }
 
 // 로컬 날짜 기준 YYYY-MM
