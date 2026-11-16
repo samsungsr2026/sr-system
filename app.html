@@ -870,6 +870,7 @@ let dailyReports=JSON.parse(localStorage.getItem('sr-dailyreport')||'[]');
 let attendanceReqs=JSON.parse(localStorage.getItem('sr-attendance')||'[]');
 let attMonthFilter=''; // 근태신청 월별 보기 필터 (YYYY-MM), ''이면 전체
 let attPage=1; // 근태신청 목록 페이지 (10건씩)
+let attView=(()=>{try{return localStorage.getItem('sr-att-view')||'cal';}catch(e){return 'cal';}})(); // 근태 현황 보기: 'cal' 달력 / 'list' 목록
 let attOtMonth=new Date().toISOString().slice(0,7); // 특근·잔업 명단별 합계 기간 (YYYY-MM), 'all'이면 전체
 function saveAttendance(){
   _lastAttSave=Date.now();
@@ -9682,6 +9683,7 @@ function rAttendance(){
   const statusColor={pending:'var(--amber)',approved:'var(--green)',rejected:'var(--red)'};
   const statusLabel={pending:'⏳ 승인대기',approved:'✅ 승인됨',rejected:'🚫 거부됨'};
   const allList=(attendanceReqs||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts-a.ts));
+  if(attView==='cal'&&!attMonthFilter)attMonthFilter=attYm(new Date()); // 달력은 한 달 단위
   const list=attMonthFilter?allList.filter(a=>(a.date||'').slice(0,7)===attMonthFilter):allList;
   const monthSet=new Set(allList.map(a=>(a.date||'').slice(0,7)).filter(Boolean));
   if(attMonthFilter)monthSet.add(attMonthFilter); // 선택된 달에 데이터가 없어도 옵션에는 남겨둠
@@ -9773,16 +9775,21 @@ function rAttendance(){
 
   <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div class="card-title" style="margin-bottom:0;white-space:nowrap">📅 월별 보기</div>
+    ${attView==='cal'?`<button onclick="attShiftMonth(-1)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-weight:700;cursor:pointer">◀</button>`:''}
     <select class="fi" id="at-month-filter" style="width:auto;flex:0 0 auto" onchange="attMonthFilter=this.value;attPage=1;render()">
-      <option value="" ${!attMonthFilter?'selected':''}>전체</option>
+      ${attView==='cal'?'':`<option value="" ${!attMonthFilter?'selected':''}>전체</option>`}
       ${monthOpts}
     </select>
+    ${attView==='cal'?`<button onclick="attShiftMonth(1)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-weight:700;cursor:pointer">▶</button>`:''}
+    <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      ${[['cal','📅 달력'],['list','📋 목록']].map(([v,l])=>`<button onclick="setAttView('${v}')" style="border:none;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;background:${attView===v?'var(--blue)':'var(--bg2)'};color:${attView===v?'#fff':'var(--text2)'}">${l}</button>`).join('')}
+    </div>
     <span style="font-size:12px;color:var(--text3);margin-left:auto">${attMonthFilter?attMonthFilter+' · ':''}${list.length}건</span>
   </div>
 
   ${rAttPersonStats(list)}
 
-  ${!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>${attMonthFilter?'선택한 월에 신청된 근태가 없습니다':'신청된 근태가 없습니다'}</div></div>`:
+  ${attView==='cal'?rAttCalendar(list,typeBg,typeColor):!list.length?`<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:36px;margin-bottom:12px">📋</div><div>${attMonthFilter?'선택한 월에 신청된 근태가 없습니다':'신청된 근태가 없습니다'}</div></div>`:
   attPagedList(list).map(a=>{
     const st=a.status||'pending';
     return `
@@ -9808,6 +9815,64 @@ function rAttendance(){
       </div>
     </div>`;
   }).join('')+rAttPager(list.length)}`;
+}
+
+// 로컬 날짜 기준 YYYY-MM
+function attYm(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function setAttView(v){
+  attView=v;
+  try{localStorage.setItem('sr-att-view',v);}catch(e){}
+  attPage=1;
+  render();
+}
+function attShiftMonth(delta){
+  const [y,m]=(attMonthFilter||attYm(new Date())).split('-').map(Number);
+  attMonthFilter=attYm(new Date(y,m-1+delta,1));
+  attPage=1;
+  render();
+}
+// 근태 현황 월별 달력 (일~토). 승인대기는 점선 테두리, 거부는 취소선
+function rAttCalendar(list,typeBg,typeColor){
+  const [y,m]=attMonthFilter.split('-').map(Number);
+  const first=new Date(y,m-1,1), days=new Date(y,m,0).getDate(), start=first.getDay();
+  const todayStr=(()=>{const d=new Date();return attYm(d)+'-'+String(d.getDate()).padStart(2,'0');})();
+  const byDate={};
+  list.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')||(a.ts-b.ts)).forEach(a=>{(byDate[a.date]=byDate[a.date]||[]).push(a);});
+  const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const chip=a=>{
+    const st=a.status||'pending';
+    const h=(a.hours!=null&&a.hours!==''&&parseFloat(a.hours)>0)?' '+(Math.round(parseFloat(a.hours)*10)/10)+'h':'';
+    const txt=(a.name||'')+' '+(a.type||'기타')+h;
+    const tip=txt+(a.timeFrom&&a.timeTo?' ('+a.timeFrom+'~'+a.timeTo+')':'')+' · '+(st==='pending'?'승인대기':st==='approved'?'승인됨':'거부됨')+(a.reason?' · '+a.reason:'');
+    return `<div title="${esc(tip)}" style="background:${typeBg[a.type]||'var(--bg3)'};color:${typeColor[a.type]||'var(--text2)'};font-size:11px;line-height:1.3;font-weight:700;padding:2px 4px;border-radius:5px;margin-top:3px;word-break:keep-all;overflow-wrap:anywhere;${st==='pending'?'border:1px dashed currentColor;':'border:1px solid transparent;'}${st==='rejected'?'text-decoration:line-through;opacity:.45;':''}">${st==='pending'?'⏳':''}${esc(txt)}</div>`;
+  };
+  const cells=[];
+  for(let i=0;i<start;i++)cells.push('<td style="background:var(--bg3);opacity:.4;border:1px solid var(--border)"></td>');
+  for(let d=1;d<=days;d++){
+    const ds=attMonthFilter+'-'+String(d).padStart(2,'0');
+    const w=(start+d-1)%7;
+    const items=byDate[ds]||[];
+    const isToday=ds===todayStr;
+    cells.push(`<td style="vertical-align:top;height:86px;padding:3px;border:1px solid var(--border);${isToday?'box-shadow:inset 0 0 0 2px var(--blue);':''}overflow:hidden">
+      <div style="font-size:12px;font-weight:700;color:${w===0?'var(--red)':w===6?'var(--blue)':'var(--text2)'}">${d}${isToday?' <span style="font-size:10px;color:var(--blue)">오늘</span>':''}</div>
+      ${items.map(chip).join('')}
+    </td>`);
+  }
+  while(cells.length%7)cells.push('<td style="background:var(--bg3);opacity:.4;border:1px solid var(--border)"></td>');
+  const rows=[];
+  for(let i=0;i<cells.length;i+=7)rows.push('<tr>'+cells.slice(i,i+7).join('')+'</tr>');
+  const wd=['일','월','화','수','목','금','토'];
+  return `
+  <div class="card" style="margin-bottom:16px;padding:12px">
+    <div style="font-size:16px;font-weight:800;margin-bottom:10px">${y}년 ${m}월</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <thead><tr>${wd.map((n,i)=>`<th style="padding:6px 0;font-size:12px;font-weight:700;background:var(--bg3);border:1px solid var(--border);color:${i===0?'var(--red)':i===6?'var(--blue)':'var(--text2)'}">${n}</th>`).join('')}</tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">⏳ 점선 = 승인대기 · 취소선 = 거부 · 승인/삭제는 📋 목록에서</div>
+  </div>`;
 }
 
 const ATT_PAGE_SIZE=10;
